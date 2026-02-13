@@ -10,6 +10,7 @@ A command-line tool for specialized DeFi operations on **Base, Citrea, HyperEVM,
 - **Multi-Chain Support**: seamlessly interact with Base, Citrea, HyperEVM, and Monad.
 - **ETH & Token Transfers**: Send native assets or any ERC-20 token with a simple command.
 - **Fibrous Aggregation**: Execute token swaps with optimal routing and auto-slippage protection.
+- **Transaction Status**: Check the status of any transaction hash and get a block explorer link.
 - **Automated Auth Flow**: One-time email OTP login provisions a persistent server wallet linked to your user profile.
 - **JSON Output**: All commands support `--json` for easy integration into scripts and pipelines.
 
@@ -136,7 +137,19 @@ npx fibx trade 1 MON USDC --chain monad
 **Options:**
 
 - `--slippage <number>`: Set slippage tolerance (default: 0.5%)
+- `--approve-max`: Approve maximum amount (infinite approval) instead of exact amount (default: false)
 - `--json`: Output result as JSON
+
+### Check Transaction Status
+
+Check the status of a transaction and get the explorer link.
+
+```bash
+npx fibx tx-status <hash>
+# Example:
+npx fibx tx-status 0x123...abc
+npx fibx tx-status 0x456...def --chain monad
+```
 
 ### View Wallet Address
 

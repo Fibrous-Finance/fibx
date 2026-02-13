@@ -13,6 +13,7 @@ import { outputResult, outputError, withSpinner, type OutputOptions } from "../.
 
 interface TradeOptions extends OutputOptions {
 	slippage: number;
+	approveMax?: boolean;
 }
 
 export async function tradeCommand(
@@ -74,7 +75,10 @@ export async function tradeCommand(
 				await withSpinner(
 					"Approving token spend...",
 					async () => {
-						const approveData = encodeApprove(routerAddress, amountBaseUnits);
+						const amountToApprove = opts.approveMax
+							? 115792089237316195423570985008687907853269984665640564039457584007913129639935n // Max Uint256
+							: amountBaseUnits;
+						const approveData = encodeApprove(routerAddress, amountToApprove);
 						return walletClient.sendTransaction({
 							to: tokenIn.address as Address,
 							data: approveData,

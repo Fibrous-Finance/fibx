@@ -9,6 +9,7 @@ import { balanceCommand } from "./commands/wallet/balance.js";
 import { sendCommand } from "./commands/wallet/send.js";
 import { tradeCommand } from "./commands/trade/swap.js";
 import { walletsCommand } from "./commands/wallet/list.js";
+import { txStatusCommand } from "./commands/chain/transaction.js";
 
 const program = new Command();
 
@@ -44,6 +45,15 @@ program
 	.action(async (_opts, cmd) => {
 		const globalOpts = cmd.parent!.opts();
 		await statusCommand({ ...globalOpts, json: globalOpts.json });
+	});
+
+program
+	.command("tx-status")
+	.description("Check transaction status and receipt")
+	.argument("<hash>", "Transaction hash (0x...)")
+	.action(async (hash, _opts, cmd) => {
+		const globalOpts = cmd.parent!.opts();
+		await txStatusCommand(hash, { ...globalOpts, json: globalOpts.json });
 	});
 
 program
@@ -87,12 +97,14 @@ program
 	.argument("<from>", "Source token (symbol or address)")
 	.argument("<to>", "Destination token (symbol or address)")
 	.option("-s, --slippage <number>", "Slippage tolerance", "0.5")
+	.option("--approve-max", "Approve maximum amount instead of exact amount", false)
 	.action(async (amount, from, to, opts, cmd) => {
 		const globalOpts = cmd.parent!.opts();
 		await tradeCommand(amount, from, to, {
 			...globalOpts,
 			json: globalOpts.json,
 			slippage: parseFloat(opts.slippage),
+			approveMax: opts.approveMax,
 		});
 	});
 
