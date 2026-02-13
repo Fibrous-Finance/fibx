@@ -1,5 +1,5 @@
-import { FIBROUS_GRAPH_URL, ACTIVE_NETWORK } from "../../lib/config.js";
-import { getChainConfig } from "../chain/constants.js";
+import type { ChainConfig } from "../chain/constants.js";
+import { FIBROUS_GRAPH_URL } from "../../lib/config.js";
 import { ErrorCode, FibxError } from "../../lib/errors.js";
 
 interface TokenInput {
@@ -17,11 +17,10 @@ export interface BalanceResponse {
 	balance: string;
 }
 
-const chain = getChainConfig(ACTIVE_NETWORK);
-
 export async function getBalances(
 	tokens: { address: string; decimals: number }[],
-	walletAddress: string
+	walletAddress: string,
+	chain: ChainConfig
 ): Promise<BalanceResponse[]> {
 	try {
 		const payload: BalanceRequest = {

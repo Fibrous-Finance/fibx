@@ -2,23 +2,20 @@ import { createPublicClient, createWalletClient, http, toHex } from "viem";
 import type { PrivyClient } from "@privy-io/node";
 
 import type { Session } from "../auth/session.js";
-import { ACTIVE_NETWORK } from "../../lib/config.js";
-import { getChainConfig } from "./constants.js";
+import type { ChainConfig } from "./constants.js";
 
-const chain = getChainConfig(ACTIVE_NETWORK);
+export function getPublicClient(chain: ChainConfig) {
+	return createPublicClient({
+		chain: chain.viemChain,
+		transport: http(chain.rpcUrl),
+	});
+}
 
-export const publicClient = createPublicClient({
-	chain: chain.viemChain,
-	transport: http(chain.rpcUrl),
-});
-
-// Custom Viem Account implementation that wraps Privy Server API
 function toPrivyViemAccount(privy: PrivyClient, walletId: string, address: string) {
 	return {
 		address: address as `0x${string}`,
 		type: "local" as const,
 		source: "privy" as const,
-		// Sufficient for most viem operations
 		publicKey: address as `0x${string}`,
 		async signTransaction(transaction: Record<string, unknown>) {
 			const { chainId, ...txParams } = transaction;
@@ -40,11 +37,12 @@ function toPrivyViemAccount(privy: PrivyClient, walletId: string, address: strin
 				type: txParams.type === "eip1559" ? 2 : txParams.type === "legacy" ? 0 : undefined,
 			};
 
-			Object.keys(privyTx).forEach(
-				(key) => (privyTx as any)[key] === undefined && delete (privyTx as any)[key]
-			);
+			Object.keys(privyTx).forEach((key) => {
+				const k = key as keyof typeof privyTx;
+				if (privyTx[k] === undefined) delete privyTx[k];
+			});
 
-			const rpcInput: any = {
+			const rpcInput = {
 				params: { transaction: privyTx },
 				method: "eth_signTransaction",
 			};
@@ -65,7 +63,7 @@ function toPrivyViemAccount(privy: PrivyClient, walletId: string, address: strin
 				messageContent = message as string | Uint8Array;
 			}
 
-			const rpcInput: any = {
+			const rpcInput = {
 				message: messageContent,
 			};
 
@@ -74,8 +72,11 @@ function toPrivyViemAccount(privy: PrivyClient, walletId: string, address: strin
 		},
 
 		async signTypedData(typedData: Record<string, unknown>) {
-			const rpcInput: any = {
-				...typedData,
+			const rpcInput = {
+				params: {
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					typed_data: typedData as any,
+				},
 			};
 
 			const response = await privy.wallets().ethereum().signTypedData(walletId, rpcInput);
@@ -84,7 +85,7 @@ function toPrivyViemAccount(privy: PrivyClient, walletId: string, address: strin
 	};
 }
 
-export function getWalletClient(privy: PrivyClient, session: Session) {
+export function getWalletClient(privy: PrivyClient, session: Session, chain: ChainConfig) {
 	const account = toPrivyViemAccount(privy, session.walletId, session.walletAddress);
 
 	return createWalletClient({

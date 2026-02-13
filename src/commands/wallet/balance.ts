@@ -1,8 +1,7 @@
 import type { Address } from "viem";
-import { requireSession } from "../../services/auth/session.js";
-import { publicClient } from "../../services/chain/client.js";
+import { loadSession } from "../../services/auth/session.js";
+import { getPublicClient } from "../../services/chain/client.js";
 import { getChainConfig } from "../../services/chain/constants.js";
-import { ACTIVE_NETWORK } from "../../lib/config.js";
 import { getTokens } from "../../services/fibrous/tokens.js";
 import { getBalances } from "../../services/fibrous/balances.js";
 import { formatAmount } from "../../lib/parseAmount.js";
@@ -10,19 +9,27 @@ import { outputResult, outputError, withSpinner, type OutputOptions } from "../.
 
 export async function balanceCommand(opts: OutputOptions): Promise<void> {
 	try {
-		const chain = getChainConfig(ACTIVE_NETWORK);
-		const session = requireSession();
+		const session = loadSession();
+		if (!session) {
+			outputError("No active session. Run 'fibx auth login <email>' first.", opts);
+			return;
+		}
+
+		const globalOpts = opts as unknown as { chain?: string };
+		const chainName = globalOpts.chain || "base";
+		const chainConfig = getChainConfig(chainName);
+		const client = getPublicClient(chainConfig);
 		const wallet = session.walletAddress as Address;
 
-		const tokensMap = await getTokens();
+		const tokensMap = await getTokens(chainConfig);
 		const tokenList = Object.values(tokensMap);
 
 		const balances = await withSpinner(
-			"Fetching balances...",
+			`Fetching balances on ${chainConfig.name}...`,
 			async () => {
 				const [ethBalance, tokenBalances] = await Promise.all([
-					publicClient.getBalance({ address: wallet }),
-					getBalances(tokenList, wallet),
+					client.getBalance({ address: wallet }),
+					getBalances(tokenList, wallet, chainConfig),
 				]);
 
 				return {
@@ -35,7 +42,6 @@ export async function balanceCommand(opts: OutputOptions): Promise<void> {
 
 		const result: Record<string, string> = {};
 
-		// Always show ETH first
 		result["ETH"] = balances.eth;
 
 		for (const item of balances.tokens) {
@@ -52,7 +58,7 @@ export async function balanceCommand(opts: OutputOptions): Promise<void> {
 		outputResult(
 			{
 				wallet: session.walletAddress,
-				chain: chain.name,
+				chain: chainConfig.name,
 				...result,
 			},
 			opts

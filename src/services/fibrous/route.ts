@@ -1,7 +1,7 @@
 import type { Address } from "viem";
 import { encodeFunctionData } from "viem";
-import { FIBROUS_BASE_URL, ACTIVE_NETWORK, DEFAULT_SLIPPAGE } from "../../lib/config.js";
-import { getChainConfig } from "../chain/constants.js";
+import { FIBROUS_BASE_URL, DEFAULT_SLIPPAGE } from "../../lib/config.js";
+import type { ChainConfig } from "../chain/constants.js";
 import { ErrorCode, FibxError } from "../../lib/errors.js";
 
 export interface RouteToken {
@@ -52,8 +52,10 @@ export interface RouteParams {
 	destination: string;
 }
 
-export async function getRouteAndCallData(params: RouteParams): Promise<RouteAndCallDataResponse> {
-	const chain = getChainConfig(ACTIVE_NETWORK);
+export async function getRouteAndCallData(
+	params: RouteParams,
+	chain: ChainConfig
+): Promise<RouteAndCallDataResponse> {
 	const slippage = params.slippage ?? DEFAULT_SLIPPAGE;
 
 	const url = new URL(`${FIBROUS_BASE_URL}/${chain.fibrousNetwork}/v2/routeAndCallData`);
@@ -87,8 +89,10 @@ export async function getRouteAndCallData(params: RouteParams): Promise<RouteAnd
 	}
 }
 
-export function encodeSwapCalldata(calldata: RouteAndCallDataResponse["calldata"]): `0x${string}` {
-	const chain = getChainConfig(ACTIVE_NETWORK);
+export function encodeSwapCalldata(
+	calldata: RouteAndCallDataResponse["calldata"],
+	chain: ChainConfig
+): `0x${string}` {
 	const { route, swap_parameters } = calldata;
 
 	return encodeFunctionData({

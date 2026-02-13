@@ -1,5 +1,5 @@
-import { FIBROUS_BASE_URL, ACTIVE_NETWORK } from "../../lib/config.js";
-import { getChainConfig } from "../chain/constants.js";
+import { FIBROUS_BASE_URL } from "../../lib/config.js";
+import type { ChainConfig } from "../chain/constants.js";
 import { ErrorCode, FibxError } from "../../lib/errors.js";
 
 interface HealthResponse {
@@ -11,9 +11,8 @@ interface HealthResponse {
 	};
 }
 
-export async function checkHealth(): Promise<HealthResponse> {
+export async function checkHealth(chain: ChainConfig): Promise<HealthResponse> {
 	try {
-		const chain = getChainConfig(ACTIVE_NETWORK);
 		const url = `${FIBROUS_BASE_URL}/${chain.fibrousNetwork}/v2/healthcheck`;
 		const res = await fetch(url);
 

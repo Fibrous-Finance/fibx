@@ -1,12 +1,12 @@
 import type { Address } from "viem";
 import { requireSession } from "../../services/auth/session.js";
 import { getPrivyClient } from "../../services/privy/client.js";
-import { getWalletClient } from "../../services/chain/client.js";
+import { getWalletClient, getPublicClient } from "../../services/chain/client.js";
 import { getChainConfig } from "../../services/chain/constants.js";
 import { getAllowance, encodeApprove } from "../../services/chain/erc20.js";
 import { resolveToken } from "../../services/fibrous/tokens.js";
 import { getRouteAndCallData, encodeSwapCalldata } from "../../services/fibrous/route.js";
-import { ACTIVE_NETWORK, DEFAULT_SLIPPAGE } from "../../lib/config.js";
+import { DEFAULT_SLIPPAGE } from "../../lib/config.js";
 import { validateAmount } from "../../lib/validation.js";
 import { parseAmount, formatAmount } from "../../lib/parseAmount.js";
 import { outputResult, outputError, withSpinner, type OutputOptions } from "../../lib/format.js";
@@ -24,14 +24,17 @@ export async function tradeCommand(
 	try {
 		validateAmount(amount);
 
-		const chain = getChainConfig(ACTIVE_NETWORK);
+		const globalOpts = opts as unknown as { chain?: string };
+		const chainName = globalOpts.chain || "base";
+		const chain = getChainConfig(chainName);
+
 		const session = requireSession();
 		const privy = getPrivyClient();
 		const wallet = session.walletAddress as Address;
 
 		const [tokenIn, tokenOut] = await withSpinner(
-			"Resolving tokens...",
-			async () => Promise.all([resolveToken(from), resolveToken(to)]),
+			`Resolving tokens on ${chain.name}...`,
+			async () => Promise.all([resolveToken(from, chain), resolveToken(to, chain)]),
 			opts
 		);
 
@@ -42,22 +45,26 @@ export async function tradeCommand(
 		const routeData = await withSpinner(
 			"Finding best route...",
 			async () => {
-				return getRouteAndCallData({
-					amount: amountBaseUnits.toString(),
-					tokenInAddress: tokenIn.address,
-					tokenOutAddress: tokenOut.address,
-					slippage: opts.slippage ?? DEFAULT_SLIPPAGE,
-					destination: wallet,
-				});
+				return getRouteAndCallData(
+					{
+						amount: amountBaseUnits.toString(),
+						tokenInAddress: tokenIn.address,
+						tokenOutAddress: tokenOut.address,
+						slippage: opts.slippage ?? DEFAULT_SLIPPAGE,
+						destination: wallet,
+					},
+					chain
+				);
 			},
 			opts
 		);
 
 		const routerAddress = routeData.router_address as Address;
-		const walletClient = getWalletClient(privy, session);
+		const walletClient = getWalletClient(privy, session, chain);
 
 		if (!isNativeInput) {
 			const currentAllowance = await getAllowance(
+				getPublicClient(chain),
 				tokenIn.address as Address,
 				wallet,
 				routerAddress
@@ -82,7 +89,7 @@ export async function tradeCommand(
 		const hash = await withSpinner(
 			`Swapping ${amount} ${tokenIn.symbol} → ${tokenOut.symbol}...`,
 			async () => {
-				const swapData = encodeSwapCalldata(routeData.calldata);
+				const swapData = encodeSwapCalldata(routeData.calldata, chain);
 				return walletClient.sendTransaction({
 					to: routerAddress,
 					data: swapData,

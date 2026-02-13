@@ -1,13 +1,14 @@
 # fibx
 
-A command-line tool for specialized DeFi operations on **Base**, powered by [Fibrous Finance](https://fibrous.finance) aggregation and [Privy](https://privy.io) Server Wallets.
+A command-line tool for specialized DeFi operations on **Base, Citrea, HyperEVM, and Monad**, powered by [Fibrous Finance](https://fibrous.finance) aggregation and [Privy](https://privy.io) Server Wallets.
 
 [![npm version](https://badge.fury.io/js/fibx.svg)](https://badge.fury.io/js/fibx)
 
 ## Features
 
 - **Privy Server Wallets**: Uses "Agentic" server-side wallets (ownerless) for seamless, automated signing without user interaction.
-- **ETH & Token Transfers**: Send ETH or any ERC-20 token with a simple command.
+- **Multi-Chain Support**: seamlessly interact with Base, Citrea, HyperEVM, and Monad.
+- **ETH & Token Transfers**: Send native assets or any ERC-20 token with a simple command.
 - **Fibrous Aggregation**: Execute token swaps with optimal routing and auto-slippage protection.
 - **Automated Auth Flow**: One-time email OTP login provisions a persistent server wallet linked to your user profile.
 - **JSON Output**: All commands support `--json` for easy integration into scripts and pipelines.
@@ -76,12 +77,23 @@ npx fibx status
 
 ## Usage
 
+### Global Options
+
+You can specify the target chain for any command using the `-c` or `--chain` flag.
+
+**Supported Chains:** `base` (default), `citrea`, `hyperevm`, `monad`
+
+```bash
+npx fibx status --chain monad
+```
+
 ### Check Balance
 
-View your ETH and USDC balances on Base:
+View your balances on the selected chain:
 
 ```bash
 npx fibx balance
+npx fibx balance --chain citrea
 ```
 
 ### Send Tokens
@@ -114,8 +126,11 @@ npx fibx trade <amount> <from_token> <to_token>
 # Swap 0.0001 ETH to USDC
 npx fibx trade 0.0001 ETH USDC
 
-# Swap 20 USDC to DAI
+# Swap 20 USDC to DAI on Base
 npx fibx trade 20 USDC DAI
+
+# Swap on Monad
+npx fibx trade 1 MON USDC --chain monad
 ```
 
 **Options:**
@@ -148,4 +163,4 @@ This CLI uses a **Server Wallet** architecture:
 
 1.  **Privy**: Manages the embedded wallets. We use "Ownerless" wallets (Agents) that are controlled via the Privy App Secret, allowing the CLI to sign transactions programmatically without requiring a user-side browser or JWT.
 2.  **Viem**: Handles all blockchain interactions (RPC calls, transaction signing) using a custom Privy-backed account, abstracted in the `services/chain` module.
-3.  **Fibrous**: Provides the routing and calldata for optimal token swaps on Base, encapsulated in the `services/fibrous` module.
+3.  **Fibrous**: Provides the routing and calldata for optimal token swaps on all supported chains, encapsulated in the `services/fibrous` module.

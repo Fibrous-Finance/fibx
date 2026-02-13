@@ -16,6 +16,7 @@ program
 	.name("fibx")
 	.description("Fibrous DeFi CLI — wallet, transfer, swap")
 	.version("0.1.2")
+	.option("-c, --chain <chain>", "Chain to use (base, citrea, hyperevm, monad)", "base")
 	.option("--json", "Output results as JSON", false);
 
 const auth = program.command("auth").description("Authentication commands");
@@ -42,7 +43,7 @@ program
 	.description("Check auth status and Fibrous health")
 	.action(async (_opts, cmd) => {
 		const globalOpts = cmd.parent!.opts();
-		await statusCommand({ json: globalOpts.json });
+		await statusCommand({ ...globalOpts, json: globalOpts.json });
 	});
 
 program
@@ -65,7 +66,7 @@ program
 	.description("Show ETH and USDC balances")
 	.action(async (_opts, cmd) => {
 		const globalOpts = cmd.parent!.opts();
-		await balanceCommand({ json: globalOpts.json });
+		await balanceCommand({ ...globalOpts, json: globalOpts.json });
 	});
 
 program
@@ -76,7 +77,7 @@ program
 	.argument("[token]", "Token symbol or address", "ETH")
 	.action(async (amount, recipient, token, _opts, cmd) => {
 		const globalOpts = cmd.parent!.opts();
-		await sendCommand(amount, recipient, token, { json: globalOpts.json });
+		await sendCommand(amount, recipient, token, { ...globalOpts, json: globalOpts.json });
 	});
 
 program
@@ -89,6 +90,7 @@ program
 	.action(async (amount, from, to, opts, cmd) => {
 		const globalOpts = cmd.parent!.opts();
 		await tradeCommand(amount, from, to, {
+			...globalOpts,
 			json: globalOpts.json,
 			slippage: parseFloat(opts.slippage),
 		});

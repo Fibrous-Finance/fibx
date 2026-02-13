@@ -1,5 +1,5 @@
-import { FIBROUS_GRAPH_URL, ACTIVE_NETWORK } from "../../lib/config.js";
-import { getChainConfig } from "../chain/constants.js";
+import type { ChainConfig } from "../chain/constants.js";
+import { FIBROUS_GRAPH_URL } from "../../lib/config.js";
 import { readCache, writeCache } from "../../lib/cache.js";
 import { ErrorCode, FibxError } from "../../lib/errors.js";
 
@@ -12,10 +12,8 @@ export interface Token {
 
 export type TokenMap = Record<string, Token>;
 
-const chain = getChainConfig(ACTIVE_NETWORK);
-const CACHE_KEY = `tokens-${chain.fibrousNetwork}`;
-
-export async function getTokens(): Promise<TokenMap> {
+export async function getTokens(chain: ChainConfig): Promise<TokenMap> {
+	const CACHE_KEY = `tokens-${chain.fibrousNetwork}`;
 	const cached = readCache<TokenMap>(CACHE_KEY);
 	if (cached) return cached;
 
@@ -34,8 +32,8 @@ export async function getTokens(): Promise<TokenMap> {
 	}
 }
 
-export async function resolveToken(symbolOrAddress: string): Promise<Token> {
-	const tokens = await getTokens();
+export async function resolveToken(symbolOrAddress: string, chain: ChainConfig): Promise<Token> {
+	const tokens = await getTokens(chain);
 	const input = symbolOrAddress.toLowerCase();
 
 	if (input.startsWith("0x")) {

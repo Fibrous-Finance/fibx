@@ -1,5 +1,4 @@
-import { encodeFunctionData, type Address } from "viem";
-import { publicClient } from "./client.js";
+import { encodeFunctionData, type Address, type PublicClient } from "viem";
 
 const ERC20_ABI = [
 	{
@@ -42,10 +41,11 @@ const ERC20_ABI = [
 ] as const;
 
 export async function getERC20Balance(
+	client: PublicClient,
 	tokenAddress: Address,
 	walletAddress: Address
 ): Promise<bigint> {
-	return publicClient.readContract({
+	return client.readContract({
 		address: tokenAddress,
 		abi: ERC20_ABI,
 		functionName: "balanceOf",
@@ -70,11 +70,12 @@ export function encodeApprove(spender: Address, amount: bigint): `0x${string}` {
 }
 
 export async function getAllowance(
+	client: PublicClient,
 	tokenAddress: Address,
 	owner: Address,
 	spender: Address
 ): Promise<bigint> {
-	return publicClient.readContract({
+	return client.readContract({
 		address: tokenAddress,
 		abi: ERC20_ABI,
 		functionName: "allowance",

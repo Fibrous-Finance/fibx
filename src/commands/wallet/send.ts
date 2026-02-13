@@ -4,7 +4,6 @@ import { getPrivyClient } from "../../services/privy/client.js";
 import { getWalletClient } from "../../services/chain/client.js";
 import { getChainConfig } from "../../services/chain/constants.js";
 import { encodeTransfer } from "../../services/chain/erc20.js";
-import { ACTIVE_NETWORK } from "../../lib/config.js";
 import { resolveToken } from "../../services/fibrous/tokens.js";
 import { validateAddress, validateAmount } from "../../lib/validation.js";
 import { parseAmount } from "../../lib/parseAmount.js";
@@ -20,20 +19,22 @@ export async function sendCommand(
 		validateAmount(amount);
 		validateAddress(recipient);
 
-		const chain = getChainConfig(ACTIVE_NETWORK);
+		const globalOpts = opts as unknown as { chain?: string };
+		const chainName = globalOpts.chain || "base";
+		const chain = getChainConfig(chainName);
+
 		const session = requireSession();
 		const privy = getPrivyClient();
-		const walletClient = getWalletClient(privy, session);
+		const walletClient = getWalletClient(privy, session, chain);
 
 		let txHash: `0x${string}`;
 		let amountBigInt: bigint;
 		const isEth = tokenSymbol.toUpperCase() === "ETH";
 
 		if (isEth) {
-			// Native ETH Transfer
 			amountBigInt = parseAmount(amount, 18);
 			txHash = await withSpinner(
-				`Sending ${amount} ETH...`,
+				`Sending ${amount} ETH on ${chain.name}...`,
 				async () => {
 					return walletClient.sendTransaction({
 						to: recipient as Address,
@@ -44,13 +45,12 @@ export async function sendCommand(
 				opts
 			);
 		} else {
-			// ERC20 Transfer
-			const token = await resolveToken(tokenSymbol);
+			const token = await resolveToken(tokenSymbol, chain);
 			amountBigInt = parseAmount(amount, token.decimals);
 			const data = encodeTransfer(recipient as Address, amountBigInt);
 
 			txHash = await withSpinner(
-				`Sending ${amount} ${token.symbol}...`,
+				`Sending ${amount} ${token.symbol} on ${chain.name}...`,
 				async () => {
 					return walletClient.sendTransaction({
 						to: token.address as Address,
