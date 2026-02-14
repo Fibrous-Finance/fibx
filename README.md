@@ -161,7 +161,7 @@ npx fibx address
 
 ## Agent Skills
 
-Looking to use `fibx` with an AI Agent? Check out the [fibx-agentic-wallet-skills](https://github.com/ahmetenesdur/fibx-agentic-wallet-skills) package.
+Looking to use `fibx` with an AI Agent? Check out the [fibx Skills](https://github.com/ahmetenesdur/fibx-skills) package.
 
 ## Development
 
