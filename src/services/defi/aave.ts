@@ -158,20 +158,81 @@ export class AaveService {
 		return txWrap;
 	}
 
+	public async unwrapWETH(amountStr: string): Promise<Hash> {
+		this.ensureWalletConnection();
+
+		const amount = parseUnits(amountStr, 18);
+
+		const nonce = await NonceManager.getInstance().getNextNonce();
+
+		const txUnwrap = await this.walletClient!.writeContract({
+			address: WETH_BASE_ADDRESS,
+			abi: WETH_ABI,
+			functionName: "withdraw",
+			args: [amount],
+			chain: base,
+			account: this.account!,
+			nonce,
+		});
+
+		await this.publicClient.waitForTransactionReceipt({ hash: txUnwrap });
+		return txUnwrap;
+	}
+
 	public async withdraw(tokenAddress: Address, amountStr: string): Promise<Hash> {
 		this.ensureWalletConnection();
 
 		const poolAddress = await this.getPoolAddress();
 		const decimals = await this.getTokenDecimals(tokenAddress);
 		const amount = parseUnits(amountStr, decimals);
+		const userAddress = this.account!.address;
 
 		const nonce = await NonceManager.getInstance().getNextNonce();
+
+		// Simulate first to catch errors
+		try {
+			await this.publicClient.simulateContract({
+				address: poolAddress,
+				abi: POOL_ABI,
+				functionName: "withdraw",
+				args: [tokenAddress, amount, userAddress],
+				account: userAddress,
+			});
+		} catch (error: any) {
+			// Smart Error Handling
+			const userData = await this.getUserAccountData(userAddress);
+			const totalDebt = parseFloat(userData.totalDebtUSD);
+
+			if (
+				error.message?.includes("HealthFactorLowerThanLiquidationThreshold") ||
+				error.cause?.message?.includes("0x6679996d")
+			) {
+				let details = "This amount would lower your Health Factor below 1.0.";
+
+				if (totalDebt > 0 && totalDebt < 0.01) {
+					details = `You have tiny "dust" debt ($${totalDebt.toFixed(6)}) preventing full withdrawal.`;
+				}
+
+				const totalCollateral = parseFloat(userData.totalCollateralUSD);
+				const lt = parseFloat(userData.currentLiquidationThreshold) / 10000;
+				if (lt > 0) {
+					const requiredCollateral = totalDebt / lt;
+					const maxSafeUSD = Math.max(0, totalCollateral - requiredCollateral);
+					if (maxSafeUSD < totalCollateral) {
+						details += ` You need keep ~$${requiredCollateral.toFixed(2)} collateral to cover your debt. Max safe withdraw is approx $${maxSafeUSD.toFixed(2)}.`;
+					}
+				}
+
+				throw new Error(`Cannot withdraw: ${details} (Try repaying all debt first)`);
+			}
+			throw error;
+		}
 
 		const txWithdraw = await this.walletClient!.writeContract({
 			address: poolAddress,
 			abi: POOL_ABI,
 			functionName: "withdraw",
-			args: [tokenAddress, amount, this.account!.address],
+			args: [tokenAddress, amount, userAddress],
 			chain: base,
 			account: this.account!,
 			nonce,
@@ -191,20 +252,32 @@ export class AaveService {
 		const nonce = await NonceManager.getInstance().getNextNonce();
 
 		// Simulate first to catch errors
-		await this.publicClient.simulateContract({
-			address: poolAddress,
-			abi: POOL_ABI,
-			functionName: "borrow",
-			args: [
-				tokenAddress,
-				amount,
-				BigInt(InterestRateMode.Variable),
-				0,
-				this.account!.address,
-			],
-			chain: base,
-			account: this.account!,
-		});
+		try {
+			await this.publicClient.simulateContract({
+				address: poolAddress,
+				abi: POOL_ABI,
+				functionName: "borrow",
+				args: [
+					tokenAddress,
+					amount,
+					BigInt(InterestRateMode.Variable),
+					0,
+					this.account!.address,
+				],
+				chain: base,
+				account: this.account!,
+			});
+		} catch (error: any) {
+			if (
+				error.message?.includes("HealthFactorLowerThanLiquidationThreshold") ||
+				error.cause?.message?.includes("0x6679996d")
+			) {
+				throw new Error(
+					"Cannot borrow: This amount would lower your Health Factor below 1.0 (Liquidation Threshold). Try borrowing a smaller amount or adding more collateral first."
+				);
+			}
+			throw error;
+		}
 
 		const txBorrow = await this.walletClient!.writeContract({
 			address: poolAddress,

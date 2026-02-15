@@ -109,7 +109,14 @@ export const aaveCommand = async (
 				await handleRepay(aave, token, amount, spinner, opts);
 				break;
 			case "withdraw":
-				await handleWithdraw(aave, token, amount, spinner, opts);
+				await handleWithdraw(
+					aave,
+					token,
+					amount,
+					spinner,
+					opts,
+					tokenSymbol.toUpperCase() === "ETH"
+				);
 				break;
 		}
 	} catch (error) {
@@ -312,17 +319,25 @@ async function handleWithdraw(
 	token: Token,
 	amount: string,
 	spinner: Ora,
-	opts: GlobalOptions
+	opts: GlobalOptions,
+	isNativeETH: boolean = false
 ) {
 	spinner.text = "Signaling Aave Withdraw...";
 	const tx = await aave.withdraw(token.address as Address, amount);
-	spinner.succeed("Withdraw transaction sent!");
+
+	if (isNativeETH) {
+		spinner.text = "Unwrapping WETH to ETH...";
+		await aave.unwrapWETH(amount);
+		spinner.succeed("Withdraw & Unwrap transaction sent!");
+	} else {
+		spinner.succeed("Withdraw transaction sent!");
+	}
 
 	outputResult(
 		{
 			action: "Withdraw",
 			amount,
-			token: token.symbol,
+			token: isNativeETH ? "ETH" : token.symbol,
 			txHash: tx,
 			chain: "base",
 		},

@@ -58,18 +58,28 @@ export const POOL_ABI = [
 		outputs: [{ type: "uint256" }],
 	},
 	{
+		inputs: [{ internalType: "address", name: "user", type: "address" }],
 		name: "getUserAccountData",
-		type: "function",
-		stateMutability: "view",
-		inputs: [{ name: "user", type: "address" }],
 		outputs: [
-			{ name: "totalCollateralBase", type: "uint256" },
-			{ name: "totalDebtBase", type: "uint256" },
-			{ name: "availableBorrowsBase", type: "uint256" },
-			{ name: "currentLiquidationThreshold", type: "uint256" },
-			{ name: "ltv", type: "uint256" },
-			{ name: "healthFactor", type: "uint256" },
+			{ internalType: "uint256", name: "totalCollateralBase", type: "uint256" },
+			{ internalType: "uint256", name: "totalDebtBase", type: "uint256" },
+			{ internalType: "uint256", name: "availableBorrowsBase", type: "uint256" },
+			{ internalType: "uint256", name: "currentLiquidationThreshold", type: "uint256" },
+			{ internalType: "uint256", name: "ltv", type: "uint256" },
+			{ internalType: "uint256", name: "healthFactor", type: "uint256" },
 		],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "ValidationLogicError",
+		type: "error",
+	},
+	{
+		inputs: [],
+		name: "HealthFactorLowerThanLiquidationThreshold",
+		type: "error",
 	},
 ] as const;
 
