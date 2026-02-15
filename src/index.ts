@@ -17,7 +17,7 @@ const program = new Command();
 program
 	.name("fibx")
 	.description("Fibrous DeFi CLI — wallet, transfer, swap")
-	.version("0.2.0")
+	.version("0.2.1")
 	.option("-c, --chain <chain>", "Chain to use (base, citrea, hyperevm, monad)", "base")
 	.option("--json", "Output results as JSON", false);
 

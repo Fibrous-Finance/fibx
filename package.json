@@ -1,6 +1,6 @@
 {
 	"name": "fibx",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"description": "A powerful CLI for DeFi operations on Base, Citrea, HyperEVM, and Monad, powered by Fibrous.",
 	"type": "module",
 	"bin": {
