@@ -10,6 +10,7 @@ import { sendCommand } from "./commands/wallet/send.js";
 import { tradeCommand } from "./commands/trade/swap.js";
 import { walletsCommand } from "./commands/wallet/list.js";
 import { txStatusCommand } from "./commands/chain/transaction.js";
+import { aaveCommand } from "./commands/defi/aave.js";
 
 const program = new Command();
 
@@ -106,6 +107,17 @@ program
 			slippage: parseFloat(opts.slippage),
 			approveMax: opts.approveMax,
 		});
+	});
+
+program
+	.command("aave")
+	.description("Aave V3 operations (Base only)")
+	.argument("<action>", "Action: status, supply, borrow, repay, withdraw")
+	.argument("[amount]", "Amount")
+	.argument("[token]", "Token symbol or address")
+	.action(async (action, amount, token, _opts, cmd) => {
+		const globalOpts = cmd.parent!.opts();
+		await aaveCommand(action, amount, token, { ...globalOpts, json: globalOpts.json });
 	});
 
 program.parseAsync();

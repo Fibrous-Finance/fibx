@@ -106,12 +106,18 @@ export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
 	},
 };
 
+export const RPC_URLS = {
+	base: "https://mainnet.base.org",
+	citrea: "https://rpc.mainnet.citrea.xyz",
+	hyperevm: "https://rpc.hyperliquid.xyz/evm",
+	monad: "https://rpc-mainnet.monadinfra.com",
+};
+
 export function getChainConfig(network: string): ChainConfig {
 	const config = SUPPORTED_CHAINS[network];
 	if (!config) {
-		throw new Error(
-			`Unsupported chain: ${network}. Supported: ${Object.keys(SUPPORTED_CHAINS).join(", ")}`
-		);
+		const supported = Object.keys(SUPPORTED_CHAINS).join(", ");
+		throw new Error(`Unsupported chain: ${network}. Supported: ${supported}`);
 	}
 	return config;
 }

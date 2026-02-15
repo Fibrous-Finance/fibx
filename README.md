@@ -11,6 +11,7 @@ A command-line tool for specialized DeFi operations on **Base, Citrea, HyperEVM,
 - **ETH & Token Transfers**: Send native assets or any ERC-20 token with a simple command.
 - **Fibrous Aggregation**: Execute token swaps with optimal routing and auto-slippage protection.
 - **Transaction Status**: Check the status of any transaction hash and get a block explorer link.
+- **Aave V3 Integration**: Supply, borrow, repay, and withdraw assets on Base (DeFi).
 - **Automated Auth Flow**: One-time email OTP login provisions a persistent server wallet linked to your user profile.
 - **JSON Output**: All commands support `--json` for easy integration into scripts and pipelines.
 
@@ -159,9 +160,33 @@ Print your connected server wallet address:
 npx fibx address
 ```
 
+### Aave V3 (Base Only)
+
+Interact with Aave V3 protocols on the Base network.
+
+```bash
+npx fibx aave <action> <amount> <token>
+```
+
+**Actions:**
+
+- `status`: Check account health (HF, LTV)
+- `supply`: Deposit assets
+- `borrow`: Borrow assets (requires collateral)
+- `repay`: Repay debt
+- `withdraw`: Withdraw assets
+
+**Example:**
+
+```bash
+npx fibx aave supply 100 USDC
+```
+
 ## Agent Skills
 
-Looking to use `fibx` with an AI Agent? Check out the [fibx Skills](https://github.com/ahmetenesdur/fibx-skills) package.
+Building an AI Agent? We provide a **Standardized Skill Set** optimized for LLMs.
+
+Check out the [fibx-skills](https://github.com/ahmetenesdur/fibx-skills) directory for:
 
 ## Development
 
