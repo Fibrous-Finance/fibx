@@ -11,13 +11,14 @@ import { tradeCommand } from "./commands/trade/swap.js";
 import { walletsCommand } from "./commands/wallet/list.js";
 import { txStatusCommand } from "./commands/chain/transaction.js";
 import { aaveCommand } from "./commands/defi/aave.js";
+import { logoutCommand } from "./commands/auth/logout.js";
 
 const program = new Command();
 
 program
 	.name("fibx")
 	.description("Fibrous DeFi CLI — wallet, transfer, swap")
-	.version("0.2.1")
+	.version("0.2.3")
 	.option("-c, --chain <chain>", "Chain to use (base, citrea, hyperevm, monad)", "base")
 	.option("--json", "Output results as JSON", false);
 
@@ -47,6 +48,8 @@ auth.command("import")
 		const { authImportCommand } = await import("./commands/auth/import.js");
 		await authImportCommand({ json: globalOpts.json });
 	});
+
+auth.addCommand(logoutCommand);
 
 program
 	.command("status")
