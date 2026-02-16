@@ -1,10 +1,10 @@
 import { ErrorCode, FibxError } from "../../lib/errors.js";
+import { FIBX_API_URL_DEFAULT } from "../../lib/config.js";
 
-const DEFAULT_API_URL = "http://localhost:3001";
 const REQUEST_TIMEOUT_MS = 30_000; // 30 seconds
 
 function getBaseUrl(): string {
-	return process.env.FIBX_API_URL ?? DEFAULT_API_URL;
+	return process.env.FIBX_API_URL ?? FIBX_API_URL_DEFAULT;
 }
 
 interface ApiOptions {
