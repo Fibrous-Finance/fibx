@@ -3,6 +3,7 @@ import {
 	http,
 	parseUnits,
 	formatUnits,
+	maxUint256,
 	type Address,
 	type Hash,
 	type Account,
@@ -17,7 +18,6 @@ import {
 	AAVE_V3_POOL_ADDRESSES_PROVIDER,
 	InterestRateMode,
 	WETH_BASE_ADDRESS,
-	MAX_UINT256,
 } from "./constants.js";
 import { NonceManager } from "../chain/nonceManager.js";
 import { ErrorCode, FibxError } from "../../lib/errors.js";
@@ -204,13 +204,11 @@ export class AaveService {
 		let amount: bigint;
 
 		if (amountStr.toLowerCase() === "max" || amountStr === "-1") {
-			amount = MAX_UINT256;
+			amount = maxUint256;
 		} else {
 			const decimals = await this.getTokenDecimals(tokenAddress);
 			amount = parseUnits(amountStr, decimals);
 		}
-
-		const nonce = await NonceManager.getInstance().getNextNonce();
 
 		// Simulate first to catch errors
 		let request;
@@ -258,6 +256,8 @@ export class AaveService {
 			throw error;
 		}
 
+		const nonce = await NonceManager.getInstance().getNextNonce();
+
 		const txWithdraw = await this.walletClient!.writeContract({
 			...request,
 			nonce,
@@ -273,8 +273,6 @@ export class AaveService {
 		const poolAddress = await this.getPoolAddress();
 		const decimals = await this.getTokenDecimals(tokenAddress);
 		const amount = parseUnits(amountStr, decimals);
-
-		const nonce = await NonceManager.getInstance().getNextNonce();
 
 		// Simulate first to catch errors
 		let request;
@@ -308,6 +306,8 @@ export class AaveService {
 			throw error;
 		}
 
+		const nonce = await NonceManager.getInstance().getNextNonce();
+
 		const txBorrow = await this.walletClient!.writeContract({
 			...request,
 			nonce,
@@ -324,7 +324,7 @@ export class AaveService {
 		let amount: bigint;
 
 		if (amountStr.toLowerCase() === "max" || amountStr === "-1") {
-			amount = MAX_UINT256;
+			amount = maxUint256;
 		} else {
 			const decimals = await this.getTokenDecimals(tokenAddress);
 			amount = parseUnits(amountStr, decimals);
