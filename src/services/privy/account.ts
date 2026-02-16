@@ -1,7 +1,11 @@
-import { type PrivyClient } from "@privy-io/node";
 import { toHex } from "viem";
+import { apiSignTransaction, apiSignMessage, apiSignTypedData } from "../api/client.js";
 
-export function toPrivyViemAccount(privy: PrivyClient, walletId: string, address: string) {
+/**
+ * Creates a Viem-compatible account adapter that signs via fibx-server backend.
+ * Used for Privy server wallet sessions.
+ */
+export function toPrivyViemAccount(token: string, walletId: string, address: string) {
 	return {
 		address: address as `0x${string}`,
 		type: "local" as const,
@@ -32,13 +36,8 @@ export function toPrivyViemAccount(privy: PrivyClient, walletId: string, address
 				if (privyTx[k] === undefined) delete privyTx[k];
 			});
 
-			const rpcInput = {
-				params: { transaction: privyTx },
-				method: "eth_signTransaction",
-			};
-
-			const response = await privy.wallets().ethereum().signTransaction(walletId, rpcInput);
-			return response.signed_transaction as `0x${string}`;
+			const result = await apiSignTransaction(walletId, privyTx, token);
+			return result.signedTransaction as `0x${string}`;
 		},
 
 		async signMessage({
@@ -46,31 +45,25 @@ export function toPrivyViemAccount(privy: PrivyClient, walletId: string, address
 		}: {
 			message: { raw: string | Uint8Array } | string | Uint8Array;
 		}) {
-			let messageContent: string | Uint8Array;
+			let messageContent: string;
 			if (typeof message === "object" && "raw" in message) {
-				messageContent = message.raw;
+				messageContent =
+					typeof message.raw === "string"
+						? message.raw
+						: Buffer.from(message.raw).toString("hex");
+			} else if (message instanceof Uint8Array) {
+				messageContent = Buffer.from(message).toString("hex");
 			} else {
-				messageContent = message as string | Uint8Array;
+				messageContent = message as string;
 			}
 
-			const rpcInput = {
-				message: messageContent,
-			};
-
-			const response = await privy.wallets().ethereum().signMessage(walletId, rpcInput);
-			return response.signature as `0x${string}`;
+			const result = await apiSignMessage(walletId, messageContent, token);
+			return result.signature as `0x${string}`;
 		},
 
 		async signTypedData(typedData: Record<string, unknown>) {
-			const rpcInput = {
-				params: {
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					typed_data: typedData as any,
-				},
-			};
-
-			const response = await privy.wallets().ethereum().signTypedData(walletId, rpcInput);
-			return response.signature as `0x${string}`;
+			const result = await apiSignTypedData(walletId, typedData, token);
+			return result.signature as `0x${string}`;
 		},
 	};
 }

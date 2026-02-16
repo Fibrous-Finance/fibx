@@ -1,54 +1,33 @@
-import { getPrivyClient } from "../../services/privy/client.js";
-import { outputResult, outputError, withSpinner, type OutputOptions } from "../../lib/format.js";
+import { loadSession } from "../../services/auth/session.js";
+import { outputResult, outputError, type OutputOptions } from "../../lib/format.js";
 
-interface PrivyWallet {
-	address: string;
-	id: string;
-	chain_type: string;
-	connector_type: string;
-	first_verified_at: number | null;
-}
-
-export async function walletsCommand(email: string, opts: OutputOptions): Promise<void> {
+export async function walletsCommand(_email: string, opts: OutputOptions): Promise<void> {
 	try {
-		const privy = getPrivyClient();
+		const session = loadSession();
 
-		const user = await withSpinner(
-			`Fetching wallets for ${email}...`,
-			async () => privy.users().getByEmailAddress({ address: email }),
-			opts
-		);
-
-		const wallets = user.linked_accounts.filter(
-			(a) => (a.type === "wallet" || a.type === "smart_wallet") && "id" in a
-		) as unknown as PrivyWallet[];
-
-		if (wallets.length === 0) {
-			outputResult({ message: "No wallets found for this user." }, opts);
+		if (!session) {
+			outputResult(
+				{ message: "No active session. Run `fibx auth login <email>` first." },
+				opts
+			);
 			return;
 		}
 
-		// Format for output
-		const walletList = wallets.map((w) => ({
-			address: w.address,
-			id: w.id,
-			chainType: w.chain_type,
-			connectorType: w.connector_type,
-			firstVerifiedAt: w.first_verified_at
-				? new Date(w.first_verified_at * 1000).toISOString()
-				: "N/A",
-		}));
+		const walletInfo = {
+			address: session.walletAddress,
+			id: session.walletId ?? "N/A",
+			type: session.type,
+			createdAt: session.createdAt,
+		};
 
 		if (opts.json) {
-			console.log(JSON.stringify(walletList, null, 2));
+			console.log(JSON.stringify([walletInfo], null, 2));
 		} else {
-			console.log(`Found ${wallets.length} wallet(s):`);
-			walletList.forEach((w) => {
-				console.log(`\nAddress: ${w.address}`);
-				console.log(`ID:      ${w.id}`);
-				console.log(`Created: ${w.firstVerifiedAt}`);
-				console.log(`Type:    ${w.connectorType} (${w.chainType})`);
-			});
+			console.log("Active wallet:");
+			console.log(`\nAddress: ${walletInfo.address}`);
+			console.log(`ID:      ${walletInfo.id}`);
+			console.log(`Type:    ${walletInfo.type}`);
+			console.log(`Created: ${walletInfo.createdAt}`);
 		}
 	} catch (error) {
 		outputError(error, opts);

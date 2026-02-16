@@ -1,6 +1,5 @@
 import type { Address } from "viem";
 import { requireSession } from "../../services/auth/session.js";
-import { getPrivyClient } from "../../services/privy/client.js";
 import { getWalletClient, getPublicClient } from "../../services/chain/client.js";
 import { getChainConfig } from "../../services/chain/constants.js";
 import { getAllowance, encodeApprove } from "../../services/chain/erc20.js";
@@ -30,8 +29,7 @@ export async function tradeCommand(
 		const chain = getChainConfig(chainName);
 
 		const session = requireSession();
-		const privy = getPrivyClient();
-		const walletClient = getWalletClient(privy, session, chain);
+		const walletClient = getWalletClient(session, chain);
 		const publicClient = getPublicClient(chain);
 		const wallet = session.walletAddress as Address;
 
@@ -77,14 +75,21 @@ export async function tradeCommand(
 					"Approving token spend...",
 					async () => {
 						const amountToApprove = opts.approveMax
-							? 115792089237316195423570985008687907853269984665640564039457584007913129639935n // Max Uint256
+							? 115792089237316195423570985008687907853269984665640564039457584007913129639935n
 							: amountBaseUnits;
 						const approveData = encodeApprove(routerAddress, amountToApprove);
-						return walletClient.sendTransaction({
+						const approveTxHash = await walletClient.sendTransaction({
 							to: tokenIn.address as Address,
 							data: approveData,
 							value: 0n,
 						});
+
+						await publicClient.waitForTransactionReceipt({
+							hash: approveTxHash,
+							confirmations: 1,
+						});
+
+						return approveTxHash;
 					},
 					opts
 				);
@@ -97,8 +102,6 @@ export async function tradeCommand(
 				const swapData = encodeSwapCalldata(routeData.calldata, chain);
 				const value = isNativeInput ? amountBaseUnits : 0n;
 
-				// Simulate Swap (using estimateGas as we have raw calldata)
-				// We use call/estimateGas to ensure it doesn't revert
 				try {
 					await publicClient.estimateGas({
 						account: wallet,

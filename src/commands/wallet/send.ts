@@ -1,6 +1,5 @@
 import type { Address } from "viem";
 import { requireSession } from "../../services/auth/session.js";
-import { getPrivyClient } from "../../services/privy/client.js";
 import { getWalletClient, getPublicClient } from "../../services/chain/client.js";
 import { getChainConfig } from "../../services/chain/constants.js";
 import { ERC20_ABI } from "../../services/chain/erc20.js";
@@ -24,8 +23,7 @@ export async function sendCommand(
 		const chain = getChainConfig(chainName);
 
 		const session = requireSession();
-		const privy = getPrivyClient();
-		const walletClient = getWalletClient(privy, session, chain);
+		const walletClient = getWalletClient(session, chain);
 		const publicClient = getPublicClient(chain);
 		const wallet = session.walletAddress as Address;
 

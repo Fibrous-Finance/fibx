@@ -98,7 +98,6 @@ export class AaveService {
 		const decimals = await this.getTokenDecimals(tokenAddress);
 		const amount = parseUnits(amountStr, decimals);
 
-		// Check Allowance & Approve if necessary
 		const allowance = await this.publicClient.readContract({
 			address: tokenAddress,
 			abi: erc20Abi,
@@ -120,7 +119,6 @@ export class AaveService {
 			await this.publicClient.waitForTransactionReceipt({ hash: txApprove });
 		}
 
-		// Simulate Supply
 		const { request: supplyRequest } = await this.publicClient.simulateContract({
 			address: poolAddress,
 			abi: POOL_ABI,
@@ -130,7 +128,6 @@ export class AaveService {
 			chain: this.chainConfig.viemChain,
 		});
 
-		// Execute Supply
 		const nonceSupply = await NonceManager.getInstance().getNextNonce();
 		const txSupply = await this.walletClient!.writeContract({
 			...supplyRequest,
@@ -144,9 +141,8 @@ export class AaveService {
 	public async wrapETH(amountStr: string): Promise<Hash> {
 		this.ensureWalletConnection();
 
-		const amount = parseUnits(amountStr, 18); // ETH always 18
+		const amount = parseUnits(amountStr, 18);
 
-		// Simulate Deposit
 		const { request } = await this.publicClient.simulateContract({
 			address: this.chainConfig.wrappedNativeAddress as Address,
 			abi: WETH_ABI,
@@ -173,7 +169,6 @@ export class AaveService {
 
 		const amount = parseUnits(amountStr, 18);
 
-		// Simulate Withdraw
 		const { request } = await this.publicClient.simulateContract({
 			address: this.chainConfig.wrappedNativeAddress as Address,
 			abi: WETH_ABI,
@@ -208,7 +203,6 @@ export class AaveService {
 			amount = parseUnits(amountStr, decimals);
 		}
 
-		// Simulate first to catch errors
 		let request;
 		try {
 			const result = await this.publicClient.simulateContract({
@@ -222,7 +216,7 @@ export class AaveService {
 			request = result.request;
 		} catch (error: unknown) {
 			const err = error as Error & { cause?: { message?: string } };
-			// Smart Error Handling
+
 			const userData = await this.getUserAccountData(userAddress);
 			const totalDebt = parseFloat(userData.totalDebtUSD);
 
@@ -272,7 +266,6 @@ export class AaveService {
 		const decimals = await this.getTokenDecimals(tokenAddress);
 		const amount = parseUnits(amountStr, decimals);
 
-		// Simulate first to catch errors
 		let request;
 		try {
 			const result = await this.publicClient.simulateContract({
@@ -342,7 +335,7 @@ export class AaveService {
 				address: tokenAddress,
 				abi: erc20Abi,
 				functionName: "approve",
-				args: [poolAddress, amount], // Approve MAX if MAX requested
+				args: [poolAddress, amount],
 				chain: this.chainConfig.viemChain,
 				account: this.account!,
 				nonce: nonceApprove,
@@ -350,7 +343,6 @@ export class AaveService {
 			await this.publicClient.waitForTransactionReceipt({ hash: txApprove });
 		}
 
-		// Simulate Repay
 		const { request: repayRequest } = await this.publicClient.simulateContract({
 			address: poolAddress,
 			abi: POOL_ABI,
@@ -360,7 +352,6 @@ export class AaveService {
 			chain: this.chainConfig.viemChain,
 		});
 
-		// Execute Repay
 		const nonceRepay = await NonceManager.getInstance().getNextNonce();
 
 		const txRepay = await this.walletClient!.writeContract({

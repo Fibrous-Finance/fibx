@@ -133,13 +133,11 @@ function isValidAction(action: string): action is AaveAction {
 async function attemptSessionLogin(aave: AaveService, chainConfig: ChainConfig) {
 	try {
 		const { loadSession } = await import("../../services/auth/session.js");
-		const { getPrivyClient } = await import("../../services/privy/client.js");
 		const { getWalletClient } = await import("../../services/chain/client.js");
 
 		const session = loadSession();
 		if (session) {
-			const privy = session.type === "privy" ? getPrivyClient() : null;
-			const walletClient = getWalletClient(privy, session, chainConfig);
+			const walletClient = getWalletClient(session, chainConfig);
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			aave.setWalletClient(walletClient as any);
 		}
