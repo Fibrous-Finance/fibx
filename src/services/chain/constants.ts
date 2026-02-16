@@ -60,9 +60,11 @@ export const monad = defineChain({
 export interface ChainConfig {
 	id: number;
 	name: string;
+	nativeSymbol: string;
 	viemChain: Chain;
 	rpcUrl: string;
 	nativeTokenAddress: string;
+	wrappedNativeAddress: string;
 	fibrousNetwork: string;
 	routerAbi:
 		| typeof baseRouterAbi
@@ -75,36 +77,44 @@ export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
 	base: {
 		id: 8453,
 		name: "base",
+		nativeSymbol: "ETH",
 		viemChain: base,
 		rpcUrl: "https://mainnet.base.org",
 		nativeTokenAddress: "0x0000000000000000000000000000000000000000",
+		wrappedNativeAddress: "0x4200000000000000000000000000000000000006",
 		fibrousNetwork: "base",
 		routerAbi: baseRouterAbi,
 	},
 	citrea: {
 		id: 4114,
 		name: "citrea",
+		nativeSymbol: "cBTC",
 		viemChain: citrea,
 		rpcUrl: "https://rpc.mainnet.citrea.xyz",
 		nativeTokenAddress: "0x0000000000000000000000000000000000000000",
+		wrappedNativeAddress: "0x3100000000000000000000000000000000000006",
 		fibrousNetwork: "citrea",
 		routerAbi: citreaRouterAbi,
 	},
 	hyperevm: {
 		id: 999,
 		name: "hyperevm",
+		nativeSymbol: "HYPE",
 		viemChain: hyperevm,
 		rpcUrl: "https://rpc.hyperliquid.xyz/evm",
 		nativeTokenAddress: "0x0000000000000000000000000000000000000000",
+		wrappedNativeAddress: "0x5555555555555555555555555555555555555555",
 		fibrousNetwork: "hyperevm",
 		routerAbi: hyperevmRouterAbi,
 	},
 	monad: {
 		id: 143,
 		name: "monad",
+		nativeSymbol: "MON",
 		viemChain: monad,
 		rpcUrl: "https://rpc-mainnet.monadinfra.com",
 		nativeTokenAddress: "0x0000000000000000000000000000000000000000",
+		wrappedNativeAddress: "0x3bd359c1119da7da1d913d1c4d2b7c461115433a",
 		fibrousNetwork: "monad",
 		routerAbi: monadRouterAbi,
 	},

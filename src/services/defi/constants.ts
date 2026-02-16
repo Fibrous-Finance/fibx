@@ -11,8 +11,6 @@ export const AAVE_V3_POOL_ADDRESSES_PROVIDER =
 export const HEALTH_FACTOR_WARNING_THRESHOLD = 1.5;
 export const HEALTH_FACTOR_CRITICAL_THRESHOLD = 1.1;
 
-export const WETH_BASE_ADDRESS = "0x4200000000000000000000000000000000000006" as Address;
-
 export enum InterestRateMode {
 	None = 0,
 	Stable = 1,

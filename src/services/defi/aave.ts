@@ -11,14 +11,9 @@ import {
 	type WalletClient,
 	erc20Abi,
 } from "viem";
-import { base } from "viem/chains";
-import { SUPPORTED_CHAINS } from "../chain/constants.js";
+import { type ChainConfig } from "../chain/constants.js";
 import { POOL_ADDRESSES_PROVIDER_ABI, POOL_ABI, WETH_ABI } from "./abi/aave.js";
-import {
-	AAVE_V3_POOL_ADDRESSES_PROVIDER,
-	InterestRateMode,
-	WETH_BASE_ADDRESS,
-} from "./constants.js";
+import { AAVE_V3_POOL_ADDRESSES_PROVIDER, InterestRateMode } from "./constants.js";
 import { NonceManager } from "../chain/nonceManager.js";
 import { ErrorCode, FibxError } from "../../lib/errors.js";
 
@@ -37,10 +32,13 @@ export class AaveService {
 	private account?: Account;
 	private userAddress?: Address;
 
-	constructor(walletClient?: WalletClient) {
+	private chainConfig: ChainConfig;
+
+	constructor(chainConfig: ChainConfig, walletClient?: WalletClient) {
+		this.chainConfig = chainConfig;
 		this.publicClient = createPublicClient({
-			chain: base,
-			transport: http(SUPPORTED_CHAINS.base.rpcUrl),
+			chain: chainConfig.viemChain,
+			transport: http(chainConfig.rpcUrl),
 		}) as PublicClient;
 
 		if (walletClient) {
@@ -115,7 +113,7 @@ export class AaveService {
 				abi: erc20Abi,
 				functionName: "approve",
 				args: [poolAddress, amount],
-				chain: base,
+				chain: this.chainConfig.viemChain,
 				account: this.account!,
 				nonce: nonceApprove,
 			});
@@ -129,7 +127,7 @@ export class AaveService {
 			functionName: "supply",
 			args: [tokenAddress, amount, this.account!.address, 0],
 			account: this.account!,
-			chain: base,
+			chain: this.chainConfig.viemChain,
 		});
 
 		// Execute Supply
@@ -150,13 +148,13 @@ export class AaveService {
 
 		// Simulate Deposit
 		const { request } = await this.publicClient.simulateContract({
-			address: WETH_BASE_ADDRESS,
+			address: this.chainConfig.wrappedNativeAddress as Address,
 			abi: WETH_ABI,
 			functionName: "deposit",
 			args: [],
 			value: amount,
 			account: this.account!,
-			chain: base,
+			chain: this.chainConfig.viemChain,
 		});
 
 		const nonce = await NonceManager.getInstance().getNextNonce();
@@ -177,12 +175,12 @@ export class AaveService {
 
 		// Simulate Withdraw
 		const { request } = await this.publicClient.simulateContract({
-			address: WETH_BASE_ADDRESS,
+			address: this.chainConfig.wrappedNativeAddress as Address,
 			abi: WETH_ABI,
 			functionName: "withdraw",
 			args: [amount],
 			account: this.account!,
-			chain: base,
+			chain: this.chainConfig.viemChain,
 		});
 
 		const nonce = await NonceManager.getInstance().getNextNonce();
@@ -219,7 +217,7 @@ export class AaveService {
 				functionName: "withdraw",
 				args: [tokenAddress, amount, userAddress],
 				account: userAddress,
-				chain: base,
+				chain: this.chainConfig.viemChain,
 			});
 			request = result.request;
 		} catch (error: unknown) {
@@ -288,7 +286,7 @@ export class AaveService {
 					0,
 					this.account!.address,
 				],
-				chain: base,
+				chain: this.chainConfig.viemChain,
 				account: this.account!,
 			});
 			request = result.request;
@@ -345,7 +343,7 @@ export class AaveService {
 				abi: erc20Abi,
 				functionName: "approve",
 				args: [poolAddress, amount], // Approve MAX if MAX requested
-				chain: base,
+				chain: this.chainConfig.viemChain,
 				account: this.account!,
 				nonce: nonceApprove,
 			});
@@ -359,7 +357,7 @@ export class AaveService {
 			functionName: "repay",
 			args: [tokenAddress, amount, BigInt(InterestRateMode.Variable), this.account!.address],
 			account: this.account!,
-			chain: base,
+			chain: this.chainConfig.viemChain,
 		});
 
 		// Execute Repay

@@ -19,7 +19,7 @@ const program = new Command();
 program
 	.name("fibx")
 	.description("Fibrous DeFi CLI — wallet, transfer, swap")
-	.version("0.2.5")
+	.version("0.2.6")
 	.option("-c, --chain <chain>", "Chain to use (base, citrea, hyperevm, monad)", "base")
 	.option("--json", "Output results as JSON", false)
 	.showHelpAfterError();
@@ -87,7 +87,7 @@ program
 
 program
 	.command("balance")
-	.description("Show ETH and USDC balances")
+	.description("Show native token and ERC-20 balances")
 	.action(async (_opts, cmd) => {
 		const globalOpts = cmd.parent!.opts();
 		await balanceCommand({ ...globalOpts, json: globalOpts.json });
@@ -95,10 +95,10 @@ program
 
 program
 	.command("send")
-	.description("Send tokens (ETH, USDC, etc.)")
+	.description("Send tokens (native or ERC-20)")
 	.argument("<amount>", "Amount to send")
 	.argument("<recipient>", "Recipient address (0x...)")
-	.argument("[token]", "Token symbol or address", "ETH")
+	.argument("[token]", "Token symbol or address (default: chain native token)")
 	.action(async (amount, recipient, token, _opts, cmd) => {
 		const globalOpts = cmd.parent!.opts();
 		await sendCommand(amount, recipient, token, { ...globalOpts, json: globalOpts.json });

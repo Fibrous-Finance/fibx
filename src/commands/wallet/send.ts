@@ -31,12 +31,13 @@ export async function sendCommand(
 
 		let txHash: `0x${string}`;
 		let amountBigInt: bigint;
-		const isEth = tokenSymbol.toUpperCase() === "ETH";
+		const isNative = tokenSymbol ? tokenSymbol.toUpperCase() === chain.nativeSymbol : true;
+		const resolvedSymbol = tokenSymbol || chain.nativeSymbol;
 
-		if (isEth) {
+		if (isNative) {
 			amountBigInt = parseAmount(amount, 18);
 			txHash = await withSpinner(
-				`Sending ${amount} ETH on ${chain.name}...`,
+				`Sending ${amount} ${resolvedSymbol} on ${chain.name}...`,
 				async () => {
 					// Simulate ETH send (estimateGas)
 					try {
@@ -87,7 +88,7 @@ export async function sendCommand(
 				txHash,
 				amount,
 				recipient,
-				token: isEth ? "ETH" : tokenSymbol.toUpperCase(),
+				token: isNative ? resolvedSymbol : resolvedSymbol.toUpperCase(),
 				chain: chain.name,
 			},
 			opts

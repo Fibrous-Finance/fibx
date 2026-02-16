@@ -8,7 +8,7 @@ A command-line tool for specialized DeFi operations on **Base, Citrea, HyperEVM,
 
 - **Privy Server Wallets**: Uses "Agentic" server-side wallets (ownerless) for seamless, automated signing without user interaction.
 - **Multi-Chain Support**: seamlessly interact with Base, Citrea, HyperEVM, and Monad.
-- **ETH & Token Transfers**: Send native assets or any ERC-20 token with a simple command.
+- **Native & ERC-20 Transfers**: Send ETH, MON, cBTC, HYPE, or any ERC-20 token with a single command.
 - **Fibrous Aggregation**: Execute token swaps with optimal routing and auto-slippage protection.
 - **Transaction Status**: Check the status of any transaction hash and get a block explorer link.
 - **Aave V3 Integration**: Supply, borrow, repay, and withdraw assets on Base (DeFi).
@@ -19,8 +19,8 @@ A command-line tool for specialized DeFi operations on **Base, Citrea, HyperEVM,
 
 ## Requirements
 
-- Node.js ≥ 20
-- pnpm
+- Node.js ≥ 18
+- npm (or any Node.js package manager)
 - Privy App ID and Secret (from [dashboard.privy.io](https://dashboard.privy.io))
 
 ## Quick Start
@@ -128,6 +128,7 @@ Transfer ETH or ERC-20 tokens to another address.
 
 ```bash
 npx fibx send 0.001 0xRecipientAddress
+npx fibx send 1 0xRecipientAddress --chain monad
 ```
 
 **Send ERC-20 (e.g., USDC):**
@@ -153,7 +154,7 @@ npx fibx trade 0.0001 ETH USDC
 # Swap 20 USDC to DAI on Base
 npx fibx trade 20 USDC DAI
 
-# Swap on Monad
+# Swap on Monad (native token handled automatically)
 npx fibx trade 1 MON USDC --chain monad
 ```
 
@@ -182,42 +183,72 @@ Print your connected wallet address (Privy or Local):
 npx fibx address
 ```
 
-### Aave V3 (Base Only)
+### List Wallets (Privy)
 
-Interact with Aave V3 protocols on the Base network.
+List all wallets linked to a Privy user email:
 
 ```bash
-npx fibx aave <action> <amount> <token>
+npx fibx wallets <email>
+```
+
+### Aave V3 (Base Only)
+
+Interact with the Aave V3 lending protocol on the Base network.
+
+```bash
+npx fibx aave <action> [amount] [token]
 ```
 
 **Actions:**
 
-- `status`: Check account health (HF, LTV)
-- `supply`: Deposit assets
+- `status`: Check account health (Health Factor, LTV, Net Worth)
+- `supply`: Deposit assets to earn yield
 - `borrow`: Borrow assets (requires collateral)
-- `repay`: Repay debt (use `max` to repay all)
-- `withdraw`: Withdraw assets (use `max` to withdraw all)
+- `repay`: Repay debt (use `max` as amount to repay all)
+- `withdraw`: Withdraw assets (use `max` as amount to withdraw all)
 
-**Example:**
+**Examples:**
 
 ```bash
+npx fibx aave status
 npx fibx aave supply 100 USDC
+npx fibx aave repay max USDC
+npx fibx aave withdraw max USDC
 ```
 
 ## Agent Skills
 
 Building an AI Agent? We provide a **Standardized Skill Set** optimized for LLMs.
 
-Check out the [fibx-skills](https://github.com/ahmetenesdur/fibx-skills) directory for:
+Check out the [fibx-skills](./fibx-skills) directory for:
+
+- **authenticate-wallet** — Email OTP login and private key import
+- **balance** — Check wallet balances on any supported chain
+- **send** — Send ETH or ERC-20 tokens
+- **trade** — Swap tokens via Fibrous aggregation
+- **aave** — Manage Aave V3 positions (Supply, Borrow, Repay, Withdraw)
+- **tx-status** — Verify transaction status and get explorer links
 
 ## Development
 
-1. Clone the repo
-2. `pnpm install`
-3. `cp .env.example .env` (add secrets)
-4. Run commands with `pnpm dev <command>`
+```bash
+git clone https://github.com/ahmetenesdur/fibx.git
+cd fibx
+pnpm install
+cp .env.example .env   # Add your PRIVY_APP_ID and PRIVY_APP_SECRET
+```
 
-# Architecture
+**Available Scripts:**
+
+| Script           | Description                        |
+| ---------------- | ---------------------------------- |
+| `pnpm dev <cmd>` | Run a command in development mode  |
+| `pnpm build`     | Compile TypeScript to `dist/`      |
+| `pnpm typecheck` | Run type checking without emitting |
+| `pnpm lint`      | Lint source files with ESLint      |
+| `pnpm format`    | Format code with Prettier          |
+
+## Architecture
 
 This CLI uses a **Hybrid Wallet** architecture:
 

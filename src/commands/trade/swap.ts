@@ -43,8 +43,7 @@ export async function tradeCommand(
 
 		const amountBaseUnits = parseAmount(amount, tokenIn.decimals);
 		const isNativeInput =
-			tokenIn.address.toLowerCase() === chain.nativeTokenAddress.toLowerCase() ||
-			tokenIn.symbol.toUpperCase() === "ETH";
+			tokenIn.address.toLowerCase() === chain.nativeTokenAddress.toLowerCase();
 
 		const routeData = await withSpinner(
 			"Finding best route...",

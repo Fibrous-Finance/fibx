@@ -42,7 +42,7 @@ export async function balanceCommand(opts: OutputOptions): Promise<void> {
 
 		const result: Record<string, string> = {};
 
-		result["ETH"] = balances.eth;
+		result[chainConfig.nativeSymbol] = balances.eth;
 
 		for (const item of balances.tokens) {
 			const balanceVal = parseFloat(item.balance);

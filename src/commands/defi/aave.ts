@@ -8,7 +8,6 @@ import type { Address } from "viem";
 import {
 	HEALTH_FACTOR_WARNING_THRESHOLD,
 	HEALTH_FACTOR_CRITICAL_THRESHOLD,
-	WETH_BASE_ADDRESS,
 } from "../../services/defi/constants.js";
 import { outputError, outputResult } from "../../lib/format.js";
 import { getPublicClient } from "../../services/chain/client.js";
@@ -34,7 +33,7 @@ export const aaveCommand = async (
 		const chainConfig = getChainConfig("base");
 
 		// Initialize Service
-		const aave = new AaveService();
+		const aave = new AaveService(chainConfig);
 
 		try {
 			// Try to load session (Privy or Private Key)
@@ -81,7 +80,7 @@ export const aaveCommand = async (
 		if (token.address === chainConfig.nativeTokenAddress) {
 			token = {
 				...token,
-				address: WETH_BASE_ADDRESS,
+				address: chainConfig.wrappedNativeAddress as Address,
 				symbol: "WETH",
 				name: "Wrapped Ether",
 			};
@@ -99,7 +98,7 @@ export const aaveCommand = async (
 					chainConfig,
 					spinner,
 					opts,
-					tokenSymbol.toUpperCase() === "ETH"
+					tokenSymbol.toUpperCase() === chainConfig.nativeSymbol
 				);
 				break;
 			case "borrow":
@@ -115,7 +114,7 @@ export const aaveCommand = async (
 					amount,
 					spinner,
 					opts,
-					tokenSymbol.toUpperCase() === "ETH"
+					tokenSymbol.toUpperCase() === chainConfig.nativeSymbol
 				);
 				break;
 		}
@@ -337,7 +336,7 @@ async function handleWithdraw(
 		{
 			action: "Withdraw",
 			amount,
-			token: isNativeETH ? "ETH" : token.symbol,
+			token: isNativeETH ? "ETH (unwrapped)" : token.symbol,
 			txHash: tx,
 			chain: "base",
 		},
