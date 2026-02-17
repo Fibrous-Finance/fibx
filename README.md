@@ -99,4 +99,4 @@ npx fibx aave withdraw max USDC    # Withdraw all
 
 ## Agent Skills
 
-For AI agent integration, see the [fibx-skills](./fibx-skills) directory.
+For AI agent integration, see the [fibx-skills](https://github.com/Fibrous-Finance/fibx-skills) directory.
