@@ -20,7 +20,7 @@ A command-line tool for DeFi operations on **Base, Citrea, HyperEVM, and Monad**
 - Node.js >= 18
 - A running [fibx-server](https://github.com/ahmetenesdur/fibx-server) instance
 
-## Quick Start
+## Usage
 
 ### Authentication
 
@@ -39,8 +39,6 @@ npx fibx auth logout
 npx fibx status
 ```
 
-## Usage
-
 ### Global Options
 
 Use `-c` or `--chain` to specify the target chain. Default is `base`.
@@ -57,9 +55,9 @@ npx fibx balance --chain citrea
 ### Send
 
 ```bash
-npx fibx send 0.001 0xRecipient           # Send ETH
-npx fibx send 10 0xRecipient USDC         # Send ERC-20
-npx fibx send 1 0xRecipient --chain monad # Send on Monad
+npx fibx send 0.001 0xRecipient           # Send native token on Base (ETH)
+npx fibx send 10 0xRecipient USDC         # Send ERC-20 on Base
+npx fibx send 1 0xRecipient --chain monad # Send on Monad native token (MON)
 ```
 
 ### Swap
@@ -90,7 +88,7 @@ npx fibx wallets <email>      # List active wallet
 ### Aave V3 (Base)
 
 ```bash
-npx fibx aave status                # Account health
+npx fibx aave status               # Account health
 npx fibx aave supply 100 USDC      # Deposit
 npx fibx aave borrow 50 USDC       # Borrow
 npx fibx aave repay max USDC       # Repay all
