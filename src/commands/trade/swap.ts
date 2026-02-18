@@ -2,7 +2,12 @@ import type { Address } from "viem";
 import { requireSession } from "../../services/auth/session.js";
 import { getWalletClient, getPublicClient } from "../../services/chain/client.js";
 import { getChainConfig } from "../../services/chain/constants.js";
-import { getAllowance, encodeApprove } from "../../services/chain/erc20.js";
+import {
+	getAllowance,
+	encodeApprove,
+	encodeDeposit,
+	encodeWithdraw,
+} from "../../services/chain/erc20.js";
 import { resolveToken } from "../../services/fibrous/tokens.js";
 import { getRouteAndCallData, encodeSwapCalldata } from "../../services/fibrous/route.js";
 import { DEFAULT_SLIPPAGE } from "../../lib/config.js";
@@ -42,6 +47,30 @@ export async function tradeCommand(
 		const amountBaseUnits = parseAmount(amount, tokenIn.decimals);
 		const isNativeInput =
 			tokenIn.address.toLowerCase() === chain.nativeTokenAddress.toLowerCase();
+		const isNativeOutput =
+			tokenOut.address.toLowerCase() === chain.nativeTokenAddress.toLowerCase();
+		const isWrappedInput =
+			tokenIn.address.toLowerCase() === chain.wrappedNativeAddress.toLowerCase();
+		const isWrappedOutput =
+			tokenOut.address.toLowerCase() === chain.wrappedNativeAddress.toLowerCase();
+
+		if (isNativeInput && isWrappedOutput) {
+			await handleWrap(amount, amountBaseUnits, tokenIn, tokenOut, chain, walletClient, opts);
+			return;
+		}
+
+		if (isWrappedInput && isNativeOutput) {
+			await handleUnwrap(
+				amount,
+				amountBaseUnits,
+				tokenIn,
+				tokenOut,
+				chain,
+				walletClient,
+				opts
+			);
+			return;
+		}
 
 		const routeData = await withSpinner(
 			"Finding best route...",
@@ -158,4 +187,76 @@ export async function tradeCommand(
 	} catch (error) {
 		outputError(error, opts);
 	}
+}
+
+async function handleWrap(
+	amount: string,
+	amountBaseUnits: bigint,
+	tokenIn: { symbol: string },
+	tokenOut: { symbol: string },
+	chain: ReturnType<typeof getChainConfig>,
+	walletClient: ReturnType<typeof getWalletClient>,
+	opts: TradeOptions
+) {
+	const hash = await withSpinner(
+		`Wrapping ${amount} ${tokenIn.symbol} -> ${tokenOut.symbol}...`,
+		async () => {
+			const data = encodeDeposit();
+			return walletClient.sendTransaction({
+				to: chain.wrappedNativeAddress as Address,
+				data,
+				value: amountBaseUnits,
+			});
+		},
+		opts
+	);
+
+	outputResult(
+		{
+			action: "Wrap",
+			txHash: hash,
+			amountIn: amount,
+			amountOut: amount, // 1:1
+			tokenIn: tokenIn.symbol,
+			tokenOut: tokenOut.symbol,
+			chain: chain.name,
+		},
+		opts
+	);
+}
+
+async function handleUnwrap(
+	amount: string,
+	amountBaseUnits: bigint,
+	tokenIn: { symbol: string },
+	tokenOut: { symbol: string },
+	chain: ReturnType<typeof getChainConfig>,
+	walletClient: ReturnType<typeof getWalletClient>,
+	opts: TradeOptions
+) {
+	const hash = await withSpinner(
+		`Unwrapping ${amount} ${tokenIn.symbol} -> ${tokenOut.symbol}...`,
+		async () => {
+			const data = encodeWithdraw(amountBaseUnits);
+			return walletClient.sendTransaction({
+				to: chain.wrappedNativeAddress as Address,
+				data,
+				value: 0n,
+			});
+		},
+		opts
+	);
+
+	outputResult(
+		{
+			action: "Unwrap",
+			txHash: hash,
+			amountIn: amount,
+			amountOut: amount, // 1:1
+			tokenIn: tokenIn.symbol,
+			tokenOut: tokenOut.symbol,
+			chain: chain.name,
+		},
+		opts
+	);
 }

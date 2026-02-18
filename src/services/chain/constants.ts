@@ -79,7 +79,7 @@ export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
 		name: "base",
 		nativeSymbol: "ETH",
 		viemChain: base,
-		rpcUrl: "https://mainnet.base.org",
+		rpcUrl: "https://base-mainnet.g.alchemy.com/v2/HS1IllSiv9K4CdUscjskG-s_jvBeSm3e",
 		nativeTokenAddress: "0x0000000000000000000000000000000000000000",
 		wrappedNativeAddress: "0x4200000000000000000000000000000000000006",
 		fibrousNetwork: "base",

@@ -113,7 +113,7 @@ export class AaveService {
 	}
 
 	public async supply(tokenAddress: Address, amountStr: string): Promise<Hash> {
-		this.ensureWalletConnection();
+		await this.ensureWalletConnection();
 
 		const poolAddress = await this.getPoolAddress();
 		const decimals = await this.getTokenDecimals(tokenAddress);
@@ -161,7 +161,7 @@ export class AaveService {
 	}
 
 	public async wrapETH(amountStr: string): Promise<Hash> {
-		this.ensureWalletConnection();
+		await this.ensureWalletConnection();
 
 		const amount = parseUnits(amountStr, 18);
 
@@ -187,7 +187,7 @@ export class AaveService {
 	}
 
 	public async unwrapWETH(amountStr: string): Promise<Hash> {
-		this.ensureWalletConnection();
+		await this.ensureWalletConnection();
 
 		const amount = parseUnits(amountStr, 18);
 
@@ -212,7 +212,7 @@ export class AaveService {
 	}
 
 	public async withdraw(tokenAddress: Address, amountStr: string): Promise<Hash> {
-		this.ensureWalletConnection();
+		await this.ensureWalletConnection();
 
 		const poolAddress = await this.getPoolAddress();
 		const userAddress = this.account!.address;
@@ -232,7 +232,7 @@ export class AaveService {
 				abi: POOL_ABI,
 				functionName: "withdraw",
 				args: [tokenAddress, amount, userAddress],
-				account: userAddress,
+				account: this.account!,
 				chain: this.chainConfig.viemChain,
 			});
 			request = result.request;
@@ -253,7 +253,7 @@ export class AaveService {
 	}
 
 	public async borrow(tokenAddress: Address, amountStr: string): Promise<Hash> {
-		this.ensureWalletConnection();
+		await this.ensureWalletConnection();
 
 		const poolAddress = await this.getPoolAddress();
 		const decimals = await this.getTokenDecimals(tokenAddress);
@@ -302,7 +302,7 @@ export class AaveService {
 	}
 
 	public async repay(tokenAddress: Address, amountStr: string): Promise<Hash> {
-		this.ensureWalletConnection();
+		await this.ensureWalletConnection();
 
 		const poolAddress = await this.getPoolAddress();
 		let amount: bigint;
@@ -375,13 +375,15 @@ export class AaveService {
 		}
 	}
 
-	private ensureWalletConnection() {
+	private async ensureWalletConnection() {
 		if (!this.walletClient || !this.account) {
 			throw new FibxError(
 				ErrorCode.WALLET_ERROR,
 				"Wallet not connected. Please login or provide a PRIVATE_KEY."
 			);
 		}
+		// Ensure NonceManager is initialized with current account
+		await NonceManager.getInstance().init(this.account.address, this.publicClient);
 	}
 
 	private async getTokenDecimals(tokenAddress: Address): Promise<number> {
@@ -390,6 +392,200 @@ export class AaveService {
 			abi: erc20Abi,
 			functionName: "decimals",
 		});
+	}
+
+	/**
+	 * High-level method to repay debt, automatically wrapping ETH if needed.
+	 */
+	public async repayWithAutoWrap(
+		tokenAddress: Address,
+		amountStr: string,
+		onStatus?: (status: string) => void
+	): Promise<Hash> {
+		await this.ensureWalletConnection();
+
+		if (onStatus) onStatus("Checking debt...");
+		const currentDebt = await this.getAssetDebt(tokenAddress);
+
+		if (currentDebt === 0n) {
+			throw new FibxError(ErrorCode.VALIDATION_ERROR, "No debt found for this asset.");
+		}
+
+		let amountToRepay: bigint;
+		let finalAmountStr = amountStr;
+
+		const decimals = await this.getTokenDecimals(tokenAddress);
+
+		if (amountStr === "-1" || amountStr.toLowerCase() === "max") {
+			// Add 0.1% buffer for interest to ensure full repayment
+			const interestBuffer = currentDebt / 1000n;
+			const safeMax = currentDebt + interestBuffer;
+			amountToRepay = safeMax;
+			finalAmountStr = "-1"; // Protocol indication for "repay all"
+		} else {
+			amountToRepay = parseUnits(amountStr, decimals);
+			if (amountToRepay > currentDebt) {
+				amountToRepay = currentDebt;
+				finalAmountStr = "-1";
+			}
+		}
+
+		const isWrappedNative =
+			tokenAddress.toLowerCase() === this.chainConfig.wrappedNativeAddress.toLowerCase();
+
+		if (isWrappedNative) {
+			if (onStatus) onStatus("Checking WETH balance for auto-wrap...");
+
+			const wethBalance = await this.publicClient.readContract({
+				address: tokenAddress,
+				abi: erc20Abi,
+				functionName: "balanceOf",
+				args: [this.account!.address],
+			});
+
+			if (wethBalance < amountToRepay) {
+				const ethBalance = await this.publicClient.getBalance({
+					address: this.account!.address,
+				});
+				const needed = amountToRepay - wethBalance;
+
+				if (ethBalance >= needed) {
+					if (onStatus) onStatus(`Wrapping ${formatUnits(needed, 18)} ETH to WETH...`);
+					await this.wrapETH(formatUnits(needed, 18));
+				} else {
+					throw new FibxError(
+						ErrorCode.VALIDATION_ERROR,
+						`Insufficient WETH+ETH balance. Available: ${formatUnits(
+							wethBalance + ethBalance,
+							18
+						)}`
+					);
+				}
+			}
+		}
+
+		if (onStatus) onStatus("Signaling Aave Repay...");
+
+		if (finalAmountStr === "-1") {
+			const interestBuffer = currentDebt / 1000n;
+			const safeMax = currentDebt + interestBuffer;
+			finalAmountStr = formatUnits(safeMax, decimals);
+		}
+
+		return await this.repay(tokenAddress, finalAmountStr);
+	}
+
+	public async getAssetDebt(tokenAddress: Address): Promise<bigint> {
+		const poolDataProvider = AAVE_V3_POOL_DATA_PROVIDER;
+		const data = await this.publicClient.readContract({
+			address: poolDataProvider,
+			abi: POOL_DATA_PROVIDER_ABI,
+			functionName: "getUserReserveData",
+			args: [tokenAddress, this.account!.address],
+		});
+
+		const stableDebt = data[1];
+		const variableDebt = data[2];
+
+		return stableDebt + variableDebt;
+	}
+
+	/**
+	 * High-level method to supply assets, automatically wrapping ETH if needed.
+	 */
+	public async supplyWithAutoWrap(
+		tokenAddress: Address,
+		amountStr: string,
+		onStatus?: (status: string) => void
+	): Promise<Hash> {
+		await this.ensureWalletConnection();
+
+		const decimals = await this.getTokenDecimals(tokenAddress);
+		const amount = parseUnits(amountStr, decimals);
+
+		// 1. Balance Check
+		if (onStatus) onStatus("Checking balance...");
+
+		const tokenBalance = await this.publicClient.readContract({
+			address: tokenAddress,
+			abi: erc20Abi,
+			functionName: "balanceOf",
+			args: [this.account!.address],
+		});
+
+		const isWrappedNative =
+			tokenAddress.toLowerCase() === this.chainConfig.wrappedNativeAddress.toLowerCase();
+
+		if (isWrappedNative) {
+			const ethBalance = await this.publicClient.getBalance({
+				address: this.account!.address,
+			});
+
+			if (tokenBalance < amount) {
+				const needed = amount - tokenBalance;
+				if (ethBalance >= needed) {
+					if (onStatus) onStatus(`Wrapping ${formatUnits(needed, 18)} ETH to WETH...`);
+					await this.wrapETH(formatUnits(needed, 18));
+				} else {
+					throw new FibxError(
+						ErrorCode.VALIDATION_ERROR,
+						`Insufficient WETH+ETH balance. Available: ${formatUnits(
+							tokenBalance + ethBalance,
+							18
+						)}`
+					);
+				}
+			}
+		} else {
+			if (tokenBalance < amount) {
+				throw new FibxError(
+					ErrorCode.VALIDATION_ERROR,
+					`Insufficient balance. Available: ${formatUnits(tokenBalance, decimals)}`
+				);
+			}
+		}
+
+		if (onStatus) onStatus("Signaling Aave Supply...");
+		return await this.supply(tokenAddress, amountStr);
+	}
+
+	/**
+	 * High-level method to withdraw assets, optionally unwrapping WETH to ETH.
+	 */
+	public async withdrawWithAutoUnwrap(
+		tokenAddress: Address,
+		amountStr: string,
+		unwrapToNative: boolean = false,
+		onStatus?: (status: string) => void
+	): Promise<Hash> {
+		if (onStatus) onStatus("Signaling Aave Withdraw...");
+		const tx = await this.withdraw(tokenAddress, amountStr);
+
+		if (unwrapToNative) {
+			const isWrappedNative =
+				tokenAddress.toLowerCase() === this.chainConfig.wrappedNativeAddress.toLowerCase();
+
+			if (isWrappedNative) {
+				if (onStatus) onStatus("Unwrapping WETH to ETH...");
+
+				let amountToUnwrap = amountStr;
+
+				if (amountStr === "-1" || amountStr.toLowerCase() === "max") {
+					const balance = await this.publicClient.readContract({
+						address: tokenAddress,
+						abi: erc20Abi,
+						functionName: "balanceOf",
+						args: [this.account!.address],
+					});
+					amountToUnwrap = formatUnits(balance, 18);
+				}
+
+				await this.unwrapWETH(amountToUnwrap);
+				if (onStatus) onStatus("Unwrapped WETH successfully");
+			}
+		}
+
+		return tx;
 	}
 
 	private async waitForAllowance(
@@ -420,7 +616,7 @@ export class AaveService {
 	): Promise<string[]> {
 		const debtDetails: string[] = [];
 
-		// 1. Batch fetch all reserve data using multicall
+		// Batch fetch all reserve data using multicall
 		const reserveDataCalls = reserves.map((asset) => ({
 			address: dataProviderAddress,
 			abi: POOL_DATA_PROVIDER_ABI,
@@ -430,10 +626,9 @@ export class AaveService {
 
 		const results = await this.publicClient.multicall({
 			contracts: reserveDataCalls,
-			allowFailure: true, // Continue even if some fail
+			allowFailure: true,
 		});
 
-		// 2. Identify assets with debt
 		const assetsWithDebt: Address[] = [];
 		const debts: bigint[] = [];
 
@@ -450,10 +645,14 @@ export class AaveService {
 			}
 		});
 
-		// 3. Fetch symbol/decimals for assets with debt using multicall
 		if (assetsWithDebt.length > 0) {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const detailCalls: any[] = [];
+			type ContractCall = {
+				address: Address;
+				abi: typeof erc20Abi;
+				functionName: "symbol" | "decimals";
+			};
+			const detailCalls: ContractCall[] = [];
+
 			assetsWithDebt.forEach((asset) => {
 				detailCalls.push({
 					address: asset,
@@ -470,7 +669,7 @@ export class AaveService {
 			try {
 				const detailResults = await this.publicClient.multicall({
 					contracts: detailCalls,
-					allowFailure: false, // If these fail, we can't display details properly
+					allowFailure: false,
 				});
 
 				for (let i = 0; i < assetsWithDebt.length; i++) {
@@ -481,7 +680,7 @@ export class AaveService {
 				}
 			} catch (e) {
 				console.warn("Failed to fetch debt token details via multicall:", e);
-				// Fallback: just list addresses and raw amounts if metadata fails
+				// Fallback: just list addresses and raw amounts
 				assetsWithDebt.forEach((asset, i) => {
 					debtDetails.push(`${asset}: raw units ${debts[i]}`);
 				});

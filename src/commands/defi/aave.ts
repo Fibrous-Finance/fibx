@@ -3,15 +3,12 @@ import chalk from "chalk";
 import { AaveService } from "../../services/defi/aave.js";
 import { getChainConfig, type ChainConfig } from "../../services/chain/constants.js";
 import { resolveToken, type Token } from "../../services/fibrous/tokens.js";
-import { getBalances } from "../../services/fibrous/balances.js";
 import type { Address } from "viem";
 import {
 	HEALTH_FACTOR_WARNING_THRESHOLD,
 	HEALTH_FACTOR_CRITICAL_THRESHOLD,
 } from "../../services/defi/constants.js";
 import { outputError, outputResult } from "../../lib/format.js";
-import { getPublicClient } from "../../services/chain/client.js";
-import { formatUnits, parseUnits } from "viem";
 
 interface GlobalOptions {
 	json?: boolean;
@@ -32,14 +29,12 @@ export const aaveCommand = async (
 		// Aave V3 is currently Base-only
 		const chainConfig = getChainConfig("base");
 
-		// Initialize Service
 		const aave = new AaveService(chainConfig);
 
 		try {
-			// Try to load session (Privy or Private Key)
 			await attemptSessionLogin(aave, chainConfig);
 		} catch {
-			// Ignore if no session, aave service handles missing wallet gracefully for read-only
+			// Ignore if no session; read-only mode works without it
 		}
 
 		const userAddress = aave.getAccountAddress();
@@ -72,11 +67,9 @@ export const aaveCommand = async (
 			return;
 		}
 
-		// Resolve Token
 		spinner.text = `Resolving token ${tokenSymbol}...`;
 		let token = await resolveToken(tokenSymbol, chainConfig);
 
-		// Handle ETH -> WETH translation for Aave
 		if (token.address === chainConfig.nativeTokenAddress) {
 			token = {
 				...token,
@@ -124,8 +117,6 @@ export const aaveCommand = async (
 	}
 };
 
-// Helpers
-
 function isValidAction(action: string): action is AaveAction {
 	return ["status", "supply", "borrow", "repay", "withdraw"].includes(action);
 }
@@ -145,8 +136,6 @@ async function attemptSessionLogin(aave: AaveService, chainConfig: ChainConfig) 
 		// Session load failed, ignore
 	}
 }
-
-// Action Handlers
 
 async function handleStatus(
 	aave: AaveService,
@@ -193,64 +182,12 @@ async function handleSupply(
 	opts: GlobalOptions,
 	isNativeETH: boolean = false
 ) {
-	// Balance Check
-	spinner.text = "Checking balance...";
-	const balances = await getBalances(
-		[{ address: token.address, decimals: token.decimals }],
-		userAddress,
-		chainConfig
-	);
-	const wethBalanceData = balances.find(
-		(b) => b.token.address.toLowerCase() === token.address.toLowerCase()
-	);
+	// If native ETH, allow service to handle auto-wrap (token is already resolved to WETH address)
 
-	const amountBigInt = parseUnits(amount, token.decimals);
-	const wethBalanceBigInt = wethBalanceData
-		? parseUnits(wethBalanceData.balance, token.decimals)
-		: 0n;
+	const txHash = await aave.supplyWithAutoWrap(token.address as Address, amount, (status) => {
+		spinner.text = status;
+	});
 
-	if (isNativeETH) {
-		const publicClient = getPublicClient(chainConfig);
-		const ethBalanceBigInt = await publicClient.getBalance({ address: userAddress });
-
-		const totalAvailable = ethBalanceBigInt + wethBalanceBigInt;
-
-		if (totalAvailable < amountBigInt) {
-			spinner.fail(chalk.red("Insufficient Balance"));
-			console.log(
-				chalk.yellow(
-					`You have ${formatUnits(ethBalanceBigInt, 18)} ETH + ${formatUnits(
-						wethBalanceBigInt,
-						18
-					)} WETH, but need ${amount}.`
-				)
-			);
-			return;
-		}
-
-		// Check if we need to wrap
-		if (wethBalanceBigInt < amountBigInt) {
-			const neededWETH = amountBigInt - wethBalanceBigInt;
-			spinner.text = `Wrapping ${formatUnits(neededWETH, 18)} ETH to WETH...`;
-			await aave.wrapETH(formatUnits(neededWETH, 18));
-			spinner.succeed("Wrapped ETH successfully");
-		}
-	} else {
-		if (wethBalanceBigInt < amountBigInt) {
-			spinner.fail(chalk.red("Insufficient Balance"));
-			console.log(
-				chalk.yellow(
-					`You have ${formatUnits(wethBalanceBigInt, token.decimals)} ${
-						token.symbol
-					}, but need ${amount}.`
-				)
-			);
-			return;
-		}
-	}
-
-	spinner.text = "Signaling Aave Supply...";
-	const tx = await aave.supply(token.address as Address, amount);
 	spinner.succeed("Supply transaction sent!");
 
 	outputResult(
@@ -258,7 +195,7 @@ async function handleSupply(
 			action: "Supply",
 			amount,
 			token: token.symbol,
-			txHash: tx,
+			txHash,
 			chain: "base",
 		},
 		{ json: !!opts.json }
@@ -295,16 +232,18 @@ async function handleRepay(
 	spinner: Ora,
 	opts: GlobalOptions
 ) {
-	spinner.text = "Signaling Aave Repay...";
-	const tx = await aave.repay(token.address as Address, amount);
-	spinner.succeed("Repay transaction sent!");
+	const txHash = await aave.repayWithAutoWrap(token.address as Address, amount, (status) => {
+		spinner.text = status;
+	});
+
+	spinner.succeed("Repay transaction completed!");
 
 	outputResult(
 		{
 			action: "Repay",
-			amount,
+			amount: amount === "-1" || amount.toLowerCase() === "max" ? "MAX" : amount,
 			token: token.symbol,
-			txHash: tx,
+			txHash,
 			chain: "base",
 		},
 		{ json: !!opts.json }
@@ -319,23 +258,24 @@ async function handleWithdraw(
 	opts: GlobalOptions,
 	isNativeETH: boolean = false
 ) {
-	spinner.text = "Signaling Aave Withdraw...";
-	const tx = await aave.withdraw(token.address as Address, amount);
+	// Delegate to service
+	const txHash = await aave.withdrawWithAutoUnwrap(
+		token.address as Address,
+		amount,
+		isNativeETH,
+		(status) => {
+			spinner.text = status;
+		}
+	);
 
-	if (isNativeETH) {
-		spinner.text = "Unwrapping WETH to ETH...";
-		await aave.unwrapWETH(amount);
-		spinner.succeed("Withdraw & Unwrap transaction sent!");
-	} else {
-		spinner.succeed("Withdraw transaction sent!");
-	}
+	spinner.succeed("Withdraw transaction sent!");
 
 	outputResult(
 		{
 			action: "Withdraw",
 			amount,
 			token: isNativeETH ? "ETH (unwrapped)" : token.symbol,
-			txHash: tx,
+			txHash,
 			chain: "base",
 		},
 		{ json: !!opts.json }

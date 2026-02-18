@@ -71,6 +71,8 @@ npx fibx trade 1 MON USDC --chain monad
 
 Options: `--slippage <n>` (default: 0.5%), `--approve-max`, `--json`
 
+> **Note:** The `trade` command automatically detects **Wrap** (Native -> Wrapped) and **Unwrap** (Wrapped -> Native) operations and executes them directly via contract calls, bypassing aggregator routing to save gas.
+
 ### Transaction Status
 
 ```bash
@@ -89,11 +91,15 @@ npx fibx wallets <email>      # List active wallet
 
 ```bash
 npx fibx aave status               # Account health
-npx fibx aave supply 100 USDC      # Deposit
+npx fibx aave supply 1 ETH         # Auto-wraps ETH -> WETH and supplies
+npx fibx aave supply 100 USDC      # Supply ERC-20
 npx fibx aave borrow 50 USDC       # Borrow
-npx fibx aave repay max USDC       # Repay all
-npx fibx aave withdraw max USDC    # Withdraw all
+npx fibx aave repay 50 USDC        # Repay
+npx fibx aave repay max ETH        # Auto-wraps ETH and repays full WETH debt
+npx fibx aave withdraw max ETH     # Withdraws WETH and auto-unwraps to ETH
 ```
+
+> **Note:** `supply`, `repay`, and `withdraw` support automatic **ETH <-> WETH** wrapping/unwrapping on Base.
 
 ## Agent Skills
 
