@@ -19,16 +19,25 @@ export function toPrivyViemAccount(token: string, walletId: string, address: str
 				chain_id: toHex(chainId as number),
 				to: txParams.to,
 				data: txParams.data,
-				value: txParams.value ? toHex(txParams.value as bigint) : undefined,
-				nonce: txParams.nonce ? toHex(txParams.nonce as number) : undefined,
-				gas_limit: txParams.gas ? toHex(txParams.gas as bigint) : undefined,
+				value: txParams.value != null ? toHex(txParams.value as bigint) : undefined,
+				nonce: txParams.nonce != null ? toHex(txParams.nonce as number) : undefined,
+				gas_limit: txParams.gas != null ? toHex(txParams.gas as bigint) : undefined,
 				max_fee_per_gas: txParams.maxFeePerGas
 					? toHex(txParams.maxFeePerGas as bigint)
 					: undefined,
 				max_priority_fee_per_gas: txParams.maxPriorityFeePerGas
 					? toHex(txParams.maxPriorityFeePerGas as bigint)
 					: undefined,
-				type: txParams.type === "eip1559" ? 2 : txParams.type === "legacy" ? 0 : undefined,
+				type:
+					txParams.type === "eip1559"
+						? 2
+						: txParams.type === "eip2930"
+							? 1
+							: txParams.type === "legacy"
+								? 0
+								: txParams.type === "eip4844"
+									? 4
+									: undefined,
 			};
 
 			Object.keys(privyTx).forEach((key) => {
