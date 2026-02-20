@@ -18,18 +18,18 @@ A command-line tool for DeFi operations on **Base, Citrea, HyperEVM, and Monad**
 ## Requirements
 
 - Node.js >= 18
-- A running [fibx-server](https://github.com/ahmetenesdur/fibx-server) instance
+- A running [fibx-server](https://github.com/ahmetenesdur/fibx-server) instance (for Privy wallet operations)
 
 ## Usage
 
 ### Authentication
 
 ```bash
-# Email OTP
+# Email OTP (uses Privy server wallet)
 npx fibx auth login user@example.com
 npx fibx auth verify user@example.com 123456
 
-# Or import a private key
+# Or import a private key (local signing, no server needed)
 npx fibx auth import
 
 # Logout
