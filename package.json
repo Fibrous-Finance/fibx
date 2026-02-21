@@ -1,7 +1,16 @@
 {
 	"name": "fibx",
-	"version": "0.3.6",
+	"version": "0.3.7",
 	"description": "A powerful CLI for DeFi operations on Base, Citrea, HyperEVM, and Monad, powered by Fibrous.",
+	"author": "Ahmet Enes Dur",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ahmetenesdur/fibx.git"
+	},
+	"bugs": {
+		"url": "https://github.com/ahmetenesdur/fibx/issues"
+	},
+	"homepage": "https://github.com/ahmetenesdur/fibx#readme",
 	"type": "module",
 	"bin": {
 		"fibx": "dist/index.js"

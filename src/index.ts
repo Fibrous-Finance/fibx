@@ -17,7 +17,7 @@ import { logoutCommand } from "./commands/auth/logout.js";
 
 const program = new Command();
 
-program.name("fibx").description("Fibrous DeFi CLI — wallet, transfer, swap").version("0.3.6");
+program.name("fibx").description("Fibrous DeFi CLI — wallet, transfer, swap").version("0.3.7");
 registerConfigCommands(program);
 program
 	.option("-c, --chain <chain>", "Chain to use (base, citrea, hyperevm, monad)", "base")
