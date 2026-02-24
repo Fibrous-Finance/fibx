@@ -8,6 +8,7 @@ import {
 	handleGetAaveStatus,
 	handleAaveAction,
 	handleGetAuthStatus,
+	handleConfigAction,
 } from "./handlers.js";
 
 const ChainEnum = z.enum(["base", "citrea", "hyperevm", "monad"]);
@@ -249,5 +250,28 @@ export function registerAllTools(server: McpServer): void {
 		},
 		async ({ action, amount, token }) =>
 			safeToolCall(() => handleAaveAction(action, amount, token))
+	);
+
+	server.registerTool(
+		"config_action",
+		{
+			title: "Manage RPC Configuration",
+			description:
+				"View and modify fibx RPC configuration. Use 'set-rpc' to set a custom RPC URL for a chain (helps avoid rate limits), 'get-rpc' to view the current RPC for a chain, or 'list' to show all custom RPC settings.",
+			inputSchema: {
+				action: z.enum(["set-rpc", "get-rpc", "list"]).describe("Config action to perform"),
+				chain: ChainEnum.optional().describe(
+					"Target chain (required for set-rpc and get-rpc)"
+				),
+				url: z.string().optional().describe("RPC URL to set (required for set-rpc)"),
+			},
+			annotations: {
+				title: "RPC Configuration",
+				readOnlyHint: false,
+				destructiveHint: false,
+				openWorldHint: false,
+			},
+		},
+		async ({ action, chain, url }) => safeToolCall(() => handleConfigAction(action, chain, url))
 	);
 }

@@ -1,6 +1,6 @@
 # MCP Server
 
-fibx includes a built-in [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server that exposes all DeFi operations as callable tools. AI editors like **Cursor**, **Windsurf**, **Claude Desktop**, and any MCP-compatible client can connect to fibx and execute trades, transfers, and DeFi operations through natural language.
+fibx includes a built-in [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server that exposes all DeFi operations as callable tools. AI editors like **Cursor**, **Claude Desktop**, **Antigravity**, and any MCP-compatible client can connect to fibx and execute trades, transfers, and DeFi operations through natural language.
 
 ## Quick Start
 
@@ -80,6 +80,12 @@ These tools are marked as **destructive** — the AI editor will ask for confirm
 | `send_tokens` | Send native or ERC-20 tokens to a recipient             |
 | `aave_action` | Supply, borrow, repay, or withdraw on Aave V3 (Base)    |
 
+### Utility
+
+| Tool            | Description                                      |
+| --------------- | ------------------------------------------------ |
+| `config_action` | Set or view custom RPC URLs to avoid rate limits |
+
 ## Tool Details
 
 ### get_auth_status
@@ -150,6 +156,17 @@ Output: { action, amount, token, txHash, chain }
 ```
 
 **Example prompt:** "Supply 0.5 ETH to Aave" or "Repay max USDC on Aave"
+
+### config_action
+
+Manage custom RPC URLs. Useful when encountering rate limits on public endpoints.
+
+```
+Input:  { action: "set-rpc" | "get-rpc" | "list", chain?, url? }
+Output: { action, chain?, url?, rpcUrls? }
+```
+
+**Example prompt:** "I'm getting rate limited on Base, set a custom RPC"
 
 ## Supported Chains
 

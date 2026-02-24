@@ -1,6 +1,6 @@
 import type { Address } from "viem";
 import { loadSession, requireSession } from "../services/auth/session.js";
-import { getChainConfig } from "../services/chain/constants.js";
+import { getChainConfig, SUPPORTED_CHAINS } from "../services/chain/constants.js";
 import { getPublicClient, getWalletClient } from "../services/chain/client.js";
 import { getTokens, resolveToken } from "../services/fibrous/tokens.js";
 import { getBalances } from "../services/fibrous/balances.js";
@@ -430,4 +430,47 @@ export async function handleGetAuthStatus(chain: string): Promise<AuthStatusResu
 		chain: chainConfig.name,
 		fibrousStatus,
 	};
+}
+
+export interface ConfigResult {
+	action: string;
+	chain?: string;
+	url?: string;
+	rpcUrls?: Record<string, string>;
+}
+
+export async function handleConfigAction(
+	action: "set-rpc" | "get-rpc" | "list",
+	chain?: string,
+	url?: string
+): Promise<ConfigResult> {
+	const { configService } = await import("../services/config/config.js");
+
+	if (action === "list") {
+		const config = configService.getConfig();
+		return { action, rpcUrls: config.rpcUrls };
+	}
+
+	if (!chain) throw new Error("Chain is required for this action.");
+	if (!SUPPORTED_CHAINS[chain]) {
+		throw new Error(
+			`Unsupported chain: ${chain}. Supported: ${Object.keys(SUPPORTED_CHAINS).join(", ")}`
+		);
+	}
+
+	if (action === "get-rpc") {
+		const customUrl = configService.getRpcUrl(chain);
+		const defaultUrl = SUPPORTED_CHAINS[chain]?.rpcUrl;
+		return { action, chain, url: customUrl || defaultUrl };
+	}
+
+	if (!url) throw new Error("URL is required for set-rpc.");
+	try {
+		new URL(url);
+	} catch {
+		throw new Error("Invalid URL format.");
+	}
+
+	configService.setRpcUrl(chain, url);
+	return { action, chain, url };
 }
