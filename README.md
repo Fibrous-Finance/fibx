@@ -11,15 +11,39 @@ A command-line tool for DeFi operations on **Base, Citrea, HyperEVM, and Monad**
 - **Transfers**: Send ETH or any ERC-20 token
 - **Aave V3**: Supply, borrow, repay, and withdraw on Base
 - **MCP Server**: Built-in AI agent integration for Cursor, Claude Desktop, and Antigravity
-- **Privy Server Wallets**: Secure server-side signing
+- **Agent Skills**: Prompt-based AI skills via [fibx-skills](https://github.com/Fibrous-Finance/fibx-skills)
+- **Privy Server Wallets**: Secure server-side signing — private keys never leave Privy's TEE
 - **Private Key Import**: Use an existing wallet for local execution
 - **Simulation**: All transactions are simulated before execution
 - **JSON Output**: `--json` flag for scripting and pipelines
 
+## Supported Chains
+
+| Chain    | Native Token | Aave V3 |
+| -------- | ------------ | ------- |
+| Base     | ETH          | ✅      |
+| Citrea   | cBTC         | —       |
+| HyperEVM | HYPE         | —       |
+| Monad    | MON          | —       |
+
+## Installation
+
+Run directly with `npx` (no install needed):
+
+```bash
+npx fibx status
+```
+
+Or install globally:
+
+```bash
+npm install -g fibx
+```
+
 ## Requirements
 
 - Node.js >= 18
-- A running [fibx-server](https://github.com/ahmetenesdur/fibx-server) instance (for Privy wallet operations)
+- A running [fibx-server](https://github.com/ahmetenesdur/fibx-server) instance (required for Privy wallet operations; not needed for private key imports)
 
 ## Usage
 
@@ -33,33 +57,19 @@ npx fibx auth verify user@example.com 123456
 # Or import a private key (local signing, no server needed)
 npx fibx auth import
 
+# Check session status
+npx fibx status
+
 # Logout
 npx fibx auth logout
-
-# Check status
-npx fibx status
 ```
 
 ### Global Options
 
-Use `-c` or `--chain` to specify the target chain. Default is `base`.
-
-Supported: `base`, `citrea`, `hyperevm`, `monad`
-
-### Configuration
-
-You can configure custom RPC URLs to avoid rate limits on public endpoints.
-
-```bash
-# Set a custom RPC URL for a chain
-npx fibx config set-rpc base https://mainnet.base.org
-
-# View current RPC URL
-npx fibx config get-rpc base
-
-# List all custom configurations
-npx fibx config list
-```
+| Option               | Description                                          | Default |
+| -------------------- | ---------------------------------------------------- | ------- |
+| `-c, --chain <name>` | Target chain (`base`, `citrea`, `hyperevm`, `monad`) | `base`  |
+| `--json`             | Output results as JSON                               | `false` |
 
 ### Balance
 
@@ -73,7 +83,7 @@ npx fibx balance --chain citrea
 ```bash
 npx fibx send 0.001 0xRecipient           # Send native token on Base (ETH)
 npx fibx send 10 0xRecipient USDC         # Send ERC-20 on Base
-npx fibx send 1 0xRecipient --chain monad # Send on Monad native token (MON)
+npx fibx send 1 0xRecipient --chain monad # Send MON on Monad
 ```
 
 ### Swap
@@ -99,8 +109,8 @@ npx fibx tx-status 0x123...abc --chain monad
 ### Wallet Info
 
 ```bash
-npx fibx address              # Print wallet address
-npx fibx wallets <email>      # List active wallet
+npx fibx address    # Print active wallet address
+npx fibx wallets    # Show active wallet details
 ```
 
 ### Aave V3 (Base)
@@ -117,11 +127,21 @@ npx fibx aave withdraw max ETH     # Withdraws WETH and auto-unwraps to ETH
 
 > **Note:** `supply`, `repay`, and `withdraw` support automatic **ETH <-> WETH** wrapping/unwrapping on Base.
 
+### Configuration
+
+Set custom RPC URLs to avoid rate limits on public endpoints:
+
+```bash
+npx fibx config set-rpc base https://mainnet.base.org
+npx fibx config get-rpc base
+npx fibx config list
+```
+
 ## AI Agent Integration
 
 ### MCP Server
 
-fibx includes a built-in MCP server for AI editors like Cursor, Claude Desktop, and Antigravity. See [MCP.md](MCP.md) for setup and usage.
+fibx includes a built-in [MCP](https://modelcontextprotocol.io) server for AI editors like Cursor, Claude Desktop, and Antigravity. See [MCP.md](MCP.md) for setup and available tools.
 
 ```bash
 npx fibx mcp-start
@@ -129,4 +149,15 @@ npx fibx mcp-start
 
 ### Agent Skills
 
-For prompt-based agent integration, see the [fibx-skills](https://github.com/Fibrous-Finance/fibx-skills) directory.
+For prompt-based agent integration (Claude Code, Cursor, etc.), see the [fibx-skills](https://github.com/Fibrous-Finance/fibx-skills) repository.
+
+## Related Links
+
+- [Fibrous Finance](https://fibrous.finance) — DEX aggregator powering swaps
+- [fibx-server](https://github.com/ahmetenesdur/fibx-server) — Backend for Privy wallet operations
+- [fibx-skills](https://github.com/Fibrous-Finance/fibx-skills) — AI agent skills
+- [npm package](https://www.npmjs.com/package/fibx)
+
+## License
+
+[MIT](https://opensource.org/licenses/MIT)

@@ -8,7 +8,16 @@ fibx includes a built-in [Model Context Protocol](https://modelcontextprotocol.i
 npx fibx mcp-start
 ```
 
-This starts an MCP server over **stdio** (standard input/output). The server speaks JSON-RPC and is designed to be launched by an AI editor, not run manually.
+This starts an MCP server over **stdio** (standard input/output). The server speaks JSON-RPC 2.0 and is designed to be launched by an AI editor, not run manually.
+
+## How It Works
+
+1. Your AI editor spawns `npx fibx mcp-start` as a subprocess
+2. The editor communicates via **stdin/stdout** using JSON-RPC 2.0 messages
+3. fibx reads the local session file to authenticate (must run `fibx auth login` or `fibx auth import` first)
+4. Tools are executed against live blockchains — transactional tools are marked as **destructive** so editors prompt for confirmation
+
+> **Note:** stderr is used for logging; stdout is reserved for JSON-RPC protocol messages.
 
 ## Editor Setup
 
@@ -57,7 +66,7 @@ Add to `~/.gemini/antigravity/mcp_config.json`:
 }
 ```
 
-> **Note:** You must be authenticated (`fibx auth login` or `fibx auth import`) before the MCP server can execute wallet operations.
+> **Important:** You must be authenticated (`fibx auth login` or `fibx auth import`) before the MCP server can execute wallet operations.
 
 ## Available Tools
 
@@ -179,8 +188,18 @@ Output: { action, chain?, url?, rpcUrls? }
 
 ## Environment Variables
 
-| Variable       | Description                                          |
-| -------------- | ---------------------------------------------------- |
-| `FIBX_API_URL` | Custom fibx-server URL (for Privy wallet operations) |
+| Variable       | Description                                          | Required |
+| -------------- | ---------------------------------------------------- | -------- |
+| `FIBX_API_URL` | Custom fibx-server URL (for Privy wallet operations) | No       |
 
-If using Privy authentication, ensure `fibx-server` is running and accessible before starting the MCP server.
+If using Privy authentication, ensure [fibx-server](https://github.com/ahmetenesdur/fibx-server) is running and accessible before starting the MCP server.
+
+## Troubleshooting
+
+| Problem                    | Solution                                                             |
+| -------------------------- | -------------------------------------------------------------------- |
+| Server won't start         | Ensure Node.js >= 18 is installed and `npx fibx --version` works     |
+| "Not authenticated" errors | Run `fibx auth login <email>` or `fibx auth import` before starting  |
+| Wallet operations fail     | Ensure `fibx-server` is running (not needed for private key imports) |
+| Rate limit errors          | Use `config_action` tool to set a custom RPC URL                     |
+| Editor can't connect       | Verify the MCP config JSON syntax and restart the editor             |
