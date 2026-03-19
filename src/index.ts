@@ -81,9 +81,7 @@ const program = new Command();
 
 program
 	.name("fibx")
-	.description(
-		"Multi-chain DeFi CLI + MCP Server. Powered by Fibrous."
-	)
+	.description("Multi-chain DeFi CLI + MCP Server. Powered by Fibrous.")
 	.version(version)
 	.showHelpAfterError()
 	.addHelpText("beforeAll", banner);
@@ -208,10 +206,7 @@ const auth = program.command("auth").description("Authentication commands");
 auth.command("login")
 	.description("Initiate email OTP login via Privy")
 	.argument("<email>", "Email address for OTP login")
-	.addHelpText(
-		"after",
-		"\nExamples:\n  $ fibx auth login user@example.com"
-	)
+	.addHelpText("after", "\nExamples:\n  $ fibx auth login user@example.com")
 	.action(async (email, _opts, cmd) => {
 		const globalOpts = cmd.parent!.parent!.opts();
 		await authLoginCommand(email, { json: globalOpts.json });
@@ -221,10 +216,7 @@ auth.command("verify")
 	.description("Verify OTP code and create wallet session")
 	.argument("<email>", "Email used for login")
 	.argument("<code>", "OTP code from email")
-	.addHelpText(
-		"after",
-		"\nExamples:\n  $ fibx auth verify user@example.com 123456"
-	)
+	.addHelpText("after", "\nExamples:\n  $ fibx auth verify user@example.com 123456")
 	.action(async (email, code, _opts, cmd) => {
 		const globalOpts = cmd.parent!.parent!.opts();
 		await authVerifyCommand(email, code, { json: globalOpts.json });
@@ -232,10 +224,7 @@ auth.command("verify")
 
 auth.command("import")
 	.description("Import a private key for local authentication")
-	.addHelpText(
-		"after",
-		"\nExamples:\n  $ fibx auth import"
-	)
+	.addHelpText("after", "\nExamples:\n  $ fibx auth import")
 	.action(async (_opts, cmd) => {
 		const globalOpts = cmd.parent!.parent!.opts();
 		const { authImportCommand } = await import("./commands/auth/import.js");
@@ -249,10 +238,7 @@ auth.addCommand(logoutCommand);
 program
 	.command("status")
 	.description("Check auth status and Fibrous health")
-	.addHelpText(
-		"after",
-		"\nExamples:\n  $ fibx status\n  $ fibx status --chain monad"
-	)
+	.addHelpText("after", "\nExamples:\n  $ fibx status\n  $ fibx status --chain monad")
 	.action(async (_opts, cmd) => {
 		const globalOpts = cmd.parent!.opts();
 		await statusCommand({ ...globalOpts, json: globalOpts.json });
@@ -307,13 +293,18 @@ program
 	.argument("<amount>", "Amount to send")
 	.argument("<recipient>", "Recipient address (0x...)")
 	.argument("[token]", "Token symbol or address (default: chain native token)")
+	.option("--simulate", "Estimate gas without executing", false)
 	.addHelpText(
 		"after",
 		"\nExamples:\n  $ fibx send 0.1 0xRecipient...\n  $ fibx send 100 0xRecipient... USDC\n  $ fibx send 0.5 0xRecipient... --chain monad"
 	)
-	.action(async (amount, recipient, token, _opts, cmd) => {
+	.action(async (amount, recipient, token, opts, cmd) => {
 		const globalOpts = cmd.parent!.opts();
-		await sendCommand(amount, recipient, token, { ...globalOpts, json: globalOpts.json });
+		await sendCommand(amount, recipient, token, {
+			...globalOpts,
+			json: globalOpts.json,
+			simulate: opts.simulate,
+		});
 	});
 
 // ── Trading Commands ─────────────────────────────────────────────────
@@ -326,6 +317,7 @@ program
 	.argument("<to>", "Destination token (symbol or address)")
 	.option("-s, --slippage <number>", "Slippage tolerance %", "0.5")
 	.option("--approve-max", "Approve maximum amount instead of exact amount", false)
+	.option("--simulate", "Estimate gas without executing", false)
 	.addHelpText(
 		"after",
 		"\nExamples:\n  $ fibx trade 0.1 ETH USDC\n  $ fibx trade 100 USDC WETH --slippage 1\n  $ fibx trade 0.5 ETH DAI --chain base"
@@ -337,16 +329,14 @@ program
 			json: globalOpts.json,
 			slippage: parseFloat(opts.slippage),
 			approveMax: opts.approveMax,
+			simulate: opts.simulate,
 		});
 	});
 
 program
 	.command("portfolio")
 	.description("Show cross-chain portfolio with USD values")
-	.addHelpText(
-		"after",
-		"\nExamples:\n  $ fibx portfolio\n  $ fibx portfolio --json"
-	)
+	.addHelpText("after", "\nExamples:\n  $ fibx portfolio\n  $ fibx portfolio --json")
 	.action(async (_opts, cmd) => {
 		const globalOpts = cmd.parent!.opts();
 		const { portfolioCommand } = await import("./commands/portfolio/index.js");
@@ -358,16 +348,21 @@ program
 program
 	.command("aave")
 	.description("Aave V3 operations (Base only)")
-	.argument("<action>", "Action: status, supply, borrow, repay, withdraw")
+	.argument("<action>", "Action: status, supply, borrow, repay, withdraw, markets")
 	.argument("[amount]", "Amount (use 'max' for full repay/withdraw)")
 	.argument("[token]", "Token symbol or address")
+	.option("--simulate", "Estimate gas without executing", false)
 	.addHelpText(
 		"after",
-		"\nExamples:\n  $ fibx aave status\n  $ fibx aave supply 1 ETH\n  $ fibx aave borrow 500 USDC\n  $ fibx aave repay max USDC\n  $ fibx aave withdraw max ETH"
+		"\nExamples:\n  $ fibx aave status\n  $ fibx aave markets\n  $ fibx aave supply 1 ETH\n  $ fibx aave supply 1 ETH --simulate\n  $ fibx aave borrow 500 USDC\n  $ fibx aave repay max USDC\n  $ fibx aave withdraw max ETH"
 	)
-	.action(async (action, amount, token, _opts, cmd) => {
+	.action(async (action, amount, token, opts, cmd) => {
 		const globalOpts = cmd.parent!.opts();
-		await aaveCommand(action, amount, token, { ...globalOpts, json: globalOpts.json });
+		await aaveCommand(action, amount, token, {
+			...globalOpts,
+			json: globalOpts.json,
+			simulate: opts.simulate,
+		});
 	});
 
 // ── MCP Server ───────────────────────────────────────────────────────
