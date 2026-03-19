@@ -5,7 +5,14 @@ import { getPublicClient, getWalletClient } from "../services/chain/client.js";
 import { getTokens, resolveToken } from "../services/fibrous/tokens.js";
 import { getBalances } from "../services/fibrous/balances.js";
 import { getRouteAndCallData, encodeSwapCalldata } from "../services/fibrous/route.js";
-import { getAllowance, encodeApprove, ERC20_ABI } from "../services/chain/erc20.js";
+import {
+	getAllowance,
+	encodeApprove,
+	encodeDeposit,
+	encodeWithdraw,
+	waitForAllowance,
+	ERC20_ABI,
+} from "../services/chain/erc20.js";
 import { formatAmount, parseAmount } from "../lib/parseAmount.js";
 import { validateAmount, validateAddress } from "../lib/validation.js";
 import { DEFAULT_SLIPPAGE } from "../lib/config.js";
@@ -88,6 +95,50 @@ export async function handleSwapTokens(
 	const amountBaseUnits = parseAmount(amount, tokenIn.decimals);
 	const isNativeInput =
 		tokenIn.address.toLowerCase() === chainConfig.nativeTokenAddress.toLowerCase();
+	const isNativeOutput =
+		tokenOut.address.toLowerCase() === chainConfig.nativeTokenAddress.toLowerCase();
+	const isWrappedInput =
+		tokenIn.address.toLowerCase() === chainConfig.wrappedNativeAddress.toLowerCase();
+	const isWrappedOutput =
+		tokenOut.address.toLowerCase() === chainConfig.wrappedNativeAddress.toLowerCase();
+
+	// Handle native → wrapped (wrap)
+	if (isNativeInput && isWrappedOutput) {
+		const data = encodeDeposit();
+		const hash = await walletClient.sendTransaction({
+			to: chainConfig.wrappedNativeAddress as Address,
+			data,
+			value: amountBaseUnits,
+		});
+		return {
+			txHash: hash,
+			amountIn: amount,
+			amountOut: amount,
+			tokenIn: tokenIn.symbol,
+			tokenOut: tokenOut.symbol,
+			router: chainConfig.wrappedNativeAddress,
+			chain: chainConfig.name,
+		};
+	}
+
+	// Handle wrapped → native (unwrap)
+	if (isWrappedInput && isNativeOutput) {
+		const data = encodeWithdraw(amountBaseUnits);
+		const hash = await walletClient.sendTransaction({
+			to: chainConfig.wrappedNativeAddress as Address,
+			data,
+			value: 0n,
+		});
+		return {
+			txHash: hash,
+			amountIn: amount,
+			amountOut: amount,
+			tokenIn: tokenIn.symbol,
+			tokenOut: tokenOut.symbol,
+			router: chainConfig.wrappedNativeAddress,
+			chain: chainConfig.name,
+		};
+	}
 
 	const routeData = await getRouteAndCallData(
 		{
@@ -125,19 +176,13 @@ export async function handleSwapTokens(
 			});
 
 			// Wait for on-chain allowance update
-			let retries = 0;
-			const maxRetries = 15;
-			while (retries < maxRetries) {
-				const newAllowance = await getAllowance(
-					publicClient,
-					tokenIn.address as Address,
-					wallet,
-					routerAddress
-				);
-				if (newAllowance >= amountBaseUnits) break;
-				await new Promise((resolve) => setTimeout(resolve, 2000));
-				retries++;
-			}
+			await waitForAllowance(
+				publicClient,
+				tokenIn.address as Address,
+				wallet,
+				routerAddress,
+				amountBaseUnits
+			);
 		}
 	}
 
@@ -293,8 +338,7 @@ export async function handleGetAaveStatus(): Promise<AaveStatusResult> {
 
 	try {
 		const walletClient = getWalletClient(session, chainConfig);
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		aave.setWalletClient(walletClient as any);
+		aave.setWalletClient(walletClient);
 	} catch {
 		// Read-only mode
 	}
@@ -339,8 +383,7 @@ export async function handleAaveAction(
 	const aave = new AaveService(chainConfig);
 
 	const walletClient = getWalletClient(session, chainConfig);
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	aave.setWalletClient(walletClient as any);
+	aave.setWalletClient(walletClient);
 
 	let token = await resolveToken(tokenSymbol, chainConfig);
 	const isNativeETH = tokenSymbol.toUpperCase() === chainConfig.nativeSymbol;

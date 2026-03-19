@@ -6,6 +6,10 @@ export interface OutputOptions {
 	json: boolean;
 }
 
+export interface GlobalOptions extends OutputOptions {
+	chain?: string;
+}
+
 export function outputResult(data: unknown, opts: OutputOptions): void {
 	if (opts.json) {
 		process.stdout.write(JSON.stringify(data, null, 2) + "\n");

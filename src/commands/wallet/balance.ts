@@ -5,7 +5,13 @@ import { getChainConfig } from "../../services/chain/constants.js";
 import { getTokens } from "../../services/fibrous/tokens.js";
 import { getBalances } from "../../services/fibrous/balances.js";
 import { formatAmount } from "../../lib/parseAmount.js";
-import { outputResult, outputError, withSpinner, type OutputOptions } from "../../lib/format.js";
+import {
+	outputResult,
+	outputError,
+	withSpinner,
+	type OutputOptions,
+	type GlobalOptions,
+} from "../../lib/format.js";
 
 export async function balanceCommand(opts: OutputOptions): Promise<void> {
 	try {
@@ -15,7 +21,7 @@ export async function balanceCommand(opts: OutputOptions): Promise<void> {
 			return;
 		}
 
-		const globalOpts = opts as unknown as { chain?: string };
+		const globalOpts = opts as unknown as GlobalOptions;
 		const chainName = globalOpts.chain || "base";
 		const chainConfig = getChainConfig(chainName);
 		const client = getPublicClient(chainConfig);

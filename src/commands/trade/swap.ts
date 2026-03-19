@@ -7,13 +7,20 @@ import {
 	encodeApprove,
 	encodeDeposit,
 	encodeWithdraw,
+	waitForAllowance,
 } from "../../services/chain/erc20.js";
 import { resolveToken } from "../../services/fibrous/tokens.js";
 import { getRouteAndCallData, encodeSwapCalldata } from "../../services/fibrous/route.js";
 import { DEFAULT_SLIPPAGE } from "../../lib/config.js";
 import { validateAmount } from "../../lib/validation.js";
 import { parseAmount, formatAmount } from "../../lib/parseAmount.js";
-import { outputResult, outputError, withSpinner, type OutputOptions } from "../../lib/format.js";
+import {
+	outputResult,
+	outputError,
+	withSpinner,
+	type OutputOptions,
+	type GlobalOptions,
+} from "../../lib/format.js";
 
 interface TradeOptions extends OutputOptions {
 	slippage: number;
@@ -29,7 +36,7 @@ export async function tradeCommand(
 	try {
 		validateAmount(amount);
 
-		const globalOpts = opts as unknown as { chain?: string };
+		const globalOpts = opts as unknown as GlobalOptions;
 		const chainName = globalOpts.chain || "base";
 		const chain = getChainConfig(chainName);
 
@@ -119,21 +126,13 @@ export async function tradeCommand(
 						});
 
 						// Wait for allowance to be updated on-chain (handle RPC lag)
-						let retries = 0;
-						const maxRetries = 15; // 30 seconds max
-						while (retries < maxRetries) {
-							const newAllowance = await getAllowance(
-								publicClient,
-								tokenIn.address as Address,
-								wallet,
-								routerAddress
-							);
-							if (newAllowance >= amountToApprove) {
-								break;
-							}
-							await new Promise((resolve) => setTimeout(resolve, 2000));
-							retries++;
-						}
+						await waitForAllowance(
+							publicClient,
+							tokenIn.address as Address,
+							wallet,
+							routerAddress,
+							amountToApprove
+						);
 
 						return approveTxHash;
 					},

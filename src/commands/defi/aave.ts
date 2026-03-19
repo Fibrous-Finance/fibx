@@ -129,8 +129,7 @@ async function attemptSessionLogin(aave: AaveService, chainConfig: ChainConfig) 
 		const session = loadSession();
 		if (session) {
 			const walletClient = getWalletClient(session, chainConfig);
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			aave.setWalletClient(walletClient as any);
+			aave.setWalletClient(walletClient);
 		}
 	} catch {
 		// Session load failed, ignore

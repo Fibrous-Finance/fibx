@@ -1,4 +1,5 @@
 import { ErrorCode, FibxError } from "../../lib/errors.js";
+import { configService } from "../config/config.js";
 import { type Chain, defineChain } from "viem";
 import { base } from "viem/chains";
 import { baseRouterAbi } from "../fibrous/abi/base.js";
@@ -119,8 +120,6 @@ export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
 		routerAbi: monadRouterAbi,
 	},
 };
-
-import { configService } from "../config/config.js";
 
 export function getChainConfig(network: string): ChainConfig {
 	const config = SUPPORTED_CHAINS[network];

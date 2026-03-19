@@ -24,6 +24,7 @@ import {
 	InterestRateMode,
 } from "./constants.js";
 import { NonceManager } from "../chain/nonceManager.js";
+import { waitForAllowance } from "../chain/erc20.js";
 import { ErrorCode, FibxError } from "../../lib/errors.js";
 
 export interface UserAccountData {
@@ -80,7 +81,6 @@ export class AaveService {
 		if (walletClient.account) {
 			this.account = walletClient.account;
 			this.userAddress = walletClient.account.address;
-			NonceManager.getInstance().init(this.userAddress, this.publicClient);
 		}
 	}
 
@@ -138,7 +138,13 @@ export class AaveService {
 				nonce: nonceApprove,
 			});
 			await this.publicClient.waitForTransactionReceipt({ hash: txApprove });
-			await this.waitForAllowance(tokenAddress, poolAddress, amount);
+			await waitForAllowance(
+				this.publicClient,
+				tokenAddress,
+				this.account!.address,
+				poolAddress,
+				amount
+			);
 		}
 
 		const { request: supplyRequest } = await this.publicClient.simulateContract({
@@ -334,7 +340,13 @@ export class AaveService {
 				nonce: nonceApprove,
 			});
 			await this.publicClient.waitForTransactionReceipt({ hash: txApprove });
-			await this.waitForAllowance(tokenAddress, poolAddress, amount);
+			await waitForAllowance(
+				this.publicClient,
+				tokenAddress,
+				this.account!.address,
+				poolAddress,
+				amount
+			);
 		}
 
 		try {
@@ -588,28 +600,6 @@ export class AaveService {
 		return tx;
 	}
 
-	private async waitForAllowance(
-		tokenAddress: Address,
-		spender: Address,
-		targetAmount: bigint
-	): Promise<void> {
-		let retries = 0;
-		const maxRetries = 15; // 30 seconds
-		while (retries < maxRetries) {
-			const allowance = await this.publicClient.readContract({
-				address: tokenAddress,
-				abi: erc20Abi,
-				functionName: "allowance",
-				args: [this.account!.address, spender],
-			});
-			if (allowance >= targetAmount) {
-				break;
-			}
-			await new Promise((resolve) => setTimeout(resolve, 2000));
-			retries++;
-		}
-	}
-
 	private async getDebts(
 		dataProviderAddress: Address,
 		reserves: readonly Address[]
@@ -678,8 +668,8 @@ export class AaveService {
 					const debt = debts[i];
 					debtDetails.push(`${symbol}: $${formatUnits(debt, decimals)}`);
 				}
-			} catch (e) {
-				console.warn("Failed to fetch debt token details via multicall:", e);
+			} catch (error) {
+				console.warn("Failed to fetch debt token details via multicall:", error);
 				// Fallback: just list addresses and raw amounts
 				assetsWithDebt.forEach((asset, i) => {
 					debtDetails.push(`${asset}: raw units ${debts[i]}`);
@@ -729,8 +719,8 @@ export class AaveService {
 							6
 						)}) in an asset (scan failed to identify) preventing full withdrawal.`;
 					}
-				} catch (e) {
-					console.error("Error scanning debts:", e);
+				} catch (error) {
+					console.error("Error scanning debts:", error);
 					// Fallback if scanning fails
 					if (totalDebt < 0.01) {
 						details = `You have tiny "dust" debt ($${totalDebt.toFixed(

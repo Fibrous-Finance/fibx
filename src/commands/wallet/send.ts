@@ -6,7 +6,13 @@ import { ERC20_ABI } from "../../services/chain/erc20.js";
 import { resolveToken } from "../../services/fibrous/tokens.js";
 import { validateAddress, validateAmount } from "../../lib/validation.js";
 import { parseAmount } from "../../lib/parseAmount.js";
-import { outputResult, outputError, withSpinner, type OutputOptions } from "../../lib/format.js";
+import {
+	outputResult,
+	outputError,
+	withSpinner,
+	type OutputOptions,
+	type GlobalOptions,
+} from "../../lib/format.js";
 
 export async function sendCommand(
 	amount: string,
@@ -18,7 +24,7 @@ export async function sendCommand(
 		validateAmount(amount);
 		validateAddress(recipient);
 
-		const globalOpts = opts as unknown as { chain?: string };
+		const globalOpts = opts as unknown as GlobalOptions;
 		const chainName = globalOpts.chain || "base";
 		const chain = getChainConfig(chainName);
 

@@ -1,11 +1,17 @@
 import type { Hash } from "viem";
 import { getPublicClient } from "../../services/chain/client.js";
 import { getChainConfig } from "../../services/chain/constants.js";
-import { outputResult, outputError, withSpinner, type OutputOptions } from "../../lib/format.js";
+import {
+	outputResult,
+	outputError,
+	withSpinner,
+	type OutputOptions,
+	type GlobalOptions,
+} from "../../lib/format.js";
 
 export async function txStatusCommand(hash: string, opts: OutputOptions): Promise<void> {
 	try {
-		const globalOpts = opts as unknown as { chain?: string };
+		const globalOpts = opts as unknown as GlobalOptions;
 		const chainName = globalOpts.chain || "base";
 		const chain = getChainConfig(chainName);
 

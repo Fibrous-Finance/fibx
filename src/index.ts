@@ -91,10 +91,11 @@ program
 
 program
 	.command("wallets")
-	.description("List wallets linked to a user email")
-	.argument("<email>", "User email address")
-	.option("-j, --json", "Output as JSON")
-	.action(walletsCommand);
+	.description("List wallets linked to the active session")
+	.action(async (_opts, cmd) => {
+		const globalOpts = cmd.parent!.opts();
+		await walletsCommand({ json: globalOpts.json });
+	});
 
 program
 	.command("address")
@@ -161,5 +162,5 @@ program
 	});
 
 program.parseAsync().catch((error: unknown) => {
-	outputError(error, program.opts().json);
+	outputError(error, { json: !!program.opts().json });
 });

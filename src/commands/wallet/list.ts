@@ -1,7 +1,7 @@
 import { loadSession } from "../../services/auth/session.js";
 import { outputResult, outputError, type OutputOptions } from "../../lib/format.js";
 
-export async function walletsCommand(_email: string, opts: OutputOptions): Promise<void> {
+export async function walletsCommand(opts: OutputOptions): Promise<void> {
 	try {
 		const session = loadSession();
 

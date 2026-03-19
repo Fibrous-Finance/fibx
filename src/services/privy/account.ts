@@ -1,24 +1,21 @@
-import { toHex } from "viem";
+import { toHex, type Address } from "viem";
+import { toAccount } from "viem/accounts";
 import { apiSignTransaction, apiSignMessage, apiSignTypedData } from "../api/client.js";
 
 /**
  * Creates a Viem-compatible account adapter that signs via fibx-server backend.
- * Used for Privy server wallet sessions.
+ * Uses viem's toAccount() for type-safe Account creation.
  */
 export function toPrivyViemAccount(token: string, walletId: string, address: string) {
-	return {
-		address: address as `0x${string}`,
-		type: "local" as const,
-		source: "privy" as const,
-		publicKey: address as `0x${string}`,
+	return toAccount({
+		address: address as Address,
 		async signTransaction(transaction: Record<string, unknown>) {
 			const { chainId, ...txParams } = transaction;
 
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const privyTx: any = {
+			const privyTx: Record<string, string | number | undefined> = {
 				chain_id: toHex(chainId as number),
-				to: txParams.to,
-				data: txParams.data,
+				to: txParams.to as string | undefined,
+				data: txParams.data as string | undefined,
 				value: txParams.value != null ? toHex(txParams.value as bigint) : undefined,
 				nonce: txParams.nonce != null ? toHex(txParams.nonce as number) : undefined,
 				gas_limit: txParams.gas != null ? toHex(txParams.gas as bigint) : undefined,
@@ -42,12 +39,12 @@ export function toPrivyViemAccount(token: string, walletId: string, address: str
 									: undefined,
 			};
 
-			Object.keys(privyTx).forEach((key) => {
-				const k = key as keyof typeof privyTx;
-				if (privyTx[k] === undefined) delete privyTx[k];
-			});
+			// Strip undefined values before sending to Privy API
+			const cleanTx = Object.fromEntries(
+				Object.entries(privyTx).filter(([, v]) => v !== undefined)
+			);
 
-			const result = await apiSignTransaction(walletId, privyTx, token);
+			const result = await apiSignTransaction(walletId, cleanTx, token);
 			return result.signedTransaction as `0x${string}`;
 		},
 
@@ -76,5 +73,5 @@ export function toPrivyViemAccount(token: string, walletId: string, address: str
 			const result = await apiSignTypedData(walletId, typedData, token);
 			return result.signature as `0x${string}`;
 		},
-	};
+	});
 }
