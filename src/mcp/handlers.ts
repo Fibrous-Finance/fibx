@@ -379,6 +379,44 @@ export async function handleGetAaveStatus(): Promise<AaveStatusResult> {
 	};
 }
 
+export interface AaveMarketResult {
+	symbol: string;
+	supplyAPY: string;
+	borrowAPY: string;
+	totalSupply: string;
+	totalBorrow: string;
+	ltv: string;
+	isFrozen: boolean;
+}
+
+export interface AaveMarketsResult {
+	chain: string;
+	marketCount: number;
+	markets: AaveMarketResult[];
+}
+
+export async function handleGetAaveMarkets(): Promise<AaveMarketsResult> {
+	const chainConfig = getChainConfig("base");
+	const { AaveService } = await import("../services/defi/aave.js");
+	const aave = new AaveService(chainConfig);
+
+	const markets = await aave.getMarkets();
+
+	return {
+		chain: "base",
+		marketCount: markets.length,
+		markets: markets.map((m) => ({
+			symbol: m.symbol,
+			supplyAPY: m.supplyAPY,
+			borrowAPY: m.borrowAPY,
+			totalSupply: m.totalSupply,
+			totalBorrow: m.totalBorrow,
+			ltv: m.ltv,
+			isFrozen: m.isFrozen,
+		})),
+	};
+}
+
 export interface AaveActionResult {
 	action: string;
 	amount: string;

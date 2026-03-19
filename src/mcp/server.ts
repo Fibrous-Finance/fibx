@@ -20,6 +20,6 @@ export async function startMcpServer(): Promise<void> {
 	// stdout reserved for JSON-RPC
 	console.error(`[mcp] fibx v${version} running on stdio`);
 	console.error("   Tools: get_auth_status, get_balance, get_portfolio, swap_tokens,");
-	console.error("          send_tokens, get_tx_status, get_aave_status, aave_action,");
-	console.error("          config_action");
+	console.error("          send_tokens, get_tx_status, get_aave_status, get_aave_markets,");
+	console.error("          aave_action, config_action");
 }

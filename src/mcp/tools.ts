@@ -6,6 +6,7 @@ import {
 	handleSendTokens,
 	handleGetTxStatus,
 	handleGetAaveStatus,
+	handleGetAaveMarkets,
 	handleAaveAction,
 	handleGetAuthStatus,
 	handleConfigAction,
@@ -215,6 +216,23 @@ export function registerAllTools(server: McpServer): void {
 			},
 		},
 		async () => safeToolCall(() => handleGetAaveStatus())
+	);
+
+	server.registerTool(
+		"get_aave_markets",
+		{
+			title: "Aave V3 Markets",
+			description:
+				"List all Aave V3 reserve markets on Base with supply/borrow APY, total supply, total borrow, and LTV. No wallet required.",
+			inputSchema: {},
+			annotations: {
+				title: "Aave V3 Markets",
+				readOnlyHint: true,
+				destructiveHint: false,
+				openWorldHint: true,
+			},
+		},
+		async () => safeToolCall(() => handleGetAaveMarkets())
 	);
 
 	server.registerTool(
