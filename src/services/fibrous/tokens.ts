@@ -2,6 +2,7 @@ import type { ChainConfig } from "../chain/constants.js";
 import { FIBROUS_GRAPH_URL } from "../../lib/config.js";
 import { readCache, writeCache } from "../../lib/cache.js";
 import { ErrorCode, FibxError } from "../../lib/errors.js";
+import { withRetry } from "../../lib/retry.js";
 
 export interface Token {
 	name: string;
@@ -19,10 +20,15 @@ export async function getTokens(chain: ChainConfig): Promise<TokenMap> {
 	if (cached) return cached;
 
 	try {
-		const res = await fetch(`${FIBROUS_GRAPH_URL}/${chain.fibrousNetwork}/tokens`);
-		if (!res.ok) throw new Error(`HTTP ${res.status}`);
+		const data = await withRetry(
+			async () => {
+				const res = await fetch(`${FIBROUS_GRAPH_URL}/${chain.fibrousNetwork}/tokens`);
+				if (!res.ok) throw new Error(`HTTP ${res.status}`);
+				return (await res.json()) as TokenMap;
+			},
+			{ maxRetries: 2, baseDelayMs: 500 }
+		);
 
-		const data = (await res.json()) as TokenMap;
 		writeCache(CACHE_KEY, data);
 		return data;
 	} catch (error) {

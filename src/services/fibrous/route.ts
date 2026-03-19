@@ -3,6 +3,7 @@ import { encodeFunctionData } from "viem";
 import { FIBROUS_BASE_URL, DEFAULT_SLIPPAGE } from "../../lib/config.js";
 import type { ChainConfig } from "../chain/constants.js";
 import { ErrorCode, FibxError } from "../../lib/errors.js";
+import { withRetry } from "../../lib/retry.js";
 
 export interface RouteToken {
 	name: string;
@@ -66,18 +67,33 @@ export async function getRouteAndCallData(
 	url.searchParams.set("destination", params.destination);
 
 	try {
-		const res = await fetch(url.toString());
+		const data = await withRetry(
+			async () => {
+				const res = await fetch(url.toString());
 
-		if (!res.ok) {
-			const body = await res.text().catch(() => "");
-			throw new Error(`HTTP ${res.status}: ${body}`);
-		}
+				if (!res.ok) {
+					const body = await res.text().catch(() => "");
+					throw new Error(`HTTP ${res.status}: ${body}`);
+				}
 
-		const data = (await res.json()) as RouteAndCallDataResponse;
+				const json = (await res.json()) as RouteAndCallDataResponse;
 
-		if (!data.route?.success) {
-			throw new FibxError(ErrorCode.ROUTE_NOT_FOUND, "No route found for this swap pair");
-		}
+				if (!json.route?.success) {
+					throw new FibxError(
+						ErrorCode.ROUTE_NOT_FOUND,
+						"No route found for this swap pair"
+					);
+				}
+
+				return json;
+			},
+			{
+				maxRetries: 2,
+				baseDelayMs: 500,
+				shouldRetry: (err) =>
+					!(err instanceof FibxError && err.code === ErrorCode.ROUTE_NOT_FOUND),
+			}
+		);
 
 		return data;
 	} catch (error) {

@@ -36,6 +36,18 @@ export interface UserAccountData {
 	healthFactor: string;
 }
 
+export interface AaveMarket {
+	symbol: string;
+	address: string;
+	supplyAPY: string;
+	borrowAPY: string;
+	totalSupply: string;
+	totalBorrow: string;
+	ltv: string;
+	isActive: boolean;
+	isFrozen: boolean;
+}
+
 type DataProviderReserveData = readonly [
 	bigint, // currentATokenBalance
 	bigint, // currentStableDebt
@@ -110,6 +122,110 @@ export class AaveService {
 			ltv: formatUnits(data[4], 4),
 			healthFactor: formatUnits(data[5], 18),
 		};
+	}
+
+	public async getMarkets(): Promise<AaveMarket[]> {
+		// 1. Get all reserve tokens with symbols
+		const reserveTokens = (await this.publicClient.readContract({
+			address: AAVE_V3_POOL_DATA_PROVIDER,
+			abi: POOL_DATA_PROVIDER_ABI,
+			functionName: "getAllReservesTokens",
+		})) as readonly { symbol: string; tokenAddress: Address }[];
+
+		// 2. Build multicall contracts array — 2 calls per token (reserveData + configData)
+		const contracts = reserveTokens.flatMap((token) => [
+			{
+				address: AAVE_V3_POOL_DATA_PROVIDER,
+				abi: POOL_DATA_PROVIDER_ABI,
+				functionName: "getReserveData" as const,
+				args: [token.tokenAddress] as const,
+			},
+			{
+				address: AAVE_V3_POOL_DATA_PROVIDER,
+				abi: POOL_DATA_PROVIDER_ABI,
+				functionName: "getReserveConfigurationData" as const,
+				args: [token.tokenAddress] as const,
+			},
+		]);
+
+		// 3. Single batched RPC call — avoids rate limiting
+		const results = await this.publicClient.multicall({ contracts });
+
+		// 4. Parse results in pairs
+		const markets: AaveMarket[] = [];
+		for (let i = 0; i < reserveTokens.length; i++) {
+			const token = reserveTokens[i];
+			const reserveResult = results[i * 2];
+			const configResult = results[i * 2 + 1];
+
+			if (
+				!token ||
+				reserveResult?.status !== "success" ||
+				configResult?.status !== "success"
+			) {
+				continue;
+			}
+
+			const rd = reserveResult.result as readonly [
+				bigint,
+				bigint,
+				bigint,
+				bigint,
+				bigint,
+				bigint,
+				bigint,
+				bigint,
+				bigint,
+				bigint,
+				bigint,
+				number,
+			];
+			const cd = configResult.result as readonly [
+				bigint,
+				bigint,
+				bigint,
+				bigint,
+				bigint,
+				boolean,
+				boolean,
+				boolean,
+				boolean,
+				boolean,
+			];
+
+			const decimals = Number(cd[0]);
+			const isActive = cd[8];
+			const isFrozen = cd[9];
+
+			if (!isActive) continue;
+
+			// APY from RAY (1e27): rate / 1e27 * 100
+			const RAY = 10n ** 27n;
+			const supplyRate = rd[5]; // liquidityRate
+			const borrowRate = rd[6]; // variableBorrowRate
+
+			const supplyAPY = Number((supplyRate * 10000n) / RAY) / 100;
+			const borrowAPY = Number((borrowRate * 10000n) / RAY) / 100;
+
+			const totalAToken = rd[2]; // totalSupply (in token decimals)
+			const totalVariableDebt = rd[4]; // totalBorrow
+
+			const ltvBps = Number(cd[1]);
+
+			markets.push({
+				symbol: token.symbol,
+				address: token.tokenAddress,
+				supplyAPY: `${supplyAPY.toFixed(2)}%`,
+				borrowAPY: `${borrowAPY.toFixed(2)}%`,
+				totalSupply: formatUnits(totalAToken, decimals),
+				totalBorrow: formatUnits(totalVariableDebt, decimals),
+				ltv: `${(ltvBps / 100).toFixed(1)}%`,
+				isActive,
+				isFrozen,
+			});
+		}
+
+		return markets;
 	}
 
 	public async supply(tokenAddress: Address, amountStr: string): Promise<Hash> {
@@ -614,7 +730,7 @@ export class AaveService {
 
 		results.forEach((result, index) => {
 			if (result.status === "success" && result.result) {
-				const data = result.result as DataProviderReserveData;
+				const data = result.result as unknown as DataProviderReserveData;
 				const stableDebt = data[1];
 				const variableDebt = data[2];
 
