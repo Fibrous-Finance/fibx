@@ -10,12 +10,13 @@ A command-line tool for DeFi operations on **Base, Citrea, HyperEVM, and Monad**
 - **Portfolio**: Cross-chain portfolio overview with USD valuations and DeFi positions
 - **Token Swaps**: Optimal routing via Fibrous aggregation with auto-slippage
 - **Transfers**: Send ETH or any ERC-20 token
-- **Aave V3**: Supply, borrow, repay, and withdraw on Base
+- **Aave V3**: Supply, borrow, repay, withdraw, and browse markets on Base
 - **MCP Server**: Built-in AI agent integration for Cursor, Claude Desktop, and Antigravity
 - **Agent Skills**: Prompt-based AI skills via [fibx-skills](https://github.com/Fibrous-Finance/fibx-skills)
 - **Privy Server Wallets**: Secure server-side signing — private keys never leave Privy's TEE
 - **Private Key Import**: Use an existing wallet for local execution
 - **Simulation**: All transactions are simulated before execution
+- **Dry‑Run Mode**: `--simulate` flag estimates gas without sending a transaction
 - **JSON Output**: `--json` flag for scripting and pipelines
 
 ## Supported Chains
@@ -96,6 +97,7 @@ Shows all token holdings across Base, Citrea, HyperEVM, and Monad with USD value
 npx fibx send 0.001 0xRecipient           # Send native token on Base (ETH)
 npx fibx send 10 0xRecipient USDC         # Send ERC-20 on Base
 npx fibx send 1 0xRecipient --chain monad # Send MON on Monad
+npx fibx send 0.1 0xRecipient --simulate  # Estimate gas without sending
 ```
 
 ### Swap
@@ -105,9 +107,10 @@ npx fibx trade <amount> <from> <to>
 npx fibx trade 0.0001 ETH USDC
 npx fibx trade 20 USDC DAI
 npx fibx trade 1 MON USDC --chain monad
+npx fibx trade 0.1 ETH USDC --simulate   # Estimate gas without executing
 ```
 
-Options: `--slippage <n>` (default: 0.5%), `--approve-max`, `--json`
+Options: `--slippage <n>` (default: 0.5%), `--approve-max`, `--simulate`, `--json`
 
 > **Note:** The `trade` command automatically detects **Wrap** (Native -> Wrapped) and **Unwrap** (Wrapped -> Native) operations and executes them directly via contract calls, bypassing aggregator routing to save gas.
 
@@ -129,12 +132,14 @@ npx fibx wallets    # Show active wallet details
 
 ```bash
 npx fibx aave status               # Account health
+npx fibx aave markets              # List all active reserves with APY & TVL
 npx fibx aave supply 1 ETH         # Auto-wraps ETH -> WETH and supplies
 npx fibx aave supply 100 USDC      # Supply ERC-20
 npx fibx aave borrow 50 USDC       # Borrow
 npx fibx aave repay 50 USDC        # Repay
 npx fibx aave repay max ETH        # Auto-wraps ETH and repays full WETH debt
 npx fibx aave withdraw max ETH     # Withdraws WETH and auto-unwraps to ETH
+npx fibx aave supply 1 ETH --simulate  # Estimate gas without executing
 ```
 
 > **Note:** `supply`, `repay`, and `withdraw` support automatic **ETH <-> WETH** wrapping/unwrapping on Base.
