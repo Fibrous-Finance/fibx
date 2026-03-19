@@ -1,9 +1,13 @@
 import { apiLogin } from "../../services/api/client.js";
-import { outputResult, outputError, withSpinner, type OutputOptions } from "../../lib/format.js";
+import { createSpinner, outputResult, formatError, type OutputOptions } from "../../lib/format.js";
 
 export async function authLoginCommand(email: string, opts: OutputOptions): Promise<void> {
+	const spinner = createSpinner("Sending OTP...").start();
+
 	try {
-		await withSpinner("Sending OTP...", async () => apiLogin(email), opts);
+		await apiLogin(email);
+
+		spinner.succeed("OTP sent");
 
 		outputResult(
 			{
@@ -13,6 +17,8 @@ export async function authLoginCommand(email: string, opts: OutputOptions): Prom
 			opts
 		);
 	} catch (error) {
-		outputError(error, opts);
+		spinner.fail("Failed to send OTP");
+		console.error(formatError(error));
+		process.exitCode = 1;
 	}
 }

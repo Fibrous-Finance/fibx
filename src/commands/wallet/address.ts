@@ -1,5 +1,5 @@
 import { requireSession } from "../../services/auth/session.js";
-import { outputResult, outputError, type OutputOptions } from "../../lib/format.js";
+import { outputResult, formatError, type OutputOptions } from "../../lib/format.js";
 
 export async function addressCommand(opts: OutputOptions): Promise<void> {
 	try {
@@ -8,11 +8,12 @@ export async function addressCommand(opts: OutputOptions): Promise<void> {
 		outputResult(
 			{
 				address: session.walletAddress,
-				walletId: session.walletId,
+				walletId: session.walletId ?? "N/A",
 			},
 			opts
 		);
 	} catch (error) {
-		outputError(error, opts);
+		console.error(formatError(error));
+		process.exitCode = 1;
 	}
 }

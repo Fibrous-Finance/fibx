@@ -6,18 +6,21 @@ import { getTokens } from "../../services/fibrous/tokens.js";
 import { getBalances } from "../../services/fibrous/balances.js";
 import { formatAmount } from "../../lib/parseAmount.js";
 import {
+	createSpinner,
 	outputResult,
-	outputError,
-	withSpinner,
+	formatTable,
+	formatError,
 	type OutputOptions,
 	type GlobalOptions,
 } from "../../lib/format.js";
 
 export async function balanceCommand(opts: OutputOptions): Promise<void> {
+	const spinner = createSpinner("Fetching balances...").start();
+
 	try {
 		const session = loadSession();
 		if (!session) {
-			outputError("No active session. Run 'fibx auth login <email>' first.", opts);
+			spinner.fail("No active session. Run 'fibx auth login <email>' first.");
 			return;
 		}
 
@@ -27,49 +30,66 @@ export async function balanceCommand(opts: OutputOptions): Promise<void> {
 		const client = getPublicClient(chainConfig);
 		const wallet = session.walletAddress as Address;
 
+		spinner.text = `Fetching balances on ${chainConfig.name}...`;
+
 		const tokensMap = await getTokens(chainConfig);
 		const tokenList = Object.values(tokensMap);
 
-		const balances = await withSpinner(
-			`Fetching balances on ${chainConfig.name}...`,
-			async () => {
-				const [ethBalance, tokenBalances] = await Promise.all([
-					client.getBalance({ address: wallet }),
-					getBalances(tokenList, wallet, chainConfig),
-				]);
+		const [ethBalance, tokenBalances] = await Promise.all([
+			client.getBalance({ address: wallet }),
+			getBalances(tokenList, wallet, chainConfig),
+		]);
 
-				return {
-					eth: formatAmount(ethBalance, 18),
-					tokens: tokenBalances,
-				};
-			},
-			opts
-		);
+		spinner.stop();
 
-		const result: Record<string, string> = {};
+		if (opts.json) {
+			const result: Record<string, string> = {};
+			result[chainConfig.nativeSymbol] = formatAmount(ethBalance, 18);
+			for (const item of tokenBalances) {
+				const balanceVal = parseFloat(item.balance);
+				if (balanceVal > 0) {
+					const tokenAddr = item.token.address.toLowerCase();
+					const token = tokenList.find((t) => t.address.toLowerCase() === tokenAddr);
+					result[token ? token.symbol : tokenAddr] = item.balance;
+				}
+			}
+			outputResult(
+				{ wallet: session.walletAddress, chain: chainConfig.name, ...result },
+				opts
+			);
+			return;
+		}
 
-		result[chainConfig.nativeSymbol] = balances.eth;
+		// Build table rows
+		const rows: string[][] = [];
+		const nativeBalance = formatAmount(ethBalance, 18);
+		if (parseFloat(nativeBalance) > 0) {
+			rows.push([chainConfig.nativeSymbol, nativeBalance]);
+		}
 
-		for (const item of balances.tokens) {
+		for (const item of tokenBalances) {
 			const balanceVal = parseFloat(item.balance);
 			if (balanceVal > 0) {
 				const tokenAddr = item.token.address.toLowerCase();
 				const token = tokenList.find((t) => t.address.toLowerCase() === tokenAddr);
 				const symbol = token ? token.symbol : tokenAddr;
-
-				result[symbol] = item.balance;
+				rows.push([symbol, item.balance]);
 			}
 		}
 
-		outputResult(
-			{
-				wallet: session.walletAddress,
-				chain: chainConfig.name,
-				...result,
-			},
-			opts
-		);
+		console.log(`\n  Wallet: ${session.walletAddress}`);
+		console.log(`  Chain:  ${chainConfig.name}\n`);
+
+		if (rows.length === 0) {
+			console.log("  No balances found.\n");
+			return;
+		}
+
+		console.log(formatTable(["Token", "Balance"], rows));
+		console.log();
 	} catch (error) {
-		outputError(error, opts);
+		spinner.fail("Failed to fetch balances");
+		console.error(formatError(error));
+		process.exitCode = 1;
 	}
 }

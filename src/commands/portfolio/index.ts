@@ -1,6 +1,13 @@
 import chalk from "chalk";
 import { getPortfolio, type Portfolio } from "../../services/portfolio/portfolio.js";
-import { outputError, withSpinner, type OutputOptions } from "../../lib/format.js";
+import {
+	createSpinner,
+	formatResult,
+	formatTable,
+	formatError,
+	type OutputOptions,
+} from "../../lib/format.js";
+import { MINT } from "../../lib/brand.js";
 
 function formatUsd(value: number): string {
 	return `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -9,68 +16,64 @@ function formatUsd(value: number): string {
 function printPortfolio(portfolio: Portfolio): void {
 	const shortAddr = `${portfolio.wallet.slice(0, 6)}...${portfolio.wallet.slice(-4)}`;
 	console.log();
-	console.log(chalk.bold(`Portfolio — ${shortAddr}`));
-	console.log(chalk.dim("═".repeat(52)));
+	console.log(chalk.bold.hex(MINT)(`  Portfolio — ${shortAddr}`));
+	console.log(chalk.dim("  " + "═".repeat(52)));
 
 	for (const chain of portfolio.chains) {
+		if (chain.assets.length === 0) continue;
+
 		console.log();
-		console.log(chalk.cyan.bold(`  ${chain.chain}`));
-		console.log(chalk.dim("  " + "─".repeat(48)));
+		console.log(chalk.bold.white(`  ${chain.chain}`));
 
-		for (const asset of chain.assets) {
-			const symbol = asset.symbol.padEnd(10);
-			const balance = parseFloat(asset.balance).toFixed(4).padStart(14);
-			const usd = formatUsd(asset.usdValue).padStart(14);
-			console.log(`  ${chalk.white(symbol)} ${chalk.dim(balance)} ${chalk.green(usd)}`);
-		}
-
-		console.log(chalk.dim(" ".repeat(26) + "──────────────"));
 		console.log(
-			`${" ".repeat(14)}${chalk.dim("Chain Total")} ${chalk.bold(formatUsd(chain.totalUsd).padStart(14))}`
+			formatTable(
+				["Token", "Balance", "USD Value"],
+				chain.assets.map((asset) => [
+					asset.symbol,
+					parseFloat(asset.balance).toFixed(4),
+					formatUsd(asset.usdValue),
+				])
+			)
 		);
 	}
 
 	if (portfolio.defi.length > 0) {
-		console.log();
 		for (const pos of portfolio.defi) {
-			console.log(chalk.magenta.bold(`  DeFi — ${pos.protocol} (${pos.chain})`));
-			console.log(chalk.dim("  " + "─".repeat(48)));
-
-			console.log(
-				`  ${"Collateral".padEnd(24)} ${chalk.green(formatUsd(pos.collateralUsd).padStart(14))}`
-			);
-			console.log(
-				`  ${"Debt".padEnd(24)} ${chalk.red(("-" + formatUsd(pos.debtUsd)).padStart(14))}`
-			);
+			console.log();
+			console.log(chalk.bold.white(`  DeFi — ${pos.protocol} (${pos.chain})`));
 
 			const hf = parseFloat(pos.healthFactor);
 			const hfStr = hf > 100 ? "Safe (>100)" : hf.toFixed(2);
 			const hfColor = hf > 2 ? chalk.green : hf > 1.2 ? chalk.yellow : chalk.red;
-			console.log(`  ${"Health Factor".padEnd(24)} ${hfColor(hfStr.padStart(14))}`);
 
-			console.log(chalk.dim(" ".repeat(26) + "──────────────"));
-			const netColor = pos.netUsd >= 0 ? chalk.green : chalk.red;
 			console.log(
-				`${" ".repeat(14)}${chalk.dim("Net Position")} ${chalk.bold(netColor(formatUsd(pos.netUsd).padStart(14)))}`
+				formatResult({
+					collateral: formatUsd(pos.collateralUsd),
+					debt: `-${formatUsd(pos.debtUsd)}`,
+					healthFactor: hfColor(hfStr),
+					netPosition: formatUsd(pos.netUsd),
+				})
 			);
 		}
 	}
 
 	console.log();
-	console.log(chalk.dim("═".repeat(52)));
+	console.log(chalk.dim("  " + "═".repeat(52)));
 	console.log(
-		`${" ".repeat(10)}${chalk.bold("Total Portfolio")} ${chalk.bold.green(formatUsd(portfolio.totalUsd).padStart(14))}`
+		formatResult({
+			totalPortfolioUsd: chalk.bold.hex(MINT)(formatUsd(portfolio.totalUsd)),
+		})
 	);
 	console.log();
 }
 
 export async function portfolioCommand(opts: OutputOptions): Promise<void> {
+	const spinner = createSpinner("Fetching portfolio across all chains...").start();
+
 	try {
-		const portfolio = await withSpinner(
-			"Fetching portfolio across all chains...",
-			async () => getPortfolio(),
-			opts
-		);
+		const portfolio = await getPortfolio();
+
+		spinner.succeed("Portfolio loaded");
 
 		if (opts.json) {
 			console.log(JSON.stringify(portfolio, null, 2));
@@ -78,6 +81,8 @@ export async function portfolioCommand(opts: OutputOptions): Promise<void> {
 			printPortfolio(portfolio);
 		}
 	} catch (error) {
-		outputError(error, opts);
+		spinner.fail("Failed to load portfolio");
+		console.error(formatError(error));
+		process.exitCode = 1;
 	}
 }

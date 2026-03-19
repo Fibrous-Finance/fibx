@@ -1,8 +1,7 @@
-import { outputResult, outputError, withSpinner, type OutputOptions } from "../../lib/format.js";
+import { createSpinner, outputResult, formatError, warn, type OutputOptions } from "../../lib/format.js";
 import { saveSession } from "../../services/auth/session.js";
 import { privateKeyToAccount } from "viem/accounts";
 import { type Hex } from "viem";
-import chalk from "chalk";
 import inquirer from "inquirer";
 
 export async function authImportCommand(opts: OutputOptions): Promise<void> {
@@ -21,39 +20,34 @@ export async function authImportCommand(opts: OutputOptions): Promise<void> {
 			},
 		]);
 
+		const spinner = createSpinner("Importing key...").start();
+
 		const account = privateKeyToAccount(privateKey as Hex);
 		const address = account.address;
 
-		await withSpinner(
-			"Saving session...",
-			async () => {
-				saveSession({
-					userId: "local-user",
-					walletAddress: address,
-					createdAt: new Date().toISOString(),
-					type: "private-key",
-					privateKey: privateKey,
-				});
-			},
-			opts
-		);
+		saveSession({
+			userId: "local-user",
+			walletAddress: address,
+			createdAt: new Date().toISOString(),
+			type: "private-key",
+			privateKey: privateKey,
+		});
+
+		spinner.succeed("Private key imported");
 
 		outputResult(
 			{
-				message: "Private key imported successfully!",
 				address: address,
 				type: "private-key",
+				message: "You're ready to go!",
 			},
 			opts
 		);
 
-		console.log(
-			chalk.yellow(
-				"\n    Security Warning: Your private key is stored locally in session.json."
-			)
-		);
-		console.log(chalk.yellow("    Make sure your machine is secure."));
+		console.log(warn("Your private key is stored locally in session.json."));
+		console.log(warn("Make sure your machine is secure."));
 	} catch (error) {
-		outputError(error, opts);
+		console.error(formatError(error));
+		process.exitCode = 1;
 	}
 }

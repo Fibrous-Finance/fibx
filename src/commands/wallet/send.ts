@@ -7,9 +7,9 @@ import { resolveToken } from "../../services/fibrous/tokens.js";
 import { validateAddress, validateAmount } from "../../lib/validation.js";
 import { parseAmount } from "../../lib/parseAmount.js";
 import {
+	createSpinner,
 	outputResult,
-	outputError,
-	withSpinner,
+	formatError,
 	type OutputOptions,
 	type GlobalOptions,
 } from "../../lib/format.js";
@@ -20,6 +20,8 @@ export async function sendCommand(
 	tokenSymbol: string,
 	opts: OutputOptions
 ): Promise<void> {
+	const spinner = createSpinner("Preparing transfer...").start();
+
 	try {
 		validateAmount(amount);
 		validateAddress(recipient);
@@ -40,63 +42,66 @@ export async function sendCommand(
 
 		if (isNative) {
 			amountBigInt = parseAmount(amount, 18);
-			txHash = await withSpinner(
-				`Sending ${amount} ${resolvedSymbol} on ${chain.name}...`,
-				async () => {
-					try {
-						await publicClient.estimateGas({
-							account: wallet,
-							to: recipient as Address,
-							value: amountBigInt,
-							data: undefined,
-						});
-					} catch (error) {
-						throw new Error(
-							`Simulation failed: ${error instanceof Error ? error.message : String(error)}`
-						);
-					}
 
-					return walletClient.sendTransaction({
-						to: recipient as Address,
-						value: amountBigInt,
-						data: undefined,
-					});
-				},
-				opts
-			);
+			spinner.text = `Sending ${amount} ${resolvedSymbol} on ${chain.name}...`;
+
+			try {
+				await publicClient.estimateGas({
+					account: wallet,
+					to: recipient as Address,
+					value: amountBigInt,
+					data: undefined,
+				});
+			} catch (error) {
+				spinner.fail("Simulation failed");
+				throw new Error(
+					`Simulation failed: ${error instanceof Error ? error.message : String(error)}`
+				);
+			}
+
+			txHash = await walletClient.sendTransaction({
+				to: recipient as Address,
+				value: amountBigInt,
+				data: undefined,
+			});
 		} else {
+			spinner.text = `Resolving ${tokenSymbol}...`;
 			const token = await resolveToken(tokenSymbol, chain);
 			amountBigInt = parseAmount(amount, token.decimals);
 
-			txHash = await withSpinner(
-				`Sending ${amount} ${token.symbol} on ${chain.name}...`,
-				async () => {
-					// Simulate ERC20 Transfer
-					const { request } = await publicClient.simulateContract({
-						address: token.address as Address,
-						abi: ERC20_ABI,
-						functionName: "transfer",
-						args: [recipient as Address, amountBigInt],
-						account: wallet,
-					});
+			spinner.text = `Sending ${amount} ${token.symbol} on ${chain.name}...`;
 
-					return walletClient.writeContract(request);
-				},
-				opts
-			);
+			const { request } = await publicClient.simulateContract({
+				address: token.address as Address,
+				abi: ERC20_ABI,
+				functionName: "transfer",
+				args: [recipient as Address, amountBigInt],
+				account: wallet,
+			});
+
+			txHash = await walletClient.writeContract(request);
 		}
+
+		spinner.succeed("Transfer confirmed");
+
+		const explorerLink = chain.viemChain.blockExplorers?.default.url
+			? `${chain.viemChain.blockExplorers.default.url}/tx/${txHash}`
+			: undefined;
 
 		outputResult(
 			{
-				txHash,
 				amount,
 				recipient,
-				token: isNative ? resolvedSymbol : resolvedSymbol.toUpperCase(),
+				token: resolvedSymbol,
+				txHash,
+				...(explorerLink ? { explorer: explorerLink } : {}),
 				chain: chain.name,
 			},
 			opts
 		);
 	} catch (error) {
-		outputError(error, opts);
+		spinner.fail("Transfer failed");
+		console.error(formatError(error));
+		process.exitCode = 1;
 	}
 }

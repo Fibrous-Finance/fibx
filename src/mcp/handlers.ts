@@ -67,6 +67,7 @@ export interface SwapResult {
 	tokenOut: string;
 	router: string;
 	chain: string;
+	explorer?: string;
 }
 
 export async function handleSwapTokens(
@@ -111,6 +112,9 @@ export async function handleSwapTokens(
 			data,
 			value: amountBaseUnits,
 		});
+		const explorer = chainConfig.viemChain.blockExplorers?.default.url
+			? `${chainConfig.viemChain.blockExplorers.default.url}/tx/${hash}`
+			: undefined;
 		return {
 			txHash: hash,
 			amountIn: amount,
@@ -119,6 +123,7 @@ export async function handleSwapTokens(
 			tokenOut: tokenOut.symbol,
 			router: chainConfig.wrappedNativeAddress,
 			chain: chainConfig.name,
+			explorer,
 		};
 	}
 
@@ -130,6 +135,9 @@ export async function handleSwapTokens(
 			data,
 			value: 0n,
 		});
+		const explorer = chainConfig.viemChain.blockExplorers?.default.url
+			? `${chainConfig.viemChain.blockExplorers.default.url}/tx/${hash}`
+			: undefined;
 		return {
 			txHash: hash,
 			amountIn: amount,
@@ -138,6 +146,7 @@ export async function handleSwapTokens(
 			tokenOut: tokenOut.symbol,
 			router: chainConfig.wrappedNativeAddress,
 			chain: chainConfig.name,
+			explorer,
 		};
 	}
 
@@ -203,6 +212,9 @@ export async function handleSwapTokens(
 
 	const outputAmount = formatAmount(BigInt(routeData.route.outputAmount), tokenOut.decimals);
 
+	const explorer = chainConfig.viemChain.blockExplorers?.default.url
+		? `${chainConfig.viemChain.blockExplorers.default.url}/tx/${hash}`
+		: undefined;
 	return {
 		txHash: hash,
 		amountIn: amount,
@@ -211,6 +223,7 @@ export async function handleSwapTokens(
 		tokenOut: tokenOut.symbol,
 		router: routerAddress,
 		chain: chainConfig.name,
+		explorer,
 	};
 }
 
@@ -220,6 +233,7 @@ export interface SendResult {
 	token: string;
 	recipient: string;
 	chain: string;
+	explorer?: string;
 }
 
 export async function handleSendTokens(
@@ -257,12 +271,16 @@ export async function handleSendTokens(
 			data: undefined,
 		});
 
+		const explorer = chainConfig.viemChain.blockExplorers?.default.url
+			? `${chainConfig.viemChain.blockExplorers.default.url}/tx/${hash}`
+			: undefined;
 		return {
 			txHash: hash,
 			amount,
 			token: resolvedSymbol,
 			recipient,
 			chain: chainConfig.name,
+			explorer,
 		};
 	}
 
@@ -279,12 +297,16 @@ export async function handleSendTokens(
 
 	const hash = await walletClient.writeContract(request);
 
+	const explorer = chainConfig.viemChain.blockExplorers?.default.url
+		? `${chainConfig.viemChain.blockExplorers.default.url}/tx/${hash}`
+		: undefined;
 	return {
 		txHash: hash,
 		amount,
 		token: resolved.symbol,
 		recipient,
 		chain: chainConfig.name,
+		explorer,
 	};
 }
 
@@ -296,6 +318,7 @@ export interface TxStatusResult {
 	to: string | null;
 	gasUsed: string | null;
 	chain: string;
+	explorer?: string;
 }
 
 export async function handleGetTxStatus(hash: string, chain: string): Promise<TxStatusResult> {
@@ -304,6 +327,9 @@ export async function handleGetTxStatus(hash: string, chain: string): Promise<Tx
 
 	const receipt = await client.getTransactionReceipt({ hash: hash as `0x${string}` });
 
+	const explorer = chainConfig.viemChain.blockExplorers?.default.url
+		? `${chainConfig.viemChain.blockExplorers.default.url}/tx/${hash}`
+		: undefined;
 	return {
 		hash,
 		status: receipt.status === "success" ? "confirmed" : "reverted",
@@ -312,6 +338,7 @@ export async function handleGetTxStatus(hash: string, chain: string): Promise<Tx
 		to: receipt.to ?? null,
 		gasUsed: receipt.gasUsed.toString(),
 		chain: chainConfig.name,
+		explorer,
 	};
 }
 
@@ -358,6 +385,7 @@ export interface AaveActionResult {
 	token: string;
 	txHash: string;
 	chain: string;
+	explorer?: string;
 }
 
 export async function handleAaveAction(
@@ -424,12 +452,16 @@ export async function handleAaveAction(
 			break;
 	}
 
+	const explorer = chainConfig.viemChain.blockExplorers?.default.url
+		? `${chainConfig.viemChain.blockExplorers.default.url}/tx/${txHash}`
+		: undefined;
 	return {
 		action,
 		amount: isMax ? "MAX" : amount,
 		token: isNativeETH ? `${chainConfig.nativeSymbol} (auto-wrapped)` : token.symbol,
 		txHash,
 		chain: "base",
+		explorer,
 	};
 }
 

@@ -2,6 +2,8 @@ import type { Command } from "commander";
 import chalk from "chalk";
 import { configService } from "../../services/config/config.js";
 import { SUPPORTED_CHAINS } from "../../services/chain/constants.js";
+import { success, warn, formatError } from "../../lib/format.js";
+import { BLUE } from "../../lib/brand.js";
 
 export function registerConfigCommands(program: Command) {
 	const configCmd = program
@@ -13,9 +15,13 @@ export function registerConfigCommands(program: Command) {
 		.description("Set a custom RPC URL for a specific chain")
 		.argument("<chain>", "Chain name (base, citrea, hyperevm, monad)")
 		.argument("<url>", "RPC URL")
+		.addHelpText(
+			"after",
+			"\nExamples:\n  $ fibx config set-rpc base https://my-rpc.example.com\n  $ fibx config set-rpc monad https://rpc.monad.xyz"
+		)
 		.action((chain, url) => {
 			if (!SUPPORTED_CHAINS[chain]) {
-				console.error(chalk.red(`Unsupported chain: ${chain}`));
+				console.error(formatError(new Error(`Unsupported chain: ${chain}`)));
 				console.log(
 					chalk.gray(`Supported chains: ${Object.keys(SUPPORTED_CHAINS).join(", ")}`)
 				);
@@ -25,12 +31,12 @@ export function registerConfigCommands(program: Command) {
 			try {
 				new URL(url); // Validate URL format
 			} catch {
-				console.error(chalk.red("Invalid URL format."));
+				console.error(formatError(new Error("Invalid URL format.")));
 				process.exit(1);
 			}
 
 			configService.setRpcUrl(chain, url);
-			console.log(chalk.green(`Updated RPC for ${chain} to: ${url}`));
+			console.log(success(`Updated RPC for ${chain} to: ${url}`));
 		});
 
 	configCmd
@@ -42,13 +48,13 @@ export function registerConfigCommands(program: Command) {
 			const defaultUrl = SUPPORTED_CHAINS[chain]?.rpcUrl;
 
 			if (!defaultUrl) {
-				console.error(chalk.red(`Unsupported chain: ${chain}`));
+				console.error(formatError(new Error(`Unsupported chain: ${chain}`)));
 				process.exit(1);
 			}
 
 			if (customUrl) {
-				console.log(chalk.bold("Current (Custom):"), chalk.cyan(customUrl));
-				console.log(chalk.gray("Default:"), defaultUrl);
+				console.log(chalk.bold("Current (Custom):"), chalk.hex(BLUE)(customUrl));
+				console.log(chalk.gray("Default:"), chalk.dim(defaultUrl));
 			} else {
 				console.log(chalk.bold("Current (Default):"), defaultUrl);
 			}
@@ -59,12 +65,12 @@ export function registerConfigCommands(program: Command) {
 		.description("List all configuration")
 		.action(() => {
 			const config = configService.getConfig();
-			console.log(chalk.bold("\nCustom RPCs:"));
+			console.log(chalk.bold.hex(BLUE)("\n  Custom RPCs"));
 			if (Object.keys(config.rpcUrls).length === 0) {
 				console.log(chalk.gray("  (None set)"));
 			} else {
 				for (const [chain, url] of Object.entries(config.rpcUrls)) {
-					console.log(`  ${chalk.bold(chain)}: ${chalk.cyan(url)}`);
+					console.log(`    ${chalk.white(chain.padEnd(12))} ${chalk.hex(BLUE)(url)}`);
 				}
 			}
 			console.log("");
@@ -77,7 +83,7 @@ export function registerConfigCommands(program: Command) {
 		.action((chain?: string) => {
 			if (chain) {
 				if (!SUPPORTED_CHAINS[chain]) {
-					console.error(chalk.red(`Unsupported chain: ${chain}`));
+					console.error(formatError(new Error(`Unsupported chain: ${chain}`)));
 					console.log(
 						chalk.gray(`Supported chains: ${Object.keys(SUPPORTED_CHAINS).join(", ")}`)
 					);
@@ -87,22 +93,22 @@ export function registerConfigCommands(program: Command) {
 				const currentUrl = configService.getRpcUrl(chain);
 				if (!currentUrl) {
 					console.log(
-						chalk.yellow(`No custom RPC set for ${chain}. Already using default.`)
+						warn(`No custom RPC set for ${chain}. Already using default.`)
 					);
 					return;
 				}
 
 				configService.resetRpcUrl(chain);
-				console.log(chalk.green(`Reset RPC for ${chain} to default.`));
+				console.log(success(`Reset RPC for ${chain} to default.`));
 			} else {
 				const config = configService.getConfig();
 				if (Object.keys(config.rpcUrls).length === 0) {
-					console.log(chalk.yellow("No custom RPCs set. Already using defaults."));
+					console.log(warn("No custom RPCs set. Already using defaults."));
 					return;
 				}
 
 				configService.resetAll();
-				console.log(chalk.green("All custom RPC URLs have been reset to defaults."));
+				console.log(success("All custom RPC URLs have been reset to defaults."));
 			}
 		});
 }

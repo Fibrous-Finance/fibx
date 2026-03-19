@@ -1,20 +1,20 @@
 import { apiVerify } from "../../services/api/client.js";
 import { saveSession } from "../../services/auth/session.js";
-import { outputResult, outputError, withSpinner, type OutputOptions } from "../../lib/format.js";
+import { createSpinner, outputResult, formatError, type OutputOptions } from "../../lib/format.js";
 
 export async function authVerifyCommand(
 	email: string,
 	code: string,
 	opts: OutputOptions
 ): Promise<void> {
-	try {
-		const result = await withSpinner(
-			"Verifying OTP...",
-			async () => apiVerify(email, code),
-			opts
-		);
+	const spinner = createSpinner("Verifying OTP...").start();
 
-		await saveSession({
+	try {
+		const result = await apiVerify(email, code);
+
+		spinner.text = "Saving session...";
+
+		saveSession({
 			userId: result.userId,
 			walletId: result.walletId,
 			walletAddress: result.walletAddress as `0x${string}`,
@@ -23,17 +23,23 @@ export async function authVerifyCommand(
 			type: "privy",
 		});
 
+		spinner.succeed(
+			result.isExisting
+				? "Existing wallet connected"
+				: "New wallet created"
+		);
+
 		outputResult(
 			{
 				walletAddress: result.walletAddress,
 				walletId: result.walletId,
-				message: result.isExisting
-					? "Existing wallet found and connected. You're ready to go!"
-					: "New wallet created and session saved. You're ready to go!",
+				message: "You're ready to go!",
 			},
 			opts
 		);
 	} catch (error) {
-		outputError(error, opts);
+		spinner.fail("Verification failed");
+		console.error(formatError(error));
+		process.exitCode = 1;
 	}
 }

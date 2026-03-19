@@ -1,4 +1,3 @@
-import ora, { type Ora } from "ora";
 import chalk from "chalk";
 import { AaveService } from "../../services/defi/aave.js";
 import { getChainConfig, type ChainConfig } from "../../services/chain/constants.js";
@@ -8,7 +7,13 @@ import {
 	HEALTH_FACTOR_WARNING_THRESHOLD,
 	HEALTH_FACTOR_CRITICAL_THRESHOLD,
 } from "../../services/defi/constants.js";
-import { outputError, outputResult } from "../../lib/format.js";
+import {
+	createSpinner,
+	outputResult,
+	formatResult,
+	formatError,
+} from "../../lib/format.js";
+import { MINT } from "../../lib/brand.js";
 
 interface GlobalOptions {
 	json?: boolean;
@@ -23,7 +28,7 @@ export const aaveCommand = async (
 	tokenSymbol: string,
 	opts: GlobalOptions
 ) => {
-	const spinner = ora("Initializing Aave service...").start();
+	const spinner = createSpinner("Initializing Aave service...").start();
 
 	try {
 		const chainConfig = getChainConfig("base");
@@ -43,6 +48,7 @@ export const aaveCommand = async (
 			} else {
 				spinner.fail("No active session found. Please login or import a private key.");
 			}
+			process.exitCode = 1;
 			return;
 		}
 
@@ -54,15 +60,18 @@ export const aaveCommand = async (
 		if (!isValidAction(action)) {
 			spinner.fail(`Unknown action: ${action}`);
 			console.log(chalk.gray("Available actions: status, supply, borrow, repay, withdraw"));
+			process.exitCode = 1;
 			return;
 		}
 
 		if (!tokenSymbol) {
 			spinner.fail(`Token is required for action: ${action}`);
+			process.exitCode = 1;
 			return;
 		}
 		if (!amount) {
 			spinner.fail(`Amount is required for action: ${action}`);
+			process.exitCode = 1;
 			return;
 		}
 
@@ -86,11 +95,8 @@ export const aaveCommand = async (
 					aave,
 					token,
 					amount,
-					userAddress,
-					chainConfig,
 					spinner,
-					opts,
-					tokenSymbol.toUpperCase() === chainConfig.nativeSymbol
+					opts
 				);
 				break;
 			case "borrow":
@@ -111,8 +117,9 @@ export const aaveCommand = async (
 				break;
 		}
 	} catch (error) {
-		spinner.stop();
-		outputError(error, { json: !!opts.json });
+		spinner.fail("Aave operation failed");
+		console.error(formatError(error));
+		process.exitCode = 1;
 	}
 };
 
@@ -139,52 +146,47 @@ async function handleStatus(
 	aave: AaveService,
 	userAddress: Address,
 	opts: GlobalOptions,
-	spinner: Ora
+	spinner: ReturnType<typeof createSpinner>
 ) {
-	spinner.text = `Fetching data for ${userAddress}...`;
+	spinner.text = `Fetching Aave V3 data for ${userAddress.slice(0, 6)}...${userAddress.slice(-4)}...`;
 	const data = await aave.getUserAccountData(userAddress);
-	spinner.stop();
-
-	if (opts.json) {
-		console.log(JSON.stringify(data));
-		return;
-	}
+	spinner.succeed("Position loaded");
 
 	const hf = parseFloat(data.healthFactor);
 	let hfColor = chalk.green;
 	if (hf < HEALTH_FACTOR_CRITICAL_THRESHOLD) hfColor = chalk.red;
 	else if (hf < HEALTH_FACTOR_WARNING_THRESHOLD) hfColor = chalk.yellow;
-
 	const hfDisplay = hf > 100 ? "Safe (>100)" : hf.toFixed(2);
 
-	console.log(chalk.bold("\nAave V3 Position (Base)"));
-	console.log(chalk.gray("---------------------------"));
-	outputResult(
-		{
-			"Health Factor": hfColor(hfDisplay),
-			Collateral: `$${parseFloat(data.totalCollateralUSD).toFixed(2)}`,
-			Debt: `$${parseFloat(data.totalDebtUSD).toFixed(2)}`,
-			"Available Borrow": `$${parseFloat(data.availableBorrowsUSD).toFixed(2)}`,
-		},
-		{ json: !!opts.json }
+	if (opts.json) {
+		outputResult(data as unknown as Record<string, unknown>, { json: true });
+		return;
+	}
+
+	console.log(chalk.bold.hex(MINT)("\n  Aave V3 Position (Base)\n"));
+	console.log(
+		formatResult({
+			healthFactor: hfColor(hfDisplay),
+			collateral: `$${parseFloat(data.totalCollateralUSD).toFixed(2)}`,
+			debt: `$${parseFloat(data.totalDebtUSD).toFixed(2)}`,
+			availableBorrow: `$${parseFloat(data.availableBorrowsUSD).toFixed(2)}`,
+		})
 	);
+	console.log();
 }
 
 async function handleSupply(
 	aave: AaveService,
 	token: Token,
 	amount: string,
-	userAddress: Address,
-	chainConfig: ChainConfig,
-	spinner: Ora,
-	opts: GlobalOptions,
-	_isNativeETH: boolean = false
+	spinner: ReturnType<typeof createSpinner>,
+	opts: GlobalOptions
 ) {
 	const txHash = await aave.supplyWithAutoWrap(token.address as Address, amount, (status) => {
 		spinner.text = status;
 	});
 
-	spinner.succeed("Supply transaction sent!");
+	spinner.succeed("Supply confirmed");
 
 	outputResult(
 		{
@@ -202,12 +204,12 @@ async function handleBorrow(
 	aave: AaveService,
 	token: Token,
 	amount: string,
-	spinner: Ora,
+	spinner: ReturnType<typeof createSpinner>,
 	opts: GlobalOptions
 ) {
 	spinner.text = "Signaling Aave Borrow...";
 	const tx = await aave.borrow(token.address as Address, amount);
-	spinner.succeed("Borrow transaction sent!");
+	spinner.succeed("Borrow confirmed");
 
 	outputResult(
 		{
@@ -225,14 +227,14 @@ async function handleRepay(
 	aave: AaveService,
 	token: Token,
 	amount: string,
-	spinner: Ora,
+	spinner: ReturnType<typeof createSpinner>,
 	opts: GlobalOptions
 ) {
 	const txHash = await aave.repayWithAutoWrap(token.address as Address, amount, (status) => {
 		spinner.text = status;
 	});
 
-	spinner.succeed("Repay transaction completed!");
+	spinner.succeed("Repay confirmed");
 
 	outputResult(
 		{
@@ -250,7 +252,7 @@ async function handleWithdraw(
 	aave: AaveService,
 	token: Token,
 	amount: string,
-	spinner: Ora,
+	spinner: ReturnType<typeof createSpinner>,
 	opts: GlobalOptions,
 	isNativeETH: boolean = false
 ) {
@@ -263,7 +265,7 @@ async function handleWithdraw(
 		}
 	);
 
-	spinner.succeed("Withdraw transaction sent!");
+	spinner.succeed("Withdraw confirmed");
 
 	outputResult(
 		{

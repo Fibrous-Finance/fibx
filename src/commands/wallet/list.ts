@@ -1,5 +1,5 @@
 import { loadSession } from "../../services/auth/session.js";
-import { outputResult, outputError, type OutputOptions } from "../../lib/format.js";
+import { outputResult, formatError, type OutputOptions } from "../../lib/format.js";
 
 export async function walletsCommand(opts: OutputOptions): Promise<void> {
 	try {
@@ -13,23 +13,17 @@ export async function walletsCommand(opts: OutputOptions): Promise<void> {
 			return;
 		}
 
-		const walletInfo = {
-			address: session.walletAddress,
-			id: session.walletId ?? "N/A",
-			type: session.type,
-			createdAt: session.createdAt,
-		};
-
-		if (opts.json) {
-			console.log(JSON.stringify([walletInfo], null, 2));
-		} else {
-			console.log("Active wallet:");
-			console.log(`\nAddress: ${walletInfo.address}`);
-			console.log(`ID:      ${walletInfo.id}`);
-			console.log(`Type:    ${walletInfo.type}`);
-			console.log(`Created: ${walletInfo.createdAt}`);
-		}
+		outputResult(
+			{
+				address: session.walletAddress,
+				walletId: session.walletId ?? "N/A",
+				type: session.type,
+				createdAt: session.createdAt,
+			},
+			opts
+		);
 	} catch (error) {
-		outputError(error, opts);
+		console.error(formatError(error));
+		process.exitCode = 1;
 	}
 }

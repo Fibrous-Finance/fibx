@@ -2,14 +2,16 @@ import type { Hash } from "viem";
 import { getPublicClient } from "../../services/chain/client.js";
 import { getChainConfig } from "../../services/chain/constants.js";
 import {
+	createSpinner,
 	outputResult,
-	outputError,
-	withSpinner,
+	formatError,
 	type OutputOptions,
 	type GlobalOptions,
 } from "../../lib/format.js";
 
 export async function txStatusCommand(hash: string, opts: OutputOptions): Promise<void> {
+	const spinner = createSpinner(`Fetching transaction ${hash.slice(0, 10)}...`).start();
+
 	try {
 		const globalOpts = opts as unknown as GlobalOptions;
 		const chainName = globalOpts.chain || "base";
@@ -18,17 +20,14 @@ export async function txStatusCommand(hash: string, opts: OutputOptions): Promis
 		const publicClient = getPublicClient(chain);
 		const txHash = hash as Hash;
 
-		const receipt = await withSpinner(
-			`Fetching transaction status for ${hash}...`,
-			async () => {
-				return publicClient.waitForTransactionReceipt({ hash: txHash });
-			},
-			opts
-		);
+		spinner.text = "Waiting for receipt...";
+		const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+
+		spinner.succeed(receipt.status === "success" ? "Transaction confirmed" : "Transaction reverted");
 
 		const explorerLink = chain.viemChain.blockExplorers?.default.url
 			? `${chain.viemChain.blockExplorers.default.url}/tx/${hash}`
-			: "N/A";
+			: undefined;
 
 		outputResult(
 			{
@@ -37,12 +36,15 @@ export async function txStatusCommand(hash: string, opts: OutputOptions): Promis
 				gasUsed: receipt.gasUsed.toString(),
 				from: receipt.from,
 				to: receipt.to,
-				explorerLink,
+				txHash: hash,
+				...(explorerLink ? { explorer: explorerLink } : {}),
 				chain: chain.name,
 			},
 			opts
 		);
 	} catch (error) {
-		outputError(error, opts);
+		spinner.fail("Failed to fetch transaction");
+		console.error(formatError(error));
+		process.exitCode = 1;
 	}
 }
