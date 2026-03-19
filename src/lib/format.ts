@@ -2,6 +2,7 @@ import chalk from "chalk";
 import ora from "ora";
 import { BLUE, MINT, SLATE } from "./brand.js";
 import { FibxError } from "./errors.js";
+import { parseEvmError } from "./parse-evm-error.js";
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -41,10 +42,7 @@ function bigintReplacer(_key: string, value: unknown): unknown {
 // ── Result Formatting ────────────────────────────────────────────────
 // Key-value output with semantic coloring and dynamic label width.
 
-export function formatResult(
-	data: Record<string, unknown>,
-	options?: { json?: boolean }
-): string {
+export function formatResult(data: Record<string, unknown>, options?: { json?: boolean }): string {
 	if (options?.json) {
 		return JSON.stringify(data, bigintReplacer, 2);
 	}
@@ -127,8 +125,7 @@ export function formatError(error: unknown): string {
 	if (error instanceof FibxError) {
 		return chalk.red(`✖ [${error.code}] ${error.message}`);
 	}
-	const msg = error instanceof Error ? error.message : String(error);
-	return chalk.red(`✖ ${msg}`);
+	return chalk.red(`✖ ${parseEvmError(error)}`);
 }
 
 // ── Message Helpers ──────────────────────────────────────────────────
