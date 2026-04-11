@@ -11,13 +11,14 @@ A command-line tool for DeFi operations on **Base, Citrea, HyperEVM, and Monad**
 - **Token Swaps**: Optimal routing via Fibrous aggregation with auto-slippage
 - **Transfers**: Send ETH or any ERC-20 token
 - **Aave V3**: Supply, borrow, repay, withdraw, and browse markets on Base
-- **MCP Server**: Built-in AI agent integration for Cursor, Claude Desktop, and Antigravity
+- **MCP Server**: Built-in AI agent integration for Cursor, Claude Desktop, and Antigravity (10 tools, 4 categories)
 - **Agent Skills**: Prompt-based AI skills via [fibx-skills](https://github.com/Fibrous-Finance/fibx-skills)
 - **Privy Server Wallets**: Secure server-side signing — private keys never leave Privy's TEE
-- **Private Key Import**: Use an existing wallet for local execution
+- **Private Key Import**: Use an existing wallet with AES-256-GCM encrypted local storage
 - **Simulation**: All transactions are simulated before execution
 - **Dry‑Run Mode**: `--simulate` flag estimates gas without sending a transaction
 - **JSON Output**: `--json` flag for scripting and pipelines
+- **Zero-Dependency Install**: Single-file bundle via tsup — `npx fibx` runs near-instantly
 
 ## Supported Chains
 
@@ -65,6 +66,8 @@ npx fibx status
 # Logout
 npx fibx auth logout
 ```
+
+> **Security:** When using `auth import`, your private key is encrypted at rest with AES-256-GCM. The encryption key is auto-generated per machine and stored in the OS config directory (e.g. `~/.config/fibx-nodejs/encryption-key` on Linux). You can also set the `FIBX_SESSION_SECRET` environment variable for CI/Docker environments.
 
 ### Global Options
 
@@ -156,6 +159,8 @@ npx fibx config reset-rpc        # Reset all chains to default
 npx fibx config list
 ```
 
+> **Hot-reload:** Config changes are picked up automatically — no need to restart the CLI or MCP server.
+
 ## AI Agent Integration
 
 ### MCP Server
@@ -166,9 +171,27 @@ fibx includes a built-in [MCP](https://modelcontextprotocol.io) server for AI ed
 npx fibx mcp-start
 ```
 
+The MCP server exposes **10 tools** across 4 categories (Auth & Config, Wallet & Portfolio, Trading, DeFi). All write operations support a `simulate=true` parameter for fee estimation without execution.
+
 ### Agent Skills
 
 For prompt-based agent integration (Claude Code, Cursor, etc.), see the [fibx-skills](https://github.com/Fibrous-Finance/fibx-skills) repository.
+
+## Architecture
+
+```
+fibx/
+├── src/                    # CLI + MCP server (single tsup bundle)
+│   ├── commands/           # CLI commands (auth, trade, send, aave, config)
+│   ├── mcp/                # Modular MCP server
+│   │   ├── server.ts       # Entry point + MCP_INSTRUCTIONS
+│   │   ├── tools/          # Tool registrations (auth, wallet, trade, defi)
+│   │   └── handlers/       # Tool implementations + context helpers
+│   ├── services/           # Business logic (chain, fibrous, auth, defi)
+│   └── lib/                # Shared utilities (errors, fetch, format, crypto)
+├── fibx-server/            # Privy wallet backend (Hono)
+└── fibx-telegram-bot/      # AI-powered Telegram bot
+```
 
 ## Related Links
 
