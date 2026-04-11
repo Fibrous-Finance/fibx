@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { z } from "zod";
 import { paths } from "../../lib/config.js";
@@ -14,6 +14,18 @@ function getConfigPath(): string {
 }
 
 let cachedConfig: Config | null = null;
+let lastMtime = 0;
+
+function updateMtime(): void {
+	try {
+		const filePath = getConfigPath();
+		if (existsSync(filePath)) {
+			lastMtime = statSync(filePath).mtimeMs;
+		}
+	} catch {
+		// Ignore
+	}
+}
 
 export class ConfigService {
 	private static instance: ConfigService;
@@ -27,7 +39,22 @@ export class ConfigService {
 		return ConfigService.instance;
 	}
 
+	private refreshIfChanged(): void {
+		try {
+			const filePath = getConfigPath();
+			if (!existsSync(filePath)) return;
+			const mtime = statSync(filePath).mtimeMs;
+			if (mtime > lastMtime) {
+				cachedConfig = null; // Force reload on next load()
+				lastMtime = mtime;
+			}
+		} catch {
+			// File may have been deleted between check and stat
+		}
+	}
+
 	public load(): Config {
+		this.refreshIfChanged();
 		if (cachedConfig) return cachedConfig;
 
 		const filePath = getConfigPath();
@@ -39,6 +66,7 @@ export class ConfigService {
 			const result = configSchema.safeParse(JSON.parse(raw));
 			if (result.success) {
 				cachedConfig = result.data;
+				updateMtime();
 				return result.data;
 			}
 		} catch {
@@ -54,6 +82,7 @@ export class ConfigService {
 			configSchema.parse(config);
 			writeFileSync(filePath, JSON.stringify(config, null, 2), "utf-8");
 			cachedConfig = config;
+			updateMtime();
 		} catch (error) {
 			console.error("Failed to save config:", error);
 		}

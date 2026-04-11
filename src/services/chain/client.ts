@@ -2,6 +2,7 @@ import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import type { Session } from "../auth/session.js";
+import { getPrivateKey } from "../auth/session.js";
 import type { ChainConfig } from "./constants.js";
 import { toPrivyViemAccount } from "../privy/account.js";
 
@@ -15,8 +16,9 @@ export function getPublicClient(chain: ChainConfig) {
 export function getWalletClient(session: Session, chain: ChainConfig) {
 	let account;
 
-	if (session.type === "private-key" && session.privateKey) {
-		account = privateKeyToAccount(session.privateKey as `0x${string}`);
+	const pk = getPrivateKey(session);
+	if (session.type === "private-key" && pk) {
+		account = privateKeyToAccount(pk as `0x${string}`);
 	} else {
 		const token = session.userJwt;
 		if (!token) throw new Error("Session JWT required for privy session type");
