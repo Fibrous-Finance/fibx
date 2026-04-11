@@ -17,11 +17,18 @@ export enum ErrorCode {
 
 export class FibxError extends Error {
 	public readonly code: ErrorCode;
+	public readonly details?: unknown;
 
-	constructor(code: ErrorCode, message: string, options?: { cause?: unknown }) {
+	constructor(
+		code: ErrorCode,
+		message: string,
+		details?: unknown,
+		options?: { cause?: unknown }
+	) {
 		super(message, options);
 		this.name = "FibxError";
 		this.code = code;
+		this.details = details;
 	}
 
 	toJSON() {
@@ -29,6 +36,7 @@ export class FibxError extends Error {
 			error: true,
 			code: this.code,
 			message: this.message,
+			...(this.details ? { details: this.details } : {}),
 		};
 	}
 }
