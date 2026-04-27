@@ -59,6 +59,7 @@ const white = chalk.white.bind(chalk);
 const footer = `
 ${chalk.bold.hex(MINT)("Quick Start")}
 
+  ${dim("$")} ${white("fibx quote 0.1 ETH USDC")}               ${dim("# Price check (no auth needed)")}
   ${dim("$")} ${white("fibx auth login <email>")}              ${dim("# Sign in with Privy OTP")}
   ${dim("$")} ${white("fibx trade 0.1 ETH USDC")}              ${dim("# Best-price swap via Fibrous")}
   ${dim("$")} ${white("fibx balance")}                          ${dim("# View all token balances")}
@@ -74,7 +75,7 @@ ${chalk.bold.hex(MINT)("Quick Start")}
 const COMMAND_GROUPS: Record<string, string[]> = {
 	Authentication: ["auth"],
 	Wallet: ["address", "balance", "wallets", "send"],
-	Trading: ["trade", "portfolio"],
+	Trading: ["quote", "trade", "portfolio"],
 	DeFi: ["aave"],
 	System: ["status", "tx-status", "config", "mcp-start", "help"],
 };
@@ -312,6 +313,27 @@ program
 	});
 
 // ── Trading Commands ─────────────────────────────────────────────────
+
+program
+	.command("quote")
+	.description("Get a swap price quote (no auth needed)")
+	.argument("<amount>", "Amount to quote")
+	.argument("<from>", "Source token (symbol or address)")
+	.argument("<to>", "Destination token (symbol or address)")
+	.option("-s, --slippage <number>", "Slippage tolerance %", "0.5")
+	.addHelpText(
+		"after",
+		"\nExamples:\n  $ fibx quote 0.1 ETH USDC\n  $ fibx quote 100 USDC DAI --chain monad\n  $ fibx quote 0.01 ETH USDC --json"
+	)
+	.action(async (amount, from, to, opts, cmd) => {
+		const globalOpts = cmd.parent!.opts();
+		const { quoteCommand } = await import("./commands/trade/quote.js");
+		await quoteCommand(amount, from, to, {
+			...globalOpts,
+			json: globalOpts.json,
+			slippage: parseFloat(opts.slippage),
+		});
+	});
 
 program
 	.command("trade")
