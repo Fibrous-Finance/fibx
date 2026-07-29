@@ -32,7 +32,9 @@ describe("waitForAllowance", () => {
 	it("keeps polling while the approval is still propagating", async () => {
 		const client = stubClient([0n, 0n, 500n]);
 
-		await expect(waitForAllowance(client, TOKEN, OWNER, SPENDER, 500n, 5, 1)).resolves.toBeUndefined();
+		await expect(
+			waitForAllowance(client, TOKEN, OWNER, SPENDER, 500n, 5, 1)
+		).resolves.toBeUndefined();
 
 		expect(client.readContract).toHaveBeenCalledTimes(3);
 	});

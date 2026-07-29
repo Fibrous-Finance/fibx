@@ -5,4 +5,3 @@ export function textResult(text: string) {
 export function jsonResult(data: unknown) {
 	return textResult(JSON.stringify(data, null, 2));
 }
-

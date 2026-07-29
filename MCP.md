@@ -216,6 +216,23 @@ Output: { action, chain?, url?, rpcUrls? }
 
 **Example prompt:** "I'm getting rate limited on Base, set a custom RPC" or "Reset all RPCs to default"
 
+## Safety
+
+Tools that move value are annotated `destructive`, so MCP clients prompt before
+executing them. That prompt is the first line of defence, not the only one:
+
+- **Simulate first.** Every transactional tool accepts `simulate=true` and
+  returns the estimated gas and fee without sending anything.
+- **Limits sit below the model.** When using Privy wallets, per-chain
+  transaction caps are enforced inside Privy's TEE at signing time via a wallet
+  policy, and `fibx-server` validates the transaction shape before it gets
+  there. A prompt injection that convinces the agent to send more cannot raise
+  those caps.
+- **Key export is denied outright** at the policy layer.
+- **Read-only tools need no wallet.** `get_quote`, `get_tx_status`, and
+  `get_aave_markets` work with no session at all, so an agent can explore
+  prices and rates before any wallet exists.
+
 ## Error Handling
 
 All tool errors are returned as structured JSON with `isError: true`:

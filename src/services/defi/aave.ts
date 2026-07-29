@@ -503,11 +503,7 @@ export class AaveService {
 	 * service goes through here so two of them can never claim the same nonce.
 	 */
 	private async sendWithNonce<T>(send: (nonce: number) => Promise<T>): Promise<T> {
-		return NonceManager.getInstance().withNonce(
-			this.account!.address,
-			this.publicClient,
-			send
-		);
+		return NonceManager.getInstance().withNonce(this.account!.address, this.publicClient, send);
 	}
 
 	private async getTokenDecimals(tokenAddress: Address): Promise<number> {

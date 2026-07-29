@@ -14,6 +14,7 @@ A command-line tool for DeFi operations on **Base, Citrea, HyperEVM, and Monad**
 - **MCP Server**: Built-in AI agent integration for Cursor, Claude Desktop, and Antigravity (11 tools, 4 categories)
 - **Agent Skills**: Prompt-based AI skills via [fibx-skills](https://github.com/Fibrous-Finance/fibx-skills)
 - **Privy Server Wallets**: Secure server-side signing — private keys never leave Privy's TEE
+- **Policy-Enforced Signing**: Per-chain transaction caps enforced inside Privy's TEE, not just in app code
 - **Private Key Import**: Use an existing wallet with AES-256-GCM encrypted local storage
 - **Simulation**: All transactions are simulated before execution
 - **Dry‑Run Mode**: `--simulate` flag estimates gas without sending a transaction
@@ -225,27 +226,63 @@ The MCP server exposes **11 tools** across 4 categories (Auth & Config, Wallet &
 
 For prompt-based agent integration (Claude Code, Cursor, etc.), see the [fibx-skills](https://github.com/Fibrous-Finance/fibx-skills) repository.
 
+## Security
+
+Letting an AI agent hold a wallet is only safe if the limits survive the agent
+being wrong — or being manipulated. fibx enforces its guardrails **below** the
+model, so a jailbroken prompt cannot talk its way past them:
+
+| Layer                | Guarantee                                                                                                                                                                                                   |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Privy signing policy | Per-chain transaction value caps and a chain allowlist are evaluated inside Privy's TEE at signing time. They hold even if the fibx server itself is compromised. Private key export is permanently denied. |
+| fibx-server schemas  | `/sign/*` accepts only the exact transaction shape the CLI produces — unknown fields, contract creation, and unserved chains are rejected before reaching Privy.                                            |
+| MCP tool annotations | Every transactional tool is marked `destructive`, so AI editors prompt for confirmation before executing.                                                                                                   |
+| Simulation           | Transactions are simulated before execution; `--simulate` estimates fees without sending anything.                                                                                                          |
+| Local key storage    | Imported private keys are encrypted at rest with AES-256-GCM using a per-machine key stored `0600` in the OS config directory.                                                                              |
+
+Wallet policy limits are configured per deployment — see the
+[fibx-server wallet policy docs](https://github.com/ahmetenesdur/fibx-server#wallet-policy-privy-signing-layer).
+
+> **Note:** policies are attached when a wallet is created. Wallets provisioned
+> before policies were introduced keep signing without them until migrated.
+
 ## Architecture
 
+This repository is the CLI and MCP server. Three sibling repositories complete
+the stack:
+
+| Repository                                                             | Role                                                                                                             |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **fibx** (this repo)                                                   | CLI + stdio MCP server, shipped as a single dependency-free bundle                                               |
+| [fibx-server](https://github.com/ahmetenesdur/fibx-server)             | Hono backend that proxies Privy — holds the app secret so the CLI never does, and owns the wallet signing policy |
+| [fibx-skills](https://github.com/Fibrous-Finance/fibx-skills)          | Prompt-based Agent Skills for Claude Code, Cursor, and other skill-aware agents                                  |
+| [fibx-telegram-bot](https://github.com/ahmetenesdur/fibx-telegram-bot) | Telegram bot that drives this CLI over MCP, one isolated process per user                                        |
+
 ```
-fibx/
-├── src/                    # CLI + MCP server (single tsup bundle)
-│   ├── commands/           # CLI commands (auth, trade, send, aave, config)
-│   ├── mcp/                # Modular MCP server
-│   │   ├── server.ts       # Entry point + MCP_INSTRUCTIONS
-│   │   ├── tools/          # Tool registrations (auth, wallet, trade, defi)
-│   │   └── handlers/       # Tool implementations + context helpers
-│   ├── services/           # Business logic (chain, fibrous, auth, defi)
-│   └── lib/                # Shared utilities (errors, fetch, format, crypto)
-├── fibx-server/            # Privy wallet backend (Hono)
-└── fibx-telegram-bot/      # AI-powered Telegram bot
+src/
+├── commands/           # CLI commands (auth, trade, send, aave, config)
+├── mcp/                # Modular MCP server
+│   ├── server.ts       # Entry point + MCP_INSTRUCTIONS
+│   ├── tools/          # Tool registrations (auth, wallet, trade, defi)
+│   └── handlers/       # Tool implementations
+├── services/           # Business logic (chain, fibrous, auth, defi, portfolio)
+└── lib/                # Shared utilities (errors, fetch, format, crypto)
+```
+
+## Development
+
+```bash
+pnpm install
+pnpm dev          # run the CLI from source
+pnpm test         # vitest unit tests
+pnpm typecheck    # tsc --noEmit
+pnpm lint         # eslint
+pnpm build        # tsup bundle to dist/
 ```
 
 ## Related Links
 
 - [Fibrous Finance](https://fibrous.finance) — DEX aggregator powering swaps
-- [fibx-server](https://github.com/ahmetenesdur/fibx-server) — Backend for Privy wallet operations
-- [fibx-skills](https://github.com/Fibrous-Finance/fibx-skills) — AI agent skills
 - [npm package](https://www.npmjs.com/package/fibx)
 
 ## License
