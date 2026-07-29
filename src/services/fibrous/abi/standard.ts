@@ -1,4 +1,10 @@
-export const monadRouterAbi = [
+/**
+ * Fibrous router ABI shared by Citrea, HyperEVM and Monad — these deployments
+ * are byte-identical. Base runs an older variant (`nativeEthSupport` instead of
+ * `nativeTokenSupport`, and a Swap event without the surplus fields), so it
+ * keeps its own ABI in `base.ts`.
+ */
+export const standardRouterAbi = [
 	{
 		type: "constructor",
 		inputs: [],

@@ -5,6 +5,7 @@ import type { Session } from "../auth/session.js";
 import { getPrivateKey } from "../auth/session.js";
 import type { ChainConfig } from "./constants.js";
 import { toPrivyViemAccount } from "../privy/account.js";
+import { ErrorCode, FibxError } from "../../lib/errors.js";
 
 export function getPublicClient(chain: ChainConfig) {
 	return createPublicClient({
@@ -21,9 +22,19 @@ export function getWalletClient(session: Session, chain: ChainConfig) {
 		account = privateKeyToAccount(pk as `0x${string}`);
 	} else {
 		const token = session.userJwt;
-		if (!token) throw new Error("Session JWT required for privy session type");
+		if (!token) {
+			throw new FibxError(
+				ErrorCode.SESSION_EXPIRED,
+				"Session JWT missing. Run `fibx auth login <email>` to re-authenticate."
+			);
+		}
 		const walletId = session.walletId;
-		if (!walletId) throw new Error("Wallet ID required for privy session");
+		if (!walletId) {
+			throw new FibxError(
+				ErrorCode.WALLET_ERROR,
+				"Wallet ID missing from session. Run `fibx auth login <email>` to re-authenticate."
+			);
+		}
 
 		account = toPrivyViemAccount(token, walletId, session.walletAddress);
 	}

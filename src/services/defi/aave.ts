@@ -26,6 +26,7 @@ import {
 import { NonceManager } from "../chain/nonceManager.js";
 import { waitForAllowance } from "../chain/erc20.js";
 import { ErrorCode, FibxError } from "../../lib/errors.js";
+import { calculateMaxSafeWithdraw } from "./risk.js";
 
 export interface UserAccountData {
 	totalCollateralUSD: string;
@@ -243,16 +244,17 @@ export class AaveService {
 		});
 
 		if (allowance < amount) {
-			const nonceApprove = await NonceManager.getInstance().getNextNonce();
-			const txApprove = await this.walletClient!.writeContract({
-				address: tokenAddress,
-				abi: erc20Abi,
-				functionName: "approve",
-				args: [poolAddress, amount],
-				chain: this.chainConfig.viemChain,
-				account: this.account!,
-				nonce: nonceApprove,
-			});
+			const txApprove = await this.sendWithNonce((nonce) =>
+				this.walletClient!.writeContract({
+					address: tokenAddress,
+					abi: erc20Abi,
+					functionName: "approve",
+					args: [poolAddress, amount],
+					chain: this.chainConfig.viemChain,
+					account: this.account!,
+					nonce,
+				})
+			);
 			await this.publicClient.waitForTransactionReceipt({ hash: txApprove });
 			await waitForAllowance(
 				this.publicClient,
@@ -272,11 +274,9 @@ export class AaveService {
 			chain: this.chainConfig.viemChain,
 		});
 
-		const nonceSupply = await NonceManager.getInstance().getNextNonce();
-		const txSupply = await this.walletClient!.writeContract({
-			...supplyRequest,
-			nonce: nonceSupply,
-		});
+		const txSupply = await this.sendWithNonce((nonce) =>
+			this.walletClient!.writeContract({ ...supplyRequest, nonce })
+		);
 
 		await this.publicClient.waitForTransactionReceipt({ hash: txSupply });
 		return txSupply;
@@ -297,12 +297,9 @@ export class AaveService {
 			chain: this.chainConfig.viemChain,
 		});
 
-		const nonce = await NonceManager.getInstance().getNextNonce();
-
-		const txWrap = await this.walletClient!.writeContract({
-			...request,
-			nonce,
-		});
+		const txWrap = await this.sendWithNonce((nonce) =>
+			this.walletClient!.writeContract({ ...request, nonce })
+		);
 
 		await this.publicClient.waitForTransactionReceipt({ hash: txWrap });
 		return txWrap;
@@ -322,12 +319,9 @@ export class AaveService {
 			chain: this.chainConfig.viemChain,
 		});
 
-		const nonce = await NonceManager.getInstance().getNextNonce();
-
-		const txUnwrap = await this.walletClient!.writeContract({
-			...request,
-			nonce,
-		});
+		const txUnwrap = await this.sendWithNonce((nonce) =>
+			this.walletClient!.writeContract({ ...request, nonce })
+		);
 
 		await this.publicClient.waitForTransactionReceipt({ hash: txUnwrap });
 		return txUnwrap;
@@ -363,12 +357,9 @@ export class AaveService {
 			throw error; // detailed error thrown by handleLiquidationError, but needed for TS control flow
 		}
 
-		const nonce = await NonceManager.getInstance().getNextNonce();
-
-		const txWithdraw = await this.walletClient!.writeContract({
-			...request,
-			nonce,
-		});
+		const txWithdraw = await this.sendWithNonce((nonce) =>
+			this.walletClient!.writeContract({ ...request, nonce })
+		);
 
 		await this.publicClient.waitForTransactionReceipt({ hash: txWithdraw });
 		return txWithdraw;
@@ -412,18 +403,17 @@ export class AaveService {
 			throw error;
 		}
 
-		const nonce = await NonceManager.getInstance().getNextNonce();
-
-		const txBorrow = await this.walletClient!.writeContract({
-			...request,
-			nonce,
-		});
+		const txBorrow = await this.sendWithNonce((nonce) =>
+			this.walletClient!.writeContract({ ...request, nonce })
+		);
 
 		await this.publicClient.waitForTransactionReceipt({ hash: txBorrow });
 		return txBorrow;
 	}
 
-	public async repay(tokenAddress: Address, amountStr: string): Promise<Hash> {
+	// Returns null when the debt was already cleared before the tx landed
+	// (race between the debt check and execution) — no transaction was sent.
+	public async repay(tokenAddress: Address, amountStr: string): Promise<Hash | null> {
 		await this.ensureWalletConnection();
 
 		const poolAddress = await this.getPoolAddress();
@@ -444,16 +434,17 @@ export class AaveService {
 		});
 
 		if (allowance < amount) {
-			const nonceApprove = await NonceManager.getInstance().getNextNonce();
-			const txApprove = await this.walletClient!.writeContract({
-				address: tokenAddress,
-				abi: erc20Abi,
-				functionName: "approve",
-				args: [poolAddress, amount],
-				chain: this.chainConfig.viemChain,
-				account: this.account!,
-				nonce: nonceApprove,
-			});
+			const txApprove = await this.sendWithNonce((nonce) =>
+				this.walletClient!.writeContract({
+					address: tokenAddress,
+					abi: erc20Abi,
+					functionName: "approve",
+					args: [poolAddress, amount],
+					chain: this.chainConfig.viemChain,
+					account: this.account!,
+					nonce,
+				})
+			);
 			await this.publicClient.waitForTransactionReceipt({ hash: txApprove });
 			await waitForAllowance(
 				this.publicClient,
@@ -479,12 +470,9 @@ export class AaveService {
 				chain: this.chainConfig.viemChain,
 			});
 
-			const nonceRepay = await NonceManager.getInstance().getNextNonce();
-
-			const txRepay = await this.walletClient!.writeContract({
-				...repayRequest,
-				nonce: nonceRepay,
-			});
+			const txRepay = await this.sendWithNonce((nonce) =>
+				this.walletClient!.writeContract({ ...repayRequest, nonce })
+			);
 
 			await this.publicClient.waitForTransactionReceipt({ hash: txRepay });
 			return txRepay;
@@ -495,7 +483,7 @@ export class AaveService {
 				err.message?.includes("NoDebtOfSelectedType") ||
 				err.cause?.message?.includes("0xf0788fb2")
 			) {
-				return "0x0" as Hash;
+				return null;
 			}
 			throw error;
 		}
@@ -508,7 +496,18 @@ export class AaveService {
 				"Wallet not connected. Please login or provide a PRIVATE_KEY."
 			);
 		}
-		await NonceManager.getInstance().init(this.account.address, this.publicClient);
+	}
+
+	/**
+	 * Broadcasts under the shared nonce lock. Every writeContract in this
+	 * service goes through here so two of them can never claim the same nonce.
+	 */
+	private async sendWithNonce<T>(send: (nonce: number) => Promise<T>): Promise<T> {
+		return NonceManager.getInstance().withNonce(
+			this.account!.address,
+			this.publicClient,
+			send
+		);
 	}
 
 	private async getTokenDecimals(tokenAddress: Address): Promise<number> {
@@ -524,7 +523,7 @@ export class AaveService {
 		tokenAddress: Address,
 		amountStr: string,
 		onStatus?: (status: string) => void
-	): Promise<Hash> {
+	): Promise<Hash | null> {
 		await this.ensureWalletConnection();
 
 		if (onStatus) onStatus("Checking debt...");
@@ -835,14 +834,13 @@ export class AaveService {
 				}
 			}
 
-			const totalCollateral = parseFloat(userData.totalCollateralUSD);
-			const lt = parseFloat(userData.currentLiquidationThreshold) / 10000;
-			if (lt > 0) {
-				const requiredCollateral = totalDebt / lt;
-				const maxSafeUSD = Math.max(0, totalCollateral - requiredCollateral);
-				if (maxSafeUSD < totalCollateral) {
-					details += ` You need keep ~$${requiredCollateral.toFixed(2)} collateral to cover your debt. Max safe withdraw is approx $${maxSafeUSD.toFixed(2)}.`;
-				}
+			const safe = calculateMaxSafeWithdraw(
+				parseFloat(userData.totalCollateralUSD),
+				totalDebt,
+				parseFloat(userData.currentLiquidationThreshold)
+			);
+			if (safe && safe.maxSafeWithdrawUsd < parseFloat(userData.totalCollateralUSD)) {
+				details += ` You need keep ~$${safe.requiredCollateralUsd.toFixed(2)} collateral to cover your debt. Max safe withdraw is approx $${safe.maxSafeWithdrawUsd.toFixed(2)}.`;
 			}
 
 			throw new FibxError(ErrorCode.WALLET_ERROR, `Cannot withdraw: ${details}`);

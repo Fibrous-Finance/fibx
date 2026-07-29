@@ -7,8 +7,7 @@ import {
 	handleGetTxStatus,
 } from "../handlers/wallet.js";
 import { withErrorHandling } from "./error-handling.js";
-
-const ChainEnum = z.enum(["base", "citrea", "hyperevm", "monad"]);
+import { ChainEnum } from "./schemas.js";
 
 export function registerWalletTools(server: McpServer): number {
 	server.registerTool(

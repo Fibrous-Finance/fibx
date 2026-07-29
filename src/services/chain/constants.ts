@@ -3,9 +3,7 @@ import { configService } from "../config/config.js";
 import { type Chain, defineChain } from "viem";
 import { base } from "viem/chains";
 import { baseRouterAbi } from "../fibrous/abi/base.js";
-import { citreaRouterAbi } from "../fibrous/abi/citrea.js";
-import { hyperevmRouterAbi } from "../fibrous/abi/hyperevm.js";
-import { monadRouterAbi } from "../fibrous/abi/monad.js";
+import { standardRouterAbi } from "../fibrous/abi/standard.js";
 
 export const citrea = defineChain({
 	id: 4114,
@@ -67,12 +65,16 @@ export interface ChainConfig {
 	nativeTokenAddress: string;
 	wrappedNativeAddress: string;
 	fibrousNetwork: string;
-	routerAbi:
-		| typeof baseRouterAbi
-		| typeof citreaRouterAbi
-		| typeof hyperevmRouterAbi
-		| typeof monadRouterAbi;
+	routerAbi: typeof baseRouterAbi | typeof standardRouterAbi;
 }
+
+/**
+ * Single source of truth for chain names. The MCP tool schemas derive their
+ * `chain` enum from this, so adding a chain here surfaces it everywhere.
+ * Keep in sync with the keys of SUPPORTED_CHAINS below.
+ */
+export const CHAIN_NAMES = ["base", "citrea", "hyperevm", "monad"] as const;
+export type ChainName = (typeof CHAIN_NAMES)[number];
 
 export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
 	base: {
@@ -95,7 +97,7 @@ export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
 		nativeTokenAddress: "0x0000000000000000000000000000000000000000",
 		wrappedNativeAddress: "0x3100000000000000000000000000000000000006",
 		fibrousNetwork: "citrea",
-		routerAbi: citreaRouterAbi,
+		routerAbi: standardRouterAbi,
 	},
 	hyperevm: {
 		id: 999,
@@ -106,7 +108,7 @@ export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
 		nativeTokenAddress: "0x0000000000000000000000000000000000000000",
 		wrappedNativeAddress: "0x5555555555555555555555555555555555555555",
 		fibrousNetwork: "hyperevm",
-		routerAbi: hyperevmRouterAbi,
+		routerAbi: standardRouterAbi,
 	},
 	monad: {
 		id: 143,
@@ -117,7 +119,7 @@ export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
 		nativeTokenAddress: "0x0000000000000000000000000000000000000000",
 		wrappedNativeAddress: "0x3bd359c1119da7da1d913d1c4d2b7c461115433a",
 		fibrousNetwork: "monad",
-		routerAbi: monadRouterAbi,
+		routerAbi: standardRouterAbi,
 	},
 };
 

@@ -85,20 +85,6 @@ export async function apiVerify(email: string, code: string): Promise<VerifyResp
 	return request("/auth/verify", { email, code });
 }
 
-export async function apiFindWallet(
-	email: string,
-	token: string
-): Promise<{ wallet: { id: string; address: string } | null }> {
-	return request("/wallet/find", { email }, { token });
-}
-
-export async function apiCreateWallet(
-	token: string,
-	userId?: string
-): Promise<{ wallet: { id: string; address: string } }> {
-	return request("/wallet/create", { userId }, { token });
-}
-
 export async function apiSignTransaction(
 	walletId: string,
 	transaction: Record<string, unknown>,

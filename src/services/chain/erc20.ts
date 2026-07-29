@@ -1,4 +1,5 @@
 import { encodeFunctionData, type Address, type PublicClient } from "viem";
+import { ErrorCode, FibxError } from "../../lib/errors.js";
 
 export const ERC20_ABI = [
 	{
@@ -86,12 +87,21 @@ export async function waitForAllowance(
 	intervalMs: number = 2000
 ): Promise<void> {
 	let retries = 0;
+	let lastAllowance = 0n;
 	while (retries < maxRetries) {
-		const allowance = await getAllowance(client, tokenAddress, owner, spender);
-		if (allowance >= targetAmount) return;
+		lastAllowance = await getAllowance(client, tokenAddress, owner, spender);
+		if (lastAllowance >= targetAmount) return;
 		await new Promise((resolve) => setTimeout(resolve, intervalMs));
 		retries++;
 	}
+
+	// Proceeding without a confirmed allowance would revert on-chain and burn gas,
+	// so surface the timeout instead of silently continuing.
+	throw new FibxError(
+		ErrorCode.RPC_ERROR,
+		`Approval did not propagate after ${(maxRetries * intervalMs) / 1000}s. ` +
+			`Allowance is ${lastAllowance}, needed ${targetAmount}. Please retry.`
+	);
 }
 
 export const WETH_ABI = [

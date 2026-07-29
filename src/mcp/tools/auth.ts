@@ -2,8 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { handleGetAuthStatus, handleConfigAction } from "../handlers/auth.js";
 import { withErrorHandling } from "./error-handling.js";
-
-const ChainEnum = z.enum(["base", "citrea", "hyperevm", "monad"]);
+import { ChainEnum } from "./schemas.js";
 
 export function registerAuthAndConfigTools(server: McpServer): number {
 	server.registerTool(

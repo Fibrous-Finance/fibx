@@ -3,8 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { handleSwapTokens } from "../handlers/trade.js";
 import { handleGetQuote } from "../handlers/quote.js";
 import { withErrorHandling } from "./error-handling.js";
-
-const ChainEnum = z.enum(["base", "citrea", "hyperevm", "monad"]);
+import { ChainEnum } from "./schemas.js";
 
 export function registerTradeTools(server: McpServer): number {
 	server.registerTool(

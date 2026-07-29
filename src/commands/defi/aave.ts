@@ -301,13 +301,30 @@ async function handleRepay(
 		spinner.text = status;
 	});
 
+	const displayAmount = amount === "-1" || amount.toLowerCase() === "max" ? "MAX" : amount;
+
+	if (txHash === null) {
+		spinner.succeed("Nothing to repay");
+		outputResult(
+			{
+				action: "Repay",
+				amount: displayAmount,
+				token: token.symbol,
+				status: "No transaction sent — debt was already cleared",
+				chain: "base",
+			},
+			{ json: !!opts.json }
+		);
+		return;
+	}
+
 	spinner.succeed("Repay confirmed");
 
 	const explorer = getExplorerLink(txHash);
 	outputResult(
 		{
 			action: "Repay",
-			amount: amount === "-1" || amount.toLowerCase() === "max" ? "MAX" : amount,
+			amount: displayAmount,
 			token: token.symbol,
 			txHash,
 			...(explorer ? { explorer } : {}),

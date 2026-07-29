@@ -108,7 +108,8 @@ export async function handleAaveAction({
 		});
 	}
 
-	let txHash: string;
+	// null = repay found no outstanding debt, so no transaction was sent.
+	let txHash: string | null;
 
 	switch (action) {
 		case "supply":
@@ -136,6 +137,16 @@ export async function handleAaveAction({
 				() => {}
 			);
 			break;
+	}
+
+	if (txHash === null) {
+		return jsonResult({
+			action,
+			amount: isMax ? "MAX" : amount,
+			token: isNativeETH ? `${chainConfig.nativeSymbol} (auto-wrapped)` : token.symbol,
+			status: "No transaction sent — debt was already cleared",
+			chain: "base",
+		});
 	}
 
 	const explorer = chainConfig.viemChain.blockExplorers?.default.url

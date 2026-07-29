@@ -148,27 +148,6 @@ export function createSpinner(text: string) {
 	return ora({ text, spinner: "dots" });
 }
 
-// Backward-compatible withSpinner wrapper.
-export async function withSpinner<T>(
-	label: string,
-	fn: (spinner: ReturnType<typeof createSpinner>) => Promise<T>,
-	opts: OutputOptions
-): Promise<T> {
-	if (opts.json) {
-		return fn(new NonTtySpinner(label));
-	}
-
-	const spinner = createSpinner(label).start();
-	try {
-		const result = await fn(spinner);
-		spinner.succeed();
-		return result;
-	} catch (error) {
-		spinner.fail();
-		throw error;
-	}
-}
-
 // Minimal shim for non-TTY environments (CI, piped output).
 class NonTtySpinner {
 	text: string;

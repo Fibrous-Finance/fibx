@@ -22,6 +22,8 @@
 		"build": "tsup",
 		"dev": "node --env-file=.env --import tsx/esm src/index.ts",
 		"start": "node dist/index.js",
+		"test": "vitest run",
+		"test:watch": "vitest",
 		"typecheck": "tsc --noEmit",
 		"lint": "eslint src/",
 		"lint:fix": "eslint src/ --fix",
@@ -48,6 +50,7 @@
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.57.1",
 		"viem": "^2.47.5",
+		"vitest": "^4.1.10",
 		"zod": "^4.3.6"
 	},
 	"engines": {

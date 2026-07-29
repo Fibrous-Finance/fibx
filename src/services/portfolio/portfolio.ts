@@ -6,13 +6,7 @@ import { getTokens, type Token } from "../fibrous/tokens.js";
 import { getBalances } from "../fibrous/balances.js";
 import { formatAmount } from "../../lib/parseAmount.js";
 import { AaveService } from "../defi/aave.js";
-
-interface Asset {
-	symbol: string;
-	balance: string;
-	price: number;
-	usdValue: number;
-}
+import { buildChainAssets, sumUsd, type Asset } from "./assets.js";
 
 interface ChainPortfolio {
 	chain: string;
@@ -56,46 +50,21 @@ async function fetchChainPortfolio(
 		getBalances(tokenList, wallet, chainConfig),
 	]);
 
-	const assets: Asset[] = [];
-
-	const nativeBalanceStr = formatAmount(nativeBalance, 18);
-	const nativeBalanceNum = parseFloat(nativeBalanceStr);
-	if (nativeBalanceNum > 0) {
-		const nativePrice = getNativePrice(tokensMap, chainConfig);
-		assets.push({
+	const assets = buildChainAssets(
+		{
 			symbol: chainConfig.nativeSymbol,
-			balance: nativeBalanceStr,
-			price: nativePrice,
-			usdValue: nativeBalanceNum * nativePrice,
-		});
-	}
-
-	for (const item of tokenBalances) {
-		const balanceNum = parseFloat(item.balance);
-		if (balanceNum > 0) {
-			const addr = item.token.address.toLowerCase();
-			if (addr === chainConfig.wrappedNativeAddress.toLowerCase()) continue;
-			if (addr === chainConfig.nativeTokenAddress.toLowerCase()) continue;
-
-			const token = tokenList.find((t) => t.address.toLowerCase() === addr);
-			const symbol = token?.symbol ?? addr.slice(0, 10);
-			const price = token?.price ? parseFloat(token.price) : 0;
-
-			assets.push({
-				symbol,
-				balance: item.balance,
-				price,
-				usdValue: balanceNum * price,
-			});
-		}
-	}
-
-	assets.sort((a, b) => b.usdValue - a.usdValue);
+			balance: formatAmount(nativeBalance, 18),
+			price: getNativePrice(tokensMap, chainConfig),
+		},
+		tokenBalances,
+		tokenList,
+		chainConfig.nativeTokenAddress
+	);
 
 	return {
 		chain: chainConfig.name,
 		assets,
-		totalUsd: assets.reduce((sum, a) => sum + a.usdValue, 0),
+		totalUsd: sumUsd(assets),
 	};
 }
 
