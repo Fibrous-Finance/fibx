@@ -6,3 +6,9 @@ dist/
 .agent/
 .agents/
 .DS_Store
+
+# Sibling repositories, checked out here for convenience.
+# Each has its own remote — see the ecosystem table in the README.
+fibx-server/
+fibx-skills/
+fibx-telegram-bot/
