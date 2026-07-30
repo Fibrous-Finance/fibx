@@ -1,0 +1,44 @@
+{
+	"$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+	"name": "finance.fibrous/fibx",
+	"title": "FibX",
+	"description": "Swap, transfer, track a portfolio and use Aave V3 on Base, Citrea, HyperEVM and Monad.",
+	"version": "0.8.0",
+	"websiteUrl": "https://docs.fibrous.finance/fibx-agent",
+	"repository": {
+		"url": "https://github.com/Fibrous-Finance/fibx",
+		"source": "github"
+	},
+	"packages": [
+		{
+			"registryType": "npm",
+			"identifier": "fibx",
+			"version": "0.8.0",
+			"transport": {
+				"type": "stdio"
+			},
+			"packageArguments": [
+				{
+					"type": "positional",
+					"value": "mcp-start",
+					"valueHint": "subcommand",
+					"description": "Starts the MCP server over stdio."
+				}
+			],
+			"environmentVariables": [
+				{
+					"name": "FIBX_API_URL",
+					"description": "Custom fibx-server URL for Privy wallet operations. Optional; only needed when self-hosting the backend.",
+					"isRequired": false,
+					"isSecret": false
+				},
+				{
+					"name": "FIBX_SESSION_SECRET",
+					"description": "Encryption key for the local session file. Optional; auto-generated per machine when unset.",
+					"isRequired": false,
+					"isSecret": true
+				}
+			]
+		}
+	]
+}
