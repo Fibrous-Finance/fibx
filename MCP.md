@@ -263,7 +263,7 @@ EVM-specific errors (reverts, gas estimation failures) are parsed and human-read
 | `FIBX_API_URL`        | Custom fibx-server URL (for Privy wallet operations)    | No       |
 | `FIBX_SESSION_SECRET` | Custom encryption key for session files (hex or string) | No       |
 
-If using Privy authentication, ensure [fibx-server](https://github.com/ahmetenesdur/fibx-server) is running and accessible before starting the MCP server.
+If using Privy authentication, ensure [fibx-server](https://github.com/Fibrous-Finance/fibx-server) is running and accessible before starting the MCP server.
 
 ## Troubleshooting
 

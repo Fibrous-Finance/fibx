@@ -47,7 +47,7 @@ npm install -g fibx
 ## Requirements
 
 - Node.js >= 18
-- A running [fibx-server](https://github.com/ahmetenesdur/fibx-server) instance (required for Privy wallet operations; not needed for private key imports)
+- A running [fibx-server](https://github.com/Fibrous-Finance/fibx-server) instance (required for Privy wallet operations; not needed for private key imports)
 
 ## Quick Start — First Swap in 3 Minutes
 
@@ -241,7 +241,7 @@ model, so a jailbroken prompt cannot talk its way past them:
 | Local key storage    | Imported private keys are encrypted at rest with AES-256-GCM using a per-machine key stored `0600` in the OS config directory.                                                                              |
 
 Wallet policy limits are configured per deployment — see the
-[fibx-server wallet policy docs](https://github.com/ahmetenesdur/fibx-server#wallet-policy-privy-signing-layer).
+[fibx-server wallet policy docs](https://github.com/Fibrous-Finance/fibx-server#wallet-policy-privy-signing-layer).
 
 > **Note:** policies are attached when a wallet is created. Wallets provisioned
 > before policies were introduced keep signing without them until migrated.
@@ -254,9 +254,9 @@ the stack:
 | Repository                                                             | Role                                                                                                             |
 | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | **fibx** (this repo)                                                   | CLI + stdio MCP server, shipped as a single dependency-free bundle                                               |
-| [fibx-server](https://github.com/ahmetenesdur/fibx-server)             | Hono backend that proxies Privy — holds the app secret so the CLI never does, and owns the wallet signing policy |
+| [fibx-server](https://github.com/Fibrous-Finance/fibx-server)             | Hono backend that proxies Privy — holds the app secret so the CLI never does, and owns the wallet signing policy |
 | [fibx-skills](https://github.com/Fibrous-Finance/fibx-skills)          | Prompt-based Agent Skills for Claude Code, Cursor, and other skill-aware agents                                  |
-| [fibx-telegram-bot](https://github.com/ahmetenesdur/fibx-telegram-bot) | Telegram bot that drives this CLI over MCP, one isolated process per user                                        |
+| [fibx-telegram-bot](https://github.com/Fibrous-Finance/fibx-telegram-bot) | Telegram bot that drives this CLI over MCP, one isolated process per user                                        |
 
 ```
 src/

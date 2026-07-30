@@ -67,7 +67,7 @@ ${chalk.bold.hex(MINT)("Quick Start")}
   ${dim("$")} ${white("fibx portfolio")}                        ${dim("# Cross-chain portfolio")}
 
   ${dim("Run")} ${white("fibx <command> --help")} ${dim("for detailed flags and examples.")}
-  ${dim("Docs →")} ${chalk.hex(BLUE).underline("https://github.com/ahmetenesdur/fibx")}
+  ${dim("Docs →")} ${chalk.hex(BLUE).underline("https://github.com/Fibrous-Finance/fibx")}
 `;
 
 // ── Command Groups ───────────────────────────────────────────────────
