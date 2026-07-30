@@ -3,7 +3,7 @@
 	"name": "finance.fibrous/fibx",
 	"title": "FibX",
 	"description": "Swap, transfer, track a portfolio and use Aave V3 on Base, Citrea, HyperEVM and Monad.",
-	"version": "0.8.1",
+	"version": "0.8.2",
 	"websiteUrl": "https://docs.fibrous.finance/fibx-agent",
 	"repository": {
 		"url": "https://github.com/Fibrous-Finance/fibx",
@@ -13,7 +13,7 @@
 		{
 			"registryType": "npm",
 			"identifier": "fibx",
-			"version": "0.8.1",
+			"version": "0.8.2",
 			"transport": {
 				"type": "stdio"
 			},
