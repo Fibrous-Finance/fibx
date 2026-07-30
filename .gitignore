@@ -7,6 +7,11 @@ dist/
 .agents/
 .DS_Store
 
+# MCP registry publishing: the Ed25519 private key proves ownership of
+# fibrous.finance to the registry, and the publisher binary is a local tool.
+*.pem
+mcp-publisher
+
 # Sibling repositories, checked out here for convenience.
 # Each has its own remote — see the ecosystem table in the README.
 fibx-server/
