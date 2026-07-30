@@ -13,11 +13,11 @@ A command-line tool for DeFi operations on **Base, Citrea, HyperEVM, and Monad**
 - **Aave V3**: Supply, borrow, repay, withdraw, and browse markets on Base
 - **MCP Server**: Built-in AI agent integration for Cursor, Claude Desktop, and Antigravity (11 tools, 4 categories)
 - **Agent Skills**: Prompt-based AI skills via [fibx-skills](https://github.com/Fibrous-Finance/fibx-skills)
-- **Privy Server Wallets**: Secure server-side signing — private keys never leave Privy's TEE
-- **Policy-Enforced Signing**: Per-chain transaction caps enforced inside Privy's TEE, not just in app code
+- **Privy Server Wallets**: Server-side signing — the CLI receives signed transaction payloads or signatures, not Privy app credentials or raw keys
+- **Policy-Enforced Signing**: Configured chain allowlists and native-value caps are evaluated by Privy at signing time
 - **Private Key Import**: Use an existing wallet with AES-256-GCM encrypted local storage
-- **Simulation**: All transactions are simulated before execution
-- **Dry‑Run Mode**: `--simulate` flag estimates gas without sending a transaction
+- **Preflight Checks**: Transaction flows validate or estimate execution where the underlying RPC supports it
+- **Dry‑Run Mode**: `--simulate` previews write operations without broadcasting; gas estimates are included where available
 - **JSON Output**: `--json` flag for scripting and pipelines
 - **Zero-Dependency Install**: Single-file bundle via tsup — `npx fibx` runs near-instantly
 
@@ -137,7 +137,7 @@ Shows all token holdings across Base, Citrea, HyperEVM, and Monad with USD value
 npx fibx send 0.001 0xRecipient           # Send native token on Base (ETH)
 npx fibx send 10 0xRecipient USDC         # Send ERC-20 on Base
 npx fibx send 1 0xRecipient --chain monad # Send MON on Monad
-npx fibx send 0.1 0xRecipient --simulate  # Estimate gas without sending
+npx fibx send 0.1 0xRecipient --simulate  # Preview without sending
 ```
 
 ### Quote
@@ -146,7 +146,7 @@ Get swap prices without authentication:
 
 ```bash
 npx fibx quote 0.01 ETH USDC                  # Price check on Base
-npx fibx quote 100 USDC DAI --chain monad      # Compare pairs
+npx fibx quote 1 MON USDC --chain monad         # Check Monad prices
 npx fibx quote 0.1 ETH USDC --json             # JSON output for scripts
 ```
 
@@ -159,7 +159,7 @@ npx fibx trade <amount> <from> <to>
 npx fibx trade 0.0001 ETH USDC
 npx fibx trade 20 USDC DAI
 npx fibx trade 1 MON USDC --chain monad
-npx fibx trade 0.1 ETH USDC --simulate   # Estimate gas without executing
+npx fibx trade 0.1 ETH USDC --simulate   # Preview without broadcasting
 ```
 
 Options: `--slippage <n>` (default: 0.5%), `--approve-max`, `--simulate`, `--json`
@@ -191,7 +191,7 @@ npx fibx aave borrow 50 USDC       # Borrow
 npx fibx aave repay 50 USDC        # Repay
 npx fibx aave repay max ETH        # Auto-wraps ETH and repays full WETH debt
 npx fibx aave withdraw max ETH     # Withdraws WETH and auto-unwraps to ETH
-npx fibx aave supply 1 ETH --simulate  # Estimate gas without executing
+npx fibx aave supply 1 ETH --simulate  # Preview without broadcasting
 ```
 
 > **Note:** `supply`, `repay`, and `withdraw` support automatic **ETH <-> WETH** wrapping/unwrapping on Base.
@@ -220,7 +220,7 @@ fibx includes a built-in [MCP](https://modelcontextprotocol.io) server for AI ed
 npx fibx mcp-start
 ```
 
-The MCP server exposes **11 tools** across 4 categories (Auth & Config, Wallet & Portfolio, Trading, DeFi). All write operations support a `simulate=true` parameter for fee estimation without execution.
+The MCP server exposes **11 tools** across 4 categories (Auth & Config, Wallet & Portfolio, Trading, DeFi). All write operations support a `simulate=true` preview that does not broadcast; gas estimates are returned only where available.
 
 ### Agent Skills
 
@@ -228,17 +228,18 @@ For prompt-based agent integration (Claude Code, Cursor, etc.), see the [fibx-sk
 
 ## Security
 
-Letting an AI agent hold a wallet is only safe if the limits survive the agent
-being wrong — or being manipulated. fibx enforces its guardrails **below** the
-model, so a jailbroken prompt cannot talk its way past them:
+Letting an AI agent operate a wallet requires controls outside the model.
+fibx combines signing-layer policies, server-side validation, client hints, and
+explicit previews. These controls reduce risk, but the server credentials, MCP
+client configuration, and deployment policy remain part of the trust boundary:
 
-| Layer                | Guarantee                                                                                                                                                                                                   |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Privy signing policy | Per-chain transaction value caps and a chain allowlist are evaluated inside Privy's TEE at signing time. They hold even if the fibx server itself is compromised. Private key export is permanently denied. |
-| fibx-server schemas  | `/sign/*` accepts only the exact transaction shape the CLI produces — unknown fields, contract creation, and unserved chains are rejected before reaching Privy.                                            |
-| MCP tool annotations | Every transactional tool is marked `destructive`, so AI editors prompt for confirmation before executing.                                                                                                   |
-| Simulation           | Transactions are simulated before execution; `--simulate` estimates fees without sending anything.                                                                                                          |
-| Local key storage    | Imported private keys are encrypted at rest with AES-256-GCM using a per-machine key stored `0600` in the OS config directory.                                                                              |
+| Layer                | What it does                                                                                                                                                                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Privy signing policy | The default policy allowlists configured chains, caps each transaction's native-token `value`, and denies key export. Privy evaluates the policy at signing time; fibx-server credentials and any custom policy remain critical trust boundaries. |
+| fibx-server schemas  | `/sign/*` accepts only the exact transaction shape the CLI produces — unknown fields, contract creation, and unserved chains are rejected before reaching Privy.                                                                                  |
+| MCP tool annotations | Every transactional tool advertises `destructiveHint: true`; compatible clients may use that hint to request confirmation, depending on client behavior and configuration.                                                                        |
+| Simulation           | `--simulate` previews write operations without broadcasting. Some paths also return a gas estimate; others return operation metadata only.                                                                                                        |
+| Local key storage    | Imported private keys are encrypted at rest with AES-256-GCM using a per-machine key stored `0600` in the OS config directory.                                                                                                                    |
 
 Wallet policy limits are configured per deployment — see the
 [fibx-server wallet policy docs](https://github.com/Fibrous-Finance/fibx-server#wallet-policy-privy-signing-layer).
@@ -251,12 +252,12 @@ Wallet policy limits are configured per deployment — see the
 This repository is the CLI and MCP server. Three sibling repositories complete
 the stack:
 
-| Repository                                                             | Role                                                                                                             |
-| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| **fibx** (this repo)                                                   | CLI + stdio MCP server, shipped as a single dependency-free bundle                                               |
+| Repository                                                                | Role                                                                                                             |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **fibx** (this repo)                                                      | CLI + stdio MCP server, shipped as a single dependency-free bundle                                               |
 | [fibx-server](https://github.com/Fibrous-Finance/fibx-server)             | Hono backend that proxies Privy — holds the app secret so the CLI never does, and owns the wallet signing policy |
-| [fibx-skills](https://github.com/Fibrous-Finance/fibx-skills)          | Prompt-based Agent Skills for Claude Code, Cursor, and other skill-aware agents                                  |
-| [fibx-telegram-bot](https://github.com/Fibrous-Finance/fibx-telegram-bot) | Telegram bot that drives this CLI over MCP, one isolated process per user                                        |
+| [fibx-skills](https://github.com/Fibrous-Finance/fibx-skills)             | Prompt-based Agent Skills for Claude Code, Cursor, and other skill-aware agents                                  |
+| [fibx-telegram-bot](https://github.com/Fibrous-Finance/fibx-telegram-bot) | Telegram bot that drives this CLI over MCP, with one process and separate config paths per active user           |
 
 ```
 src/

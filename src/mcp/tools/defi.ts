@@ -43,7 +43,7 @@ export function registerDefiTools(server: McpServer): number {
 		{
 			title: "Aave V3 Action",
 			description:
-				"Execute an Aave V3 action on Base: supply, borrow, repay, or withdraw. Auto-handles ETH<->WETH wrapping/unwrapping. Use 'max' as amount to repay or withdraw the full balance. Set simulate=true to estimate fees without executing.",
+				"Execute an Aave V3 action on Base: supply, borrow, repay, or withdraw. ETH supply/repay can auto-wrap and ETH withdraw can auto-unwrap; borrowing the ETH market returns WETH. Use 'max' as amount to repay or withdraw the full balance. Set simulate=true for a no-broadcast operation preview.",
 			inputSchema: {
 				action: z
 					.enum(["supply", "borrow", "repay", "withdraw"])
@@ -57,9 +57,7 @@ export function registerDefiTools(server: McpServer): number {
 				simulate: z
 					.boolean()
 					.optional()
-					.describe(
-						"Set true to simulate only — estimates fees without sending a transaction"
-					),
+					.describe("Set true for a no-broadcast operation preview"),
 			},
 			annotations: {
 				title: "Aave V3 Operation",

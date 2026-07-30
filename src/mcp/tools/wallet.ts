@@ -34,7 +34,7 @@ export function registerWalletTools(server: McpServer): number {
 		{
 			title: "Send Tokens",
 			description:
-				"Send native tokens (ETH, cBTC, HYPE, MON) or ERC-20 tokens to a recipient address. Simulates before executing. If token is omitted, the chain's native token is used. Set simulate=true to estimate fees without executing.",
+				"Send native tokens (ETH, cBTC, HYPE, MON) or ERC-20 tokens to a recipient address. If token is omitted, the chain's native token is used. Set simulate=true for a no-broadcast preview; a gas estimate is returned where available.",
 			inputSchema: {
 				amount: z.string().describe("Amount to send (e.g. '0.1', '100')"),
 				recipient: z.string().describe("Recipient address (0x...)"),
@@ -47,7 +47,7 @@ export function registerWalletTools(server: McpServer): number {
 					.boolean()
 					.optional()
 					.describe(
-						"Set true to simulate only — estimates fees without sending a transaction"
+						"Set true for a no-broadcast preview; gas estimates may be unavailable"
 					),
 			},
 			annotations: {

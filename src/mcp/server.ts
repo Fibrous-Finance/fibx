@@ -24,14 +24,14 @@ const MCP_INSTRUCTIONS = `fibx is a multi-chain EVM DeFi toolkit for Base, Citre
 - Monitor Aave V3 health factors and market rates (APY, TVL, LTV)
 
 RULES:
-1. get_quote does NOT require authentication — use it for price checks and rate discovery.
+1. get_quote, get_tx_status, and get_aave_markets do NOT require authentication; use get_quote for price checks and rate discovery.
 2. Always call get_auth_status before wallet/transactional operations.
 3. For swaps, swap_tokens handles approvals and wrap/unwrap automatically.
 4. Aave V3 is ONLY available on Base — do NOT attempt Aave operations on other chains.
 5. Use "max" as amount for full repay/withdraw on Aave.
 6. Config tool manages custom RPC URLs to avoid rate limits.
 7. All write tools are destructive — confirm with the user before executing.
-8. Use simulate=true on transactional tools to preview fees before execution.
+8. Use simulate=true on transactional tools for a no-broadcast preview; gas estimates are returned only where available.
 9. Always call get_aave_markets before Aave supply/borrow operations.
 10. get_portfolio provides cross-chain overview including DeFi positions.`;
 

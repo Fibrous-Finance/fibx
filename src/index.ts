@@ -298,7 +298,7 @@ program
 	.argument("<amount>", "Amount to send")
 	.argument("<recipient>", "Recipient address (0x...)")
 	.argument("[token]", "Token symbol or address (default: chain native token)")
-	.option("--simulate", "Estimate gas without executing", false)
+	.option("--simulate", "Preview without executing; gas when available", false)
 	.addHelpText(
 		"after",
 		"\nExamples:\n  $ fibx send 0.1 0xRecipient...\n  $ fibx send 100 0xRecipient... USDC\n  $ fibx send 0.5 0xRecipient... --chain monad"
@@ -323,7 +323,7 @@ program
 	.option("-s, --slippage <number>", "Slippage tolerance %", "0.5")
 	.addHelpText(
 		"after",
-		"\nExamples:\n  $ fibx quote 0.1 ETH USDC\n  $ fibx quote 100 USDC DAI --chain monad\n  $ fibx quote 0.01 ETH USDC --json"
+		"\nExamples:\n  $ fibx quote 0.1 ETH USDC\n  $ fibx quote 1 MON USDC --chain monad\n  $ fibx quote 0.01 ETH USDC --json"
 	)
 	.action(async (amount, from, to, opts, cmd) => {
 		const globalOpts = cmd.parent!.opts();
@@ -343,7 +343,7 @@ program
 	.argument("<to>", "Destination token (symbol or address)")
 	.option("-s, --slippage <number>", "Slippage tolerance %", "0.5")
 	.option("--approve-max", "Approve maximum amount instead of exact amount", false)
-	.option("--simulate", "Estimate gas without executing", false)
+	.option("--simulate", "Preview without executing; gas when available", false)
 	.addHelpText(
 		"after",
 		"\nExamples:\n  $ fibx trade 0.1 ETH USDC\n  $ fibx trade 100 USDC WETH --slippage 1\n  $ fibx trade 0.5 ETH DAI --chain base"
@@ -377,7 +377,7 @@ program
 	.argument("<action>", "Action: status, supply, borrow, repay, withdraw, markets")
 	.argument("[amount]", "Amount (use 'max' for full repay/withdraw)")
 	.argument("[token]", "Token symbol or address")
-	.option("--simulate", "Estimate gas without executing", false)
+	.option("--simulate", "Preview without executing", false)
 	.addHelpText(
 		"after",
 		"\nExamples:\n  $ fibx aave status\n  $ fibx aave markets\n  $ fibx aave supply 1 ETH\n  $ fibx aave supply 1 ETH --simulate\n  $ fibx aave borrow 500 USDC\n  $ fibx aave repay max USDC\n  $ fibx aave withdraw max ETH"

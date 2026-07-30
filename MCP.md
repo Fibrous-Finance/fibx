@@ -14,8 +14,8 @@ This starts an MCP server over **stdio** (standard input/output). The server spe
 
 1. Your AI editor spawns `npx fibx mcp-start` as a subprocess
 2. The editor communicates via **stdin/stdout** using JSON-RPC 2.0 messages
-3. fibx reads the local session file to authenticate (must run `fibx auth login` or `fibx auth import` first)
-4. Tools are executed against live blockchains — transactional tools are marked as **destructive** so editors prompt for confirmation
+3. Wallet-dependent tools read the local session file; public tools such as quotes, transaction status, and Aave markets do not require one
+4. Tools are executed against live blockchains — transactional tools advertise `destructiveHint: true`, which clients may use to request confirmation
 5. The server sends built-in `MCP_INSTRUCTIONS` to guide AI agents on proper tool usage, chain selection, and error handling
 
 > **Note:** stderr is used for logging (server banner, tool counts); stdout is reserved for JSON-RPC protocol messages.
@@ -85,7 +85,7 @@ Add to `~/.gemini/antigravity/mcp_config.json`:
 
 ### Transactional (3 tools)
 
-These tools are marked as **destructive** — the AI editor will ask for confirmation before executing. All support `simulate=true` for fee estimation without execution.
+These tools advertise `destructiveHint: true`; confirmation behavior depends on the MCP client and its configuration. All support `simulate=true` for a no-broadcast preview, with gas estimates returned only where available.
 
 | Tool          | Description                                             | Simulate |
 | ------------- | ------------------------------------------------------- | -------- |
@@ -107,8 +107,13 @@ Get a price quote for a token swap. **No authentication required** — use this 
 
 ```
 Input:  { amount, from_token, to_token, chain?, slippage? }
-Output: { input, output, rate, slippage, router, chain }
+Routed output: { input, output, rate, slippage, router, chain }
+Wrap/unwrap output: { input, output, rate, operation, chain }
 ```
+
+Direct native/wrapped-native quotes are 1:1 conversions and therefore omit
+aggregator-specific `slippage` and `router` fields. Executing the conversion
+still requires native gas.
 
 ### get_auth_status
 
@@ -145,23 +150,33 @@ Output: {
 
 ### swap_tokens
 
-Execute a token swap through Fibrous. Handles approvals, simulation, and routing automatically.
+Execute a token swap through Fibrous. Handles approvals and routing automatically, and supports an explicit no-broadcast preview.
 
 ```
 Input:  { amount, from_token, to_token, chain?, slippage?, simulate? }
-Output: { txHash, amountIn, amountOut, tokenIn, tokenOut, router, chain }
+Execution output: { txHash, amountIn, amountOut, tokenIn, tokenOut, router, chain, explorer? }
+Preview output:   { success, mode, amountIn, amountOut, tokenIn, tokenOut, router?, chain, estimatedGas?, requiresApproval? }
 ```
+
+An ERC-20 preview with insufficient allowance reports
+`requiresApproval: true` without broadcasting an approval; in that case it
+does not claim a swap gas estimate. Wrap/unwrap previews are request metadata
+only.
 
 **Example prompt:** "Swap 0.1 ETH to USDC on Base" or "Simulate swapping 100 USDC to DAI"
 
 ### send_tokens
 
-Transfer native or ERC-20 tokens. Simulates before executing.
+Transfer native or ERC-20 tokens, with an optional no-broadcast preview.
 
 ```
 Input:  { amount, recipient, token?, chain?, simulate? }
-Output: { txHash, amount, token, recipient, chain }
+Execution output: { txHash, amount, token, recipient, chain, explorer? }
+Preview output:   { success, mode, amount, token, recipient, chain, estimatedGas? }
 ```
+
+Native-token previews include gas units. ERC-20 previews validate the contract
+call but currently do not return a gas estimate.
 
 **Example prompt:** "Send 50 USDC to 0x1234..." or "Simulate sending 0.1 ETH to 0x..."
 
@@ -189,19 +204,28 @@ List all Aave V3 reserve markets on Base with live APY data. No wallet required.
 
 ```
 Input:  {}
-Output: { markets: [{ symbol, supplyAPY, borrowAPY, totalSupply, totalBorrow, ltv }] }
+Output: {
+  chain, marketCount,
+  markets: [{ symbol, supplyAPY, borrowAPY, totalSupply, totalBorrow, ltv, isFrozen }]
+}
 ```
 
 **Example prompt:** "What are the current Aave lending rates?" or "Show me Aave markets"
 
 ### aave_action
 
-Execute an Aave V3 operation. Auto-handles ETH<->WETH wrapping. Use `"max"` as amount for full repay/withdraw.
+Execute an Aave V3 operation. ETH supply/repay can auto-wrap and ETH withdraw
+can auto-unwrap; borrowing the ETH market returns WETH. Use `"max"` only for
+full repay/withdraw.
 
 ```
 Input:  { action: "supply" | "borrow" | "repay" | "withdraw", amount, token, simulate? }
-Output: { action, amount, token, txHash, chain }
+Execution output: { action, amount, token, txHash?, status?, chain, explorer? }
+Preview output:   { success, mode, action, amount, token, chain, note }
 ```
+
+The preview validates the amount, resolves the token, and describes the
+requested operation. It does not run an on-chain simulation or gas estimate.
 
 **Example prompt:** "Supply 0.5 ETH to Aave" or "Repay max USDC on Aave"
 
@@ -218,17 +242,17 @@ Output: { action, chain?, url?, rpcUrls? }
 
 ## Safety
 
-Tools that move value are annotated `destructive`, so MCP clients prompt before
-executing them. That prompt is the first line of defence, not the only one:
+Tools that move value advertise `destructiveHint: true`. MCP clients may use
+that hint to request confirmation, but behavior depends on the client and its
+configuration:
 
-- **Simulate first.** Every transactional tool accepts `simulate=true` and
-  returns the estimated gas and fee without sending anything.
-- **Limits sit below the model.** When using Privy wallets, per-chain
-  transaction caps are enforced inside Privy's TEE at signing time via a wallet
-  policy, and `fibx-server` validates the transaction shape before it gets
-  there. A prompt injection that convinces the agent to send more cannot raise
-  those caps.
-- **Key export is denied outright** at the policy layer.
+- **Preview first.** Every transactional tool accepts `simulate=true` for a
+  no-broadcast preview. Gas estimates are included only on paths that can
+  calculate them safely.
+- **Limits sit below the model.** The default Privy wallet policy allowlists
+  configured chains, caps each transaction's native-token `value`, and denies
+  key export. `fibx-server` also validates transaction shape. Server credentials
+  and custom policy configuration remain part of the trust boundary.
 - **Read-only tools need no wallet.** `get_quote`, `get_tx_status`, and
   `get_aave_markets` work with no session at all, so an agent can explore
   prices and rates before any wallet exists.

@@ -38,7 +38,7 @@ export function registerTradeTools(server: McpServer): number {
 		{
 			title: "Swap Tokens via Fibrous",
 			description:
-				"Swap tokens using Fibrous aggregator for optimal routing. Handles ERC-20 approvals and wrap/unwrap automatically. Simulates before executing. Supported chains: Base, Citrea, HyperEVM, Monad. Set simulate=true to estimate fees without executing.",
+				"Swap tokens using Fibrous aggregator for optimal routing. Handles ERC-20 approvals and wrap/unwrap automatically. Supported chains: Base, Citrea, HyperEVM, Monad. Set simulate=true for a no-broadcast preview; a gas estimate is returned where it can be calculated safely.",
 			inputSchema: {
 				amount: z.string().describe("Amount to swap (e.g. '0.1', '100')"),
 				from_token: z.string().describe("Source token symbol (e.g. 'ETH', 'USDC', 'MON')"),
@@ -52,7 +52,7 @@ export function registerTradeTools(server: McpServer): number {
 					.boolean()
 					.optional()
 					.describe(
-						"Set true to simulate only — estimates fees without sending a transaction"
+						"Set true for a no-broadcast preview; gas estimates may be unavailable"
 					),
 			},
 			annotations: {
