@@ -1,6 +1,6 @@
 {
 	"name": "fibx",
-	"version": "0.8.0",
+	"version": "0.8.1",
 	"mcpName": "finance.fibrous/fibx",
 	"description": "Zero-dependency CLI for DeFi operations on Base, Citrea, HyperEVM, and Monad — powered by Fibrous aggregation, with built-in MCP server for AI agents.",
 	"author": "Ahmet Enes Dur",
