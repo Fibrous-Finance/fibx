@@ -193,6 +193,7 @@ export async function tradeCommand(
 			console.log(`  Slippage: ${opts.slippage ?? DEFAULT_SLIPPAGE}%\n`);
 		}
 
+		let requiresApproval = false;
 		if (!isNativeInput) {
 			const currentAllowance = await getAllowance(
 				publicClient,
@@ -201,7 +202,9 @@ export async function tradeCommand(
 				routerAddress
 			);
 
-			if (currentAllowance < amountBaseUnits) {
+			requiresApproval = currentAllowance < amountBaseUnits;
+
+			if (requiresApproval && !opts.simulate) {
 				const approveSpinner = createSpinner("Approving token spend...").start();
 				const amountToApprove = opts.approveMax ? maxUint256 : amountBaseUnits;
 				const approveData = encodeApprove(routerAddress, amountToApprove);
@@ -235,6 +238,25 @@ export async function tradeCommand(
 		const swapData = encodeSwapCalldata(routeData.calldata, chain);
 		const value = isNativeInput ? amountBaseUnits : 0n;
 
+		// Without allowance, an eth_estimateGas call for the swap would normally
+		// revert. A dry run must not broadcast an approval just to make that
+		// estimate possible, so report the prerequisite without inventing a fee.
+		if (opts.simulate && requiresApproval) {
+			swapSpinner.succeed("Simulation complete");
+			outputResult(
+				{
+					mode: "SIMULATION (no TX sent)",
+					input: `${amount} ${tokenIn.symbol}`,
+					output: `~${outputAmount} ${tokenOut.symbol}`,
+					requiresApproval: true,
+					router: routerAddress,
+					chain: chain.name,
+				},
+				opts
+			);
+			return;
+		}
+
 		try {
 			const gasEstimate = await publicClient.estimateGas({
 				account: wallet,
@@ -255,6 +277,7 @@ export async function tradeCommand(
 						input: `${amount} ${tokenIn.symbol}`,
 						output: `~${outputAmount} ${tokenOut.symbol}`,
 						estimatedGas: `${feeEth} ${chain.nativeSymbol}`,
+						requiresApproval: false,
 						router: routerAddress,
 						chain: chain.name,
 					},

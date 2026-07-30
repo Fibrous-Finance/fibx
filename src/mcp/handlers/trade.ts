@@ -140,6 +140,7 @@ export async function handleSwapTokens({
 	);
 
 	const routerAddress = routeData.router_address as Address;
+	let requiresApproval = false;
 
 	if (!isNativeInput) {
 		const currentAllowance = await getAllowance(
@@ -149,7 +150,9 @@ export async function handleSwapTokens({
 			routerAddress
 		);
 
-		if (currentAllowance < amountBaseUnits) {
+		requiresApproval = currentAllowance < amountBaseUnits;
+
+		if (requiresApproval && !simulate) {
 			const approveData = encodeApprove(routerAddress, amountBaseUnits);
 			const approveTxHash = await walletClient.sendTransaction({
 				to: tokenIn.address as Address,
@@ -175,14 +178,31 @@ export async function handleSwapTokens({
 	const swapData = encodeSwapCalldata(routeData.calldata, chainConfig);
 	const value = isNativeInput ? amountBaseUnits : 0n;
 
+	const outputAmount = formatAmount(BigInt(routeData.route.outputAmount), tokenOut.decimals);
+
+	// Estimating the swap would normally revert when the router does not yet
+	// have enough allowance. In simulation mode, report that prerequisite
+	// instead of broadcasting an approval just to make the estimate succeed.
+	if (simulate && requiresApproval) {
+		return jsonResult({
+			success: true,
+			mode: "SIMULATION (no TX sent)",
+			amountIn: amount,
+			amountOut: outputAmount,
+			tokenIn: tokenIn.symbol,
+			tokenOut: tokenOut.symbol,
+			router: routerAddress,
+			chain: chainConfig.name,
+			requiresApproval: true,
+		});
+	}
+
 	const estimatedGas = await publicClient.estimateGas({
 		account: wallet,
 		to: routerAddress,
 		data: swapData,
 		value,
 	});
-
-	const outputAmount = formatAmount(BigInt(routeData.route.outputAmount), tokenOut.decimals);
 
 	if (simulate) {
 		return jsonResult({
@@ -195,6 +215,7 @@ export async function handleSwapTokens({
 			router: routerAddress,
 			chain: chainConfig.name,
 			estimatedGas: estimatedGas.toString(),
+			requiresApproval: false,
 		});
 	}
 

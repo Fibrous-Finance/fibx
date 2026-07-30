@@ -75,6 +75,9 @@ export async function handleAaveAction({
 	const isMax = amount.toLowerCase() === "max" || amount === "-1";
 	const normalizedAmount = isMax ? "-1" : amount;
 
+	if (isMax && action !== "repay" && action !== "withdraw") {
+		throw new Error("'max' is only supported for repay and withdraw.");
+	}
 	if (!isMax) {
 		validateAmount(normalizedAmount);
 	}
@@ -86,9 +89,10 @@ export async function handleAaveAction({
 	aave.setWalletClient(walletClient);
 
 	let token = await resolveToken(tokenSymbol, chainConfig);
-	const isNativeETH = tokenSymbol.toUpperCase() === chainConfig.nativeSymbol;
+	const isNativeETH =
+		token.address.toLowerCase() === chainConfig.nativeTokenAddress.toLowerCase();
 
-	if (token.address === chainConfig.nativeTokenAddress) {
+	if (isNativeETH) {
 		token = {
 			...token,
 			address: chainConfig.wrappedNativeAddress as Address,
@@ -97,14 +101,23 @@ export async function handleAaveAction({
 		};
 	}
 
+	const displayToken = isNativeETH
+		? action === "withdraw"
+			? `${chainConfig.nativeSymbol} (auto-unwrapped)`
+			: action === "borrow"
+				? token.symbol
+				: `${chainConfig.nativeSymbol} (auto-wrapped)`
+		: token.symbol;
+
 	if (simulate) {
 		return jsonResult({
 			success: true,
-			mode: "SIMULATION (no TX sent)",
+			mode: "PREVIEW (no TX sent)",
 			action,
 			amount: isMax ? "MAX" : amount,
-			token: isNativeETH ? `${chainConfig.nativeSymbol} (auto-wrapped)` : token.symbol,
+			token: displayToken,
 			chain: "base",
+			note: "Request only; no on-chain validation, gas estimate, or transaction was performed",
 		});
 	}
 
@@ -143,7 +156,7 @@ export async function handleAaveAction({
 		return jsonResult({
 			action,
 			amount: isMax ? "MAX" : amount,
-			token: isNativeETH ? `${chainConfig.nativeSymbol} (auto-wrapped)` : token.symbol,
+			token: displayToken,
 			status: "No transaction sent — debt was already cleared",
 			chain: "base",
 		});
@@ -155,7 +168,7 @@ export async function handleAaveAction({
 	return jsonResult({
 		action,
 		amount: isMax ? "MAX" : amount,
-		token: isNativeETH ? `${chainConfig.nativeSymbol} (auto-wrapped)` : token.symbol,
+		token: displayToken,
 		txHash,
 		chain: "base",
 		explorer,

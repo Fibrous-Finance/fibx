@@ -8,6 +8,7 @@ import {
 	HEALTH_FACTOR_CRITICAL_THRESHOLD,
 } from "../../services/defi/constants.js";
 import { createSpinner, outputResult, formatResult, formatError } from "../../lib/format.js";
+import { validateAmount } from "../../lib/validation.js";
 import { MINT } from "../../lib/brand.js";
 
 interface GlobalOptions {
@@ -81,16 +82,51 @@ export const aaveCommand = async (
 			return;
 		}
 
+		const isMax = amount === "-1" || amount.toLowerCase() === "max";
+		if (isMax && action !== "repay" && action !== "withdraw") {
+			throw new Error("'max' is only supported for repay and withdraw.");
+		}
+		if (!isMax) {
+			validateAmount(amount);
+		}
+
 		spinner.text = `Resolving token ${tokenSymbol}...`;
 		let token = await resolveToken(tokenSymbol, chainConfig);
+		const isNativeETH =
+			token.address.toLowerCase() === chainConfig.nativeTokenAddress.toLowerCase();
 
-		if (token.address === chainConfig.nativeTokenAddress) {
+		if (isNativeETH) {
 			token = {
 				...token,
 				address: chainConfig.wrappedNativeAddress as Address,
 				symbol: "WETH",
 				name: "Wrapped Ether",
 			};
+		}
+
+		if (opts.simulate) {
+			const displayAmount = isMax ? "MAX" : amount;
+			const displayToken = isNativeETH
+				? action === "withdraw"
+					? `${chainConfig.nativeSymbol} (auto-unwrapped)`
+					: action === "borrow"
+						? token.symbol
+						: `${chainConfig.nativeSymbol} (auto-wrapped)`
+				: token.symbol;
+
+			spinner.succeed("Preview ready — no transaction sent");
+			outputResult(
+				{
+					mode: "PREVIEW (no TX sent)",
+					action: action.charAt(0).toUpperCase() + action.slice(1),
+					amount: displayAmount,
+					token: displayToken,
+					chain: "base",
+					note: "Request only; no on-chain validation, simulation, or transaction was performed",
+				},
+				{ json: !!opts.json }
+			);
+			return;
 		}
 
 		spinner.text = "Interacting with Aave Protocol...";
@@ -106,14 +142,7 @@ export const aaveCommand = async (
 				await handleRepay(aave, token, amount, spinner, opts);
 				break;
 			case "withdraw":
-				await handleWithdraw(
-					aave,
-					token,
-					amount,
-					spinner,
-					opts,
-					tokenSymbol.toUpperCase() === chainConfig.nativeSymbol
-				);
+				await handleWithdraw(aave, token, amount, spinner, opts, isNativeETH);
 				break;
 		}
 	} catch (error) {
