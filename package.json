@@ -11,7 +11,7 @@
 	"bugs": {
 		"url": "https://github.com/Fibrous-Finance/fibx/issues"
 	},
-	"homepage": "https://github.com/Fibrous-Finance/fibx#readme",
+	"homepage": "https://docs.fibrous.finance/fibx-agent",
 	"type": "module",
 	"bin": {
 		"fibx": "dist/index.js"
