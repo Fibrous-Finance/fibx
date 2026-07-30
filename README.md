@@ -214,7 +214,7 @@ npx fibx config list
 
 ### MCP Server
 
-fibx includes a built-in [MCP](https://modelcontextprotocol.io) server for AI editors like Cursor, Claude Desktop, and Antigravity. See [MCP.md](MCP.md) for setup and available tools.
+fibx includes a built-in [MCP](https://modelcontextprotocol.io) server for AI editors like Cursor, Claude Desktop, and Antigravity. See [MCP.md](https://github.com/Fibrous-Finance/fibx/blob/main/MCP.md) for setup and available tools.
 
 ```bash
 npx fibx mcp-start
