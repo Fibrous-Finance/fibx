@@ -1,6 +1,7 @@
 import { createPairing } from "../../services/walletconnect/connect.js";
 import { renderQrTerminal } from "../../services/walletconnect/qr.js";
 import { saveSession } from "../../services/auth/session.js";
+import { releaseWalletConnectSession } from "../../services/auth/release.js";
 import { createSpinner, outputResult, formatError, type OutputOptions } from "../../lib/format.js";
 
 export async function authConnectCommand(opts: OutputOptions): Promise<void> {
@@ -11,6 +12,12 @@ export async function authConnectCommand(opts: OutputOptions): Promise<void> {
 	let approvalSpinner: ReturnType<typeof createSpinner> | undefined;
 
 	try {
+		// Before the new pairing, not after: teardown destroys the whole pairing
+		// store, so running it once this command's own pairing exists would take
+		// the new keys with it. Pairing again otherwise leaves the previous
+		// session live in the user's wallet.
+		await releaseWalletConnectSession();
+
 		pairingSpinner = createSpinner("Opening a WalletConnect pairing...").start();
 		const { uri, approval } = await createPairing();
 		pairingSpinner.stop();

@@ -6,6 +6,7 @@ import {
 	type OutputOptions,
 } from "../../lib/format.js";
 import { saveSession } from "../../services/auth/session.js";
+import { releaseWalletConnectSession } from "../../services/auth/release.js";
 import { privateKeyToAccount } from "viem/accounts";
 import { type Hex } from "viem";
 import inquirer from "inquirer";
@@ -30,6 +31,10 @@ export async function authImportCommand(opts: OutputOptions): Promise<void> {
 
 		const account = privateKeyToAccount(privateKey as Hex);
 		const address = account.address;
+
+		// Switching to a local key leaves any WalletConnect pairing live in the
+		// user's wallet and its keys on disk unless it is ended first.
+		await releaseWalletConnectSession();
 
 		saveSession({
 			userId: "local-user",

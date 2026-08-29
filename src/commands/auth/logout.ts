@@ -1,5 +1,6 @@
 import { Command } from "commander";
-import { clearSession, loadSession } from "../../services/auth/session.js";
+import { clearSession } from "../../services/auth/session.js";
+import { releaseWalletConnectSession } from "../../services/auth/release.js";
 import { runCommand } from "../../lib/cli-helpers.js";
 
 export const logoutCommand = new Command("logout")
@@ -10,18 +11,8 @@ export const logoutCommand = new Command("logout")
 			"Logged out. Session cleared.",
 			"Logout failed",
 			async () => {
-				const session = loadSession();
 				try {
-					if (session?.type === "walletconnect") {
-						// Clearing session.json alone would leave the wallet
-						// listing FibX as an active connection, with the
-						// pairing keys still on disk. Dynamic import so the
-						// WalletConnect SDK stays out of a Privy or
-						// private-key logout.
-						const { endWalletConnectSession } =
-							await import("../../services/walletconnect/connect.js");
-						await endWalletConnectSession(session.wcTopic);
-					}
+					await releaseWalletConnectSession();
 				} finally {
 					// The user asked to leave. Whatever became of the wallet's
 					// side, the local session goes — a teardown problem is

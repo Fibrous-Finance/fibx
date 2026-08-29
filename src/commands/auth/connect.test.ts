@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
 	createPairing: vi.fn(),
 	renderQrTerminal: vi.fn(),
 	saveSession: vi.fn(),
+	releaseWalletConnectSession: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../../services/walletconnect/connect.js", () => ({ createPairing: mocks.createPairing }));
@@ -11,6 +12,9 @@ vi.mock("../../services/walletconnect/qr.js", () => ({ renderQrTerminal: mocks.r
 // Never let this reach the real session file: saveSession writes to the
 // developer's own config directory.
 vi.mock("../../services/auth/session.js", () => ({ saveSession: mocks.saveSession }));
+vi.mock("../../services/auth/release.js", () => ({
+	releaseWalletConnectSession: mocks.releaseWalletConnectSession,
+}));
 
 const { authConnectCommand } = await import("./connect.js");
 
@@ -76,5 +80,20 @@ describe("auth connect --json", () => {
 
 		expect(lines.join("\n")).toContain("Wallet connected");
 		expect(lines.join("\n")).toContain(URI);
+	});
+});
+
+describe("auth connect over an existing pairing", () => {
+	// Teardown destroys the whole pairing store, so it has to run before this
+	// command's own pairing exists — afterwards it would take the new keys with
+	// it. Pairing again without it leaves the previous session live in the
+	// user's wallet.
+	it("releases the previous session before opening a new pairing", async () => {
+		await authConnectCommand({ json: true });
+
+		expect(mocks.releaseWalletConnectSession).toHaveBeenCalledTimes(1);
+		expect(mocks.releaseWalletConnectSession.mock.invocationCallOrder[0]).toBeLessThan(
+			mocks.createPairing.mock.invocationCallOrder[0]
+		);
 	});
 });

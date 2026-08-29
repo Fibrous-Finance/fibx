@@ -1,5 +1,6 @@
 import { apiVerify } from "../../services/api/client.js";
 import { saveSession } from "../../services/auth/session.js";
+import { releaseWalletConnectSession } from "../../services/auth/release.js";
 import { createSpinner, outputResult, formatError, type OutputOptions } from "../../lib/format.js";
 
 export async function authVerifyCommand(
@@ -13,6 +14,10 @@ export async function authVerifyCommand(
 		const result = await apiVerify(email, code);
 
 		spinner.text = "Saving session...";
+
+		// Switching to Privy leaves any WalletConnect pairing live in the user's
+		// wallet and its keys on disk unless it is ended first.
+		await releaseWalletConnectSession();
 
 		saveSession({
 			userId: result.userId,
