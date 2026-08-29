@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach } from "vitest";
-import { mkdtempSync, rmSync, statSync, existsSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, statSync, existsSync, writeFileSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FileKeyValueStorage } from "./storage.js";
@@ -52,6 +52,19 @@ describe("FileKeyValueStorage", () => {
 		const { store, file } = newStore();
 		await store.setItem("a", 1);
 		expect(existsSync(file)).toBe(true);
+		expect(statSync(file).mode & 0o777).toBe(0o600);
+	});
+
+	// POSIX open() applies `mode` only when it creates the file, so a store
+	// that is already loose keeps its permissions through every later write
+	// unless they are re-asserted. This one holds pairing key material.
+	it("re-tightens loose permissions on a later write", async () => {
+		const { store, file } = newStore();
+		await store.setItem("topic", { a: 1 });
+		chmodSync(file, 0o644);
+
+		await store.setItem("topic", { a: 2 });
+
 		expect(statSync(file).mode & 0o777).toBe(0o600);
 	});
 

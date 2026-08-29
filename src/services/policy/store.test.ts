@@ -1,5 +1,14 @@
 import { describe, expect, it, afterEach, vi } from "vitest";
-import { rmSync, writeFileSync, mkdirSync, statSync, chmodSync } from "node:fs";
+import {
+	rmSync,
+	writeFileSync,
+	mkdirSync,
+	statSync,
+	chmodSync,
+	readFileSync,
+	accessSync,
+	constants,
+} from "node:fs";
 import { join } from "node:path";
 
 // env-paths ignores XDG_CONFIG_HOME on macOS and returns a real user
@@ -23,6 +32,25 @@ afterEach(() => {
 function writeRaw(contents: string): void {
 	mkdirSync(configDir, { recursive: true });
 	writeFileSync(join(configDir, "policy.json"), contents, "utf-8");
+}
+
+/** Probes the syscall the permission tests below actually depend on. */
+function canRead(file: string): boolean {
+	try {
+		readFileSync(file);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function canWrite(dir: string): boolean {
+	try {
+		accessSync(dir, constants.W_OK);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 describe("policy store", () => {
@@ -58,6 +86,56 @@ describe("policy store", () => {
 		expect(loadPolicy()).toBe("unreadable");
 	});
 
+	// The whole point of naming chain keys in the schema is to catch a typo.
+	// The obvious way to do that in zod 4 — z.record(z.enum(CHAIN_NAMES), …) —
+	// builds an EXHAUSTIVE record, which would demand every chain be present
+	// and reject the single-chain policy the docs tell people to write. This is
+	// the regression guard for that.
+	it("parses a policy naming only one chain", () => {
+		writeRaw(JSON.stringify({ maxValue: { base: "0.05" } }));
+
+		expect(loadPolicy()).toEqual({ maxValue: { base: "0.05" } });
+	});
+
+	it("round-trips every rule unchanged", () => {
+		const policy = {
+			expiry: "2026-12-31",
+			allowedChains: ["base", "monad"],
+			maxValue: { base: "0.05", monad: "10" },
+			allowedDestinations: { base: ["0x1111111111111111111111111111111111111111"] },
+		};
+		savePolicy(policy);
+
+		expect(loadPolicy()).toEqual(policy);
+	});
+
+	// A misspelled key used to be dropped in silence, so a file the user
+	// believed set a cap set nothing and every transaction was permitted —
+	// the same fail-open direction the three-state return exists to prevent.
+	it("reports an unknown top-level key as unreadable rather than dropping it", () => {
+		writeRaw(JSON.stringify({ maxvalue: { base: "0.05" } }));
+
+		expect(loadPolicy()).toBe("unreadable");
+	});
+
+	// `show` printed "Base.maxValue 0.05" as though it were enforced, while the
+	// evaluator — which looks up the lowercase chain name — never saw it.
+	it("reports an unknown chain key inside maxValue as unreadable", () => {
+		writeRaw(JSON.stringify({ maxValue: { Base: "0.05" } }));
+
+		expect(loadPolicy()).toBe("unreadable");
+	});
+
+	it("reports an unknown chain key inside allowedDestinations as unreadable", () => {
+		writeRaw(
+			JSON.stringify({
+				allowedDestinations: { solana: ["0x1111111111111111111111111111111111111111"] },
+			})
+		);
+
+		expect(loadPolicy()).toBe("unreadable");
+	});
+
 	it("removes the policy", () => {
 		savePolicy({ allowedChains: ["base"] });
 		clearPolicy();
@@ -70,20 +148,44 @@ describe("policy store", () => {
 	});
 
 	// A file that exists but cannot be read (permission denied) must refuse
-	// rather than silently lift every limit. This test may be skipped on systems
-	// where the test runner has permission to read files with 0o000 mode (e.g.,
-	// running as root).
-	it("reports a present-but-unreadable file as unreadable, not absent", () => {
+	// rather than silently lift every limit.
+	//
+	// The skip guard is on the read, not on the chmod: chmod always succeeds
+	// here — the process owns the file — so guarding it never skipped
+	// anything. Reading a 0000 file is the syscall root is allowed to do and
+	// nobody else is, so that is what decides whether there is anything to
+	// observe.
+	it("reports a present-but-unreadable file as unreadable, not absent", (ctx) => {
 		writeRaw("{}");
-		try {
-			chmodSync(join(configDir, "policy.json"), 0o000);
-		} catch {
-			// Running as root: we cannot test permission denial. Skip.
-			expect.soft("test skipped on root or chmod-restricted system").toBeDefined();
-			return;
+		chmodSync(join(configDir, "policy.json"), 0o000);
+
+		if (canRead(join(configDir, "policy.json"))) {
+			ctx.skip("running as root: a 0000 file is still readable, so nothing is denied");
 		}
 
 		expect(loadPolicy()).toBe("unreadable");
+	});
+
+	/**
+	 * A `clear` that cannot remove the file must say so. Swallowing EACCES
+	 * alongside ENOENT printed "Signing policy removed" while the policy was
+	 * still on disk and still enforced — the user believes they lifted a limit
+	 * they did not, which is the mirror image of the fail-open above.
+	 */
+	it("re-throws when the policy cannot be removed, rather than reporting success", (ctx) => {
+		savePolicy({ allowedChains: ["base"] });
+		// Unlink needs write permission on the *directory*, not the file.
+		chmodSync(configDir, 0o500);
+
+		try {
+			if (canWrite(configDir)) {
+				ctx.skip("running as root: directory permissions do not deny the unlink");
+			}
+
+			expect(() => clearPolicy()).toThrow(/EACCES|EPERM/);
+		} finally {
+			chmodSync(configDir, 0o700);
+		}
 	});
 
 	// writeFileSync's mode only applies when creating. An existing file that

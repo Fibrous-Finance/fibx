@@ -151,6 +151,84 @@ function isEmptyPolicy(policy: Policy): boolean {
 	);
 }
 
+/** The rule lines themselves, shared by `show` and by `clear`'s confirmation. */
+function printRules(policy: Policy): void {
+	if (policy.expiry) console.log(`  expiry              ${policy.expiry}`);
+	if (policy.allowedChains)
+		console.log(`  allowedChains       ${policy.allowedChains.join(", ")}`);
+	for (const [chain, cap] of Object.entries(policy.maxValue ?? {})) {
+		console.log(`  ${chain}.maxValue${" ".repeat(Math.max(1, 10 - chain.length))}${cap}`);
+	}
+	for (const [chain, list] of Object.entries(policy.allowedDestinations ?? {})) {
+		console.log(`  ${chain}.allowedDestinations`);
+		for (const address of list) console.log(`    ${address}`);
+	}
+}
+
+/**
+ * Removes the whole policy. Separate from `clear <rule>` and asked about
+ * first, because on the imported-key path this is the only bound that exists,
+ * there is no undo, and `clear` is one word away from `clear expiry`.
+ *
+ * Three paths in, and they must stay three — the last two look alike and are
+ * not:
+ *
+ *   `--yes`              remove now, no prompt. The scripted path, and the only
+ *                        way to do this without a terminal.
+ *   a terminal           show what is about to go, then ask. Declining leaves
+ *                        the file alone and exits 0: the user answered, and a
+ *                        "no" is not a failure.
+ *   no terminal, no flag refuse and exit 1. Nothing here can answer a prompt,
+ *                        and silence is not consent.
+ */
+export async function clearWholePolicy(opts: { yes?: boolean }): Promise<void> {
+	if (!opts.yes) {
+		if (!process.stdout.isTTY) {
+			console.error(
+				formatError(
+					new Error(
+						"Removing the whole signing policy needs confirmation, and there is no terminal to ask in. Re-run with `fibx policy clear --yes` if that is what you meant."
+					)
+				)
+			);
+			process.exitCode = 1;
+			return;
+		}
+
+		const current = loadPolicy();
+		if (current === "unreadable") {
+			console.log(warn(`Policy at ${policyPath()} cannot be read, so it cannot be shown.`));
+		} else if (current && !isEmptyPolicy(current)) {
+			console.log(chalk.gray("\nAbout to remove:"));
+			printRules(current);
+			console.log();
+		} else {
+			console.log(warn("No signing policy is set — there is nothing to remove."));
+		}
+
+		// Imported here rather than at the top: `registerPolicyCommands` is on
+		// the CLI's static startup path, and inquirer is only ever needed on
+		// this one branch of this one subcommand.
+		const inquirer = (await import("inquirer")).default;
+		const { confirmed } = await inquirer.prompt<{ confirmed: boolean }>([
+			{
+				type: "confirm",
+				name: "confirmed",
+				message: "Remove the whole signing policy?",
+				default: false,
+			},
+		]);
+
+		if (!confirmed) {
+			console.log(warn("Nothing was removed."));
+			return;
+		}
+	}
+
+	clearPolicy();
+	console.log(success("Signing policy removed — nothing limits signing now."));
+}
+
 function show(): void {
 	const policy = loadPolicy();
 
@@ -172,16 +250,7 @@ function show(): void {
 	}
 
 	console.log();
-	if (policy.expiry) console.log(`  expiry              ${policy.expiry}`);
-	if (policy.allowedChains)
-		console.log(`  allowedChains       ${policy.allowedChains.join(", ")}`);
-	for (const [chain, cap] of Object.entries(policy.maxValue ?? {})) {
-		console.log(`  ${chain}.maxValue${" ".repeat(Math.max(1, 10 - chain.length))}${cap}`);
-	}
-	for (const [chain, list] of Object.entries(policy.allowedDestinations ?? {})) {
-		console.log(`  ${chain}.allowedDestinations`);
-		for (const address of list) console.log(`    ${address}`);
-	}
+	printRules(policy);
 	console.log();
 }
 
@@ -234,10 +303,10 @@ export function registerPolicyCommands(program: Command) {
 		.command("clear")
 		.description("Remove one rule, or the whole policy")
 		.argument("[rule]", "The rule to remove; omit to remove everything")
-		.action((rule?: string) => {
+		.option("-y, --yes", "Skip the confirmation when removing the whole policy")
+		.action(async (rule: string | undefined, options: { yes?: boolean }) => {
 			if (!rule) {
-				clearPolicy();
-				console.log(success("Signing policy removed — nothing limits signing now."));
+				await clearWholePolicy(options);
 				return;
 			}
 

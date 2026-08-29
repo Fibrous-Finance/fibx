@@ -53,7 +53,13 @@ export function savePolicy(policy: Policy): void {
 export function clearPolicy(): void {
 	try {
 		unlinkSync(policyPath());
-	} catch {
-		// Already gone. Removing a policy that is not there is not a failure.
+	} catch (error) {
+		// Already gone is not a failure — removing a policy that is not there
+		// is the state the caller asked for. Anything else is: a bare catch
+		// swallowed EACCES and EPERM too, so `fibx policy clear` on a
+		// read-only config directory said "Signing policy removed" while the
+		// policy was still on disk and still enforced.
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+		throw error;
 	}
 }

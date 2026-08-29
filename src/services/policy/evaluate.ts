@@ -1,10 +1,21 @@
 import { formatEther, parseEther } from "viem";
+import { CHAIN_NAMES, type ChainName } from "../chain/constants.js";
 import type { Policy, PolicyTransaction, PolicyVerdict } from "./types.js";
 
 const ALLOWED: PolicyVerdict = { allowed: true };
 
 function refuse(rule: string, message: string): PolicyVerdict {
 	return { allowed: false, rule, message };
+}
+
+/**
+ * The per-chain rules are keyed by offered chain name, and the schema now
+ * refuses any other key. A transaction on a chain FibX still knows how to talk
+ * to but no longer offers (citrea) therefore has no per-chain rule to find —
+ * the same outcome as before, said explicitly rather than by a failed lookup.
+ */
+function chainKey(chain: string): ChainName | null {
+	return (CHAIN_NAMES as readonly string[]).includes(chain) ? (chain as ChainName) : null;
 }
 
 /**
@@ -43,7 +54,9 @@ export function evaluate(tx: PolicyTransaction, policy: Policy | null, now: Date
 		);
 	}
 
-	const cap = policy.maxValue?.[tx.chain];
+	const key = chainKey(tx.chain);
+
+	const cap = key ? policy.maxValue?.[key] : undefined;
 	if (cap !== undefined) {
 		let capWei: bigint;
 		try {
@@ -65,7 +78,7 @@ export function evaluate(tx: PolicyTransaction, policy: Policy | null, now: Date
 		}
 	}
 
-	const destinations = policy.allowedDestinations?.[tx.chain];
+	const destinations = key ? policy.allowedDestinations?.[key] : undefined;
 	if (destinations) {
 		const to = tx.to?.toLowerCase();
 		if (!to) {

@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach, beforeEach, vi } from "vitest";
-import { rmSync, writeFileSync, mkdirSync, readFileSync } from "node:fs";
+import { rmSync, writeFileSync, mkdirSync, readFileSync, statSync, chmodSync } from "node:fs";
 import { join } from "node:path";
 
 // env-paths ignores XDG_CONFIG_HOME on macOS — it returns
@@ -65,5 +65,37 @@ describe("session schema", () => {
 
 		const raw = JSON.parse(readFileSync(join(configDir, "session.json"), "utf-8"));
 		expect(raw.wcTopic).toBeUndefined();
+	});
+});
+
+/**
+ * session.json holds the encrypted private key and a live Privy JWT — the most
+ * sensitive file FibX writes. It was going to disk world-readable.
+ */
+describe("session file permissions", () => {
+	const session = {
+		walletAddress: "0x4444444444444444444444444444444444444444",
+		createdAt: "2026-01-01T00:00:00.000Z",
+		type: "walletconnect" as const,
+		wcTopic: "abc123",
+	};
+
+	it("writes the file 0600", () => {
+		saveSession(session);
+
+		expect(statSync(join(configDir, "session.json")).mode & 0o777).toBe(0o600);
+	});
+
+	// POSIX open() applies `mode` only when it creates the file, so a
+	// session.json that is already loose — written by an older version, or
+	// chmod'ed by hand — keeps its permissions through every later save unless
+	// they are re-asserted. Mirrors the same test on the policy store.
+	it("re-tightens loose permissions when saving over an existing file", () => {
+		saveSession(session);
+		chmodSync(join(configDir, "session.json"), 0o644);
+
+		saveSession(session);
+
+		expect(statSync(join(configDir, "session.json")).mode & 0o777).toBe(0o600);
 	});
 });

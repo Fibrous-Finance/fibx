@@ -122,7 +122,9 @@ export function formatTable(headers: string[], rows: string[][]): string {
 // ── Error Formatting ─────────────────────────────────────────────────
 
 /**
- * Finds a FibxError anywhere in an error's `cause` chain.
+ * Finds a FibxError anywhere in an error's `cause` chain. Exported because the
+ * MCP surface needs the same walk: reading only the outermost error reported
+ * this branch's refusals as `UNKNOWN_ERROR` with no reason attached.
  *
  * On the WalletConnect path the typed error is never the top-level one: the
  * provider throws from inside viem's transport, and viem wraps what it catches
@@ -134,7 +136,7 @@ export function formatTable(headers: string[], rows: string[][]): string {
  * The chain comes from a dependency rather than from us, so the walk tracks what
  * it has seen: a cycle ends the loop instead of hanging.
  */
-function findFibxError(error: unknown): FibxError | null {
+export function findFibxError(error: unknown): FibxError | null {
 	const seen = new Set<unknown>();
 	let current: unknown = error;
 

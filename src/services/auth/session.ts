@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, unlinkSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, unlinkSync, mkdirSync, chmodSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { z } from "zod";
 import { paths } from "../../lib/config.js";
@@ -26,6 +26,25 @@ function getSessionPath(): string {
 }
 
 /**
+ * Written 0600: session.json holds the encrypted private key and a live Privy
+ * JWT — anything that can read it can act as the wallet.
+ *
+ * The chmod is not redundant with the mode. POSIX open() applies `mode` only
+ * when it creates the file, so a session.json written by an earlier version
+ * (which passed no mode at all, leaving it -rw-r--r--) would keep those
+ * permissions through every later save.
+ */
+function writeSessionFile(session: Session): void {
+	const filePath = getSessionPath();
+	mkdirSync(dirname(filePath), { recursive: true });
+	writeFileSync(filePath, JSON.stringify(session, null, 2), {
+		encoding: "utf-8",
+		mode: 0o600,
+	});
+	chmodSync(filePath, 0o600);
+}
+
+/**
  * Auto-migrates legacy plaintext privateKey to encrypted form.
  * After migration, the plaintext field is removed from session.json.
  */
@@ -41,8 +60,7 @@ function migrateIfNeeded(session: Session): Session {
 			delete migrated.privateKey;
 
 			// Persist the migration
-			const filePath = getSessionPath();
-			writeFileSync(filePath, JSON.stringify(migrated, null, 2), "utf-8");
+			writeSessionFile(migrated);
 
 			return migrated;
 		} catch {
@@ -120,9 +138,6 @@ function isSessionExpired(token: string): boolean {
 }
 
 export function saveSession(session: Session): void {
-	const filePath = getSessionPath();
-	mkdirSync(dirname(filePath), { recursive: true });
-
 	// Clone to avoid mutating the caller's object
 	const toSave = { ...session };
 
@@ -133,7 +148,7 @@ export function saveSession(session: Session): void {
 	}
 
 	sessionSchema.parse(toSave);
-	writeFileSync(filePath, JSON.stringify(toSave, null, 2), "utf-8");
+	writeSessionFile(toSave);
 }
 
 export function clearSession(): void {
