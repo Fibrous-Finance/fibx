@@ -2,8 +2,8 @@ import type { Address } from "viem";
 import { loadSession } from "../../services/auth/session.js";
 import { getPublicClient } from "../../services/chain/client.js";
 import { getChainConfig } from "../../services/chain/constants.js";
-import { getTokens } from "../../services/fibrous/tokens.js";
-import { getBalances } from "../../services/fibrous/balances.js";
+import { getTokens, type Token } from "../../services/fibrous/tokens.js";
+import { getBalances, type BalanceResponse } from "../../services/fibrous/balances.js";
 import { formatAmount } from "../../lib/parseAmount.js";
 import {
 	createSpinner,
@@ -13,6 +13,37 @@ import {
 	type OutputOptions,
 	type GlobalOptions,
 } from "../../lib/format.js";
+
+/**
+ * The token holdings worth showing, resolved to symbols.
+ *
+ * Fibrous reports the native coin as a zero-address token, and this command
+ * reads the native balance separately from the chain — listing both printed the
+ * same holding twice. Wrapped native (WETH/WHYPE/WMON) is deliberately kept: it
+ * is a real, separately-held ERC-20, and dropping it would understate the
+ * wallet. `portfolio` draws the same line for the same reason.
+ */
+export function listedTokenBalances(
+	tokenBalances: BalanceResponse[],
+	tokens: Token[],
+	nativePlaceholderAddress: string
+): { symbol: string; balance: string }[] {
+	const bySymbol = new Map(tokens.map((t) => [t.address.toLowerCase(), t.symbol]));
+	const placeholder = nativePlaceholderAddress.toLowerCase();
+
+	const listed: { symbol: string; balance: string }[] = [];
+
+	for (const item of tokenBalances) {
+		if (!(parseFloat(item.balance) > 0)) continue;
+
+		const address = item.token.address.toLowerCase();
+		if (address === placeholder) continue;
+
+		listed.push({ symbol: bySymbol.get(address) ?? address, balance: item.balance });
+	}
+
+	return listed;
+}
 
 export async function balanceCommand(opts: OutputOptions): Promise<void> {
 	const spinner = createSpinner("Fetching balances...").start();
@@ -42,16 +73,17 @@ export async function balanceCommand(opts: OutputOptions): Promise<void> {
 
 		spinner.stop();
 
+		const listed = listedTokenBalances(
+			tokenBalances,
+			tokenList,
+			chainConfig.nativeTokenAddress
+		);
+
 		if (opts.json) {
 			const result: Record<string, string> = {};
 			result[chainConfig.nativeSymbol] = formatAmount(ethBalance, 18);
-			for (const item of tokenBalances) {
-				const balanceVal = parseFloat(item.balance);
-				if (balanceVal > 0) {
-					const tokenAddr = item.token.address.toLowerCase();
-					const token = tokenList.find((t) => t.address.toLowerCase() === tokenAddr);
-					result[token ? token.symbol : tokenAddr] = item.balance;
-				}
+			for (const { symbol, balance } of listed) {
+				result[symbol] = balance;
 			}
 			outputResult(
 				{ wallet: session.walletAddress, chain: chainConfig.name, ...result },
@@ -67,14 +99,8 @@ export async function balanceCommand(opts: OutputOptions): Promise<void> {
 			rows.push([chainConfig.nativeSymbol, nativeBalance]);
 		}
 
-		for (const item of tokenBalances) {
-			const balanceVal = parseFloat(item.balance);
-			if (balanceVal > 0) {
-				const tokenAddr = item.token.address.toLowerCase();
-				const token = tokenList.find((t) => t.address.toLowerCase() === tokenAddr);
-				const symbol = token ? token.symbol : tokenAddr;
-				rows.push([symbol, item.balance]);
-			}
+		for (const { symbol, balance } of listed) {
+			rows.push([symbol, balance]);
 		}
 
 		console.log(`\n  Wallet: ${session.walletAddress}`);
