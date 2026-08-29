@@ -1,10 +1,15 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { ErrorCode } from "../../lib/errors.js";
+import { ErrorCode, FibxError } from "../../lib/errors.js";
 import { SUPPORTED_CHAINS } from "../chain/constants.js";
 
-const mocks = vi.hoisted(() => ({ getSignClient: vi.fn(), getActiveSession: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+	getSignClient: vi.fn(),
+	getActiveSession: vi.fn(),
+	assertAllowed: vi.fn(),
+}));
 vi.mock("./client.js", () => ({ getSignClient: mocks.getSignClient }));
 vi.mock("./connect.js", () => ({ getActiveSession: mocks.getActiveSession }));
+vi.mock("../policy/enforce.js", () => ({ assertAllowed: mocks.assertAllowed }));
 
 const { createWalletConnectProvider } = await import("./provider.js");
 
@@ -148,5 +153,74 @@ describe("walletconnect provider", () => {
 			code: ErrorCode.WALLET_ERROR,
 			message: expect.stringContaining("socket hang up"),
 		});
+	});
+});
+
+describe("policy enforcement", () => {
+	// Not just that the policy said no — that the wallet was never asked. A
+	// refusal that still pushes a request to the user's phone is not a gate.
+	it("refuses a blocked transaction without contacting the wallet", async () => {
+		mocks.assertAllowed.mockImplementation(() => {
+			throw new FibxError(ErrorCode.POLICY_BLOCKED, "over the cap");
+		});
+		const request = vi.fn();
+		mocks.getSignClient.mockResolvedValue({ request });
+		mocks.getActiveSession.mockResolvedValue(sessionWith([8453]));
+
+		const provider = createWalletConnectProvider("t", BASE);
+
+		await expect(
+			provider.request({
+				method: "eth_sendTransaction",
+				params: [{ to: "0x2222222222222222222222222222222222222222", value: "0x7" }],
+			})
+		).rejects.toMatchObject({ code: ErrorCode.POLICY_BLOCKED });
+		expect(request).not.toHaveBeenCalled();
+	});
+
+	it("normalises the hex value the wallet path carries", async () => {
+		mocks.assertAllowed.mockImplementation(() => {});
+		const request = vi.fn().mockResolvedValue("0xhash");
+		mocks.getSignClient.mockResolvedValue({ request });
+		mocks.getActiveSession.mockResolvedValue(sessionWith([8453]));
+
+		const provider = createWalletConnectProvider("t", BASE);
+		await provider.request({
+			method: "eth_sendTransaction",
+			params: [{ to: "0x2222222222222222222222222222222222222222", value: "0x7" }],
+		});
+
+		expect(mocks.assertAllowed).toHaveBeenCalledWith({
+			chain: "base",
+			to: "0x2222222222222222222222222222222222222222",
+			value: 7n,
+		});
+	});
+
+	// A transaction with no value field is a call, not a transfer.
+	it("treats a missing value as zero", async () => {
+		mocks.assertAllowed.mockImplementation(() => {});
+		const request = vi.fn().mockResolvedValue("0xhash");
+		mocks.getSignClient.mockResolvedValue({ request });
+		mocks.getActiveSession.mockResolvedValue(sessionWith([8453]));
+
+		const provider = createWalletConnectProvider("t", BASE);
+		await provider.request({
+			method: "eth_sendTransaction",
+			params: [{ to: "0x2222222222222222222222222222222222222222" }],
+		});
+
+		expect(mocks.assertAllowed).toHaveBeenCalledWith(expect.objectContaining({ value: 0n }));
+	});
+
+	it("does not consult the policy for a signature request", async () => {
+		mocks.assertAllowed.mockImplementation(() => {});
+		const request = vi.fn().mockResolvedValue("0xsig");
+		mocks.getSignClient.mockResolvedValue({ request });
+
+		const provider = createWalletConnectProvider("t", BASE);
+		await provider.request({ method: "personal_sign", params: ["0x1", "0xabc"] });
+
+		expect(mocks.assertAllowed).not.toHaveBeenCalled();
 	});
 });
