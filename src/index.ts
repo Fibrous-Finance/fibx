@@ -78,7 +78,7 @@ const COMMAND_GROUPS: Record<string, string[]> = {
 	Wallet: ["address", "balance", "wallets", "send"],
 	Trading: ["quote", "trade", "portfolio"],
 	DeFi: ["aave"],
-	System: ["status", "tx-status", "config", "mcp-start", "help"],
+	System: ["status", "tx-status", "config", "policy", "mcp-start", "help"],
 };
 
 // ── Program Setup ────────────────────────────────────────────────────

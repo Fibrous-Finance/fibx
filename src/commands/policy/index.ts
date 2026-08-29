@@ -74,6 +74,76 @@ export function applyRule(policy: Policy, rule: string, value: string): Policy {
 	throw new Error(`Unknown rule: ${chainRule}. Try maxValue or allowedDestinations.`);
 }
 
+/**
+ * Removes one rule from a policy and returns the result. Pure and exported
+ * for the same reason as applyRule: `clear` must not claim to have removed
+ * something it did not, and must not leave an empty group behind. An empty
+ * maxValue or allowedDestinations entry restricts nothing, so leaving one
+ * behind after removing its last chain would make `show` report a policy
+ * where the evaluator sees none.
+ */
+export function removeRule(policy: Policy, rule: string): Policy {
+	if (rule === "expiry" || rule === "allowedChains") {
+		if (policy[rule] === undefined) {
+			throw new Error(`Nothing to remove: ${rule} is not set.`);
+		}
+		const next: Policy = { ...policy };
+		delete next[rule];
+		return next;
+	}
+
+	const [chain, chainRule] = rule.split(".");
+	if (!chain || !chainRule) {
+		throw new Error(
+			`Unknown rule: ${rule}. Try <chain>.maxValue, <chain>.allowedDestinations, allowedChains or expiry.`
+		);
+	}
+	assertChain(chain);
+
+	if (chainRule !== "maxValue" && chainRule !== "allowedDestinations") {
+		throw new Error(`Unknown rule: ${chainRule}. Try maxValue or allowedDestinations.`);
+	}
+
+	const group = policy[chainRule] as Record<string, unknown> | undefined;
+	if (!group || !(chain in group)) {
+		throw new Error(`Nothing to remove: ${rule} is not set.`);
+	}
+
+	const nextGroup: Record<string, unknown> = { ...group };
+	delete nextGroup[chain];
+
+	const next = { ...policy } as Record<string, unknown>;
+	if (Object.keys(nextGroup).length === 0) {
+		delete next[chainRule];
+	} else {
+		next[chainRule] = nextGroup;
+	}
+
+	return next as Policy;
+}
+
+/**
+ * True when a policy restricts nothing, same as if it were absent. An absent
+ * maxValue/allowedDestinations key and a present-but-empty one mean the same
+ * thing to the evaluator — no chain has a rule of that kind — and a
+ * hand-edited file can produce the empty form as easily as `clear` can, so
+ * `show` must treat them alike. allowedChains is not folded in here: an
+ * empty list is not the same as an absent one — it forbids every chain — so
+ * its mere presence, empty or not, means the policy is not empty.
+ */
+function isEmptyGroup(group: Record<string, unknown> | undefined): boolean {
+	return !group || Object.keys(group).length === 0;
+}
+
+function isEmptyPolicy(policy: Policy): boolean {
+	return (
+		policy.expiry === undefined &&
+		policy.allowedChains === undefined &&
+		isEmptyGroup(policy.maxValue) &&
+		isEmptyGroup(policy.allowedDestinations)
+	);
+}
+
 function show(): void {
 	const policy = loadPolicy();
 
@@ -83,7 +153,7 @@ function show(): void {
 		return;
 	}
 
-	if (!policy || Object.keys(policy).length === 0) {
+	if (!policy || isEmptyPolicy(policy)) {
 		console.log(warn("No signing policy set — nothing limits what this wallet will sign."));
 		console.log(
 			chalk.gray(
@@ -165,21 +235,24 @@ export function registerPolicyCommands(program: Command) {
 			}
 
 			const current = loadPolicy();
-			if (!current || current === "unreadable") {
-				console.log(warn("No readable policy to change."));
+			if (current === "unreadable") {
+				console.error(
+					formatError(
+						new Error(
+							`Policy at ${policyPath()} cannot be read. Fix it, or run \`fibx policy clear\` to start over.`
+						)
+					)
+				);
+				process.exitCode = 1;
 				return;
 			}
 
-			const next = { ...current } as Record<string, unknown>;
-			const [chain, chainRule] = rule.split(".");
-			if (chainRule && chain) {
-				const group = next[chainRule] as Record<string, unknown> | undefined;
-				if (group) delete group[chain];
-			} else {
-				delete next[rule];
+			try {
+				savePolicy(removeRule(current ?? {}, rule));
+				console.log(success(`Removed ${rule}`));
+			} catch (error) {
+				console.error(formatError(error));
+				process.exitCode = 1;
 			}
-
-			savePolicy(next as Policy);
-			console.log(success(`Removed ${rule}`));
 		});
 }
