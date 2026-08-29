@@ -75,17 +75,24 @@ export function applyRule(policy: Policy, rule: string, value: string): Policy {
 }
 
 /**
- * Removes one rule from a policy and returns the result. Pure and exported
- * for the same reason as applyRule: `clear` must not claim to have removed
- * something it did not, and must not leave an empty group behind. An empty
- * maxValue or allowedDestinations entry restricts nothing, so leaving one
- * behind after removing its last chain would make `show` report a policy
- * where the evaluator sees none.
+ * Removes one rule from a policy. Pure and exported for the same reason as
+ * applyRule: `clear` must not claim to have removed something it did not,
+ * and must not leave an empty group behind — an empty maxValue or
+ * allowedDestinations entry restricts nothing, so leaving one behind after
+ * removing its last chain would make `show` report a policy where the
+ * evaluator sees none.
+ *
+ * Throws only for an invalid rule path — an unknown chain, or a rule name
+ * that is not one FibX has — the same mistake applyRule refuses. A
+ * validly-named rule that simply is not set is not a mistake: returns null
+ * rather than throwing, so a caller clearing a rule to reach a known state
+ * (a script doing `fibx policy clear expiry` defensively, say) can no-op
+ * quietly instead of being told it made an error it did not make.
  */
-export function removeRule(policy: Policy, rule: string): Policy {
+export function removeRule(policy: Policy, rule: string): Policy | null {
 	if (rule === "expiry" || rule === "allowedChains") {
 		if (policy[rule] === undefined) {
-			throw new Error(`Nothing to remove: ${rule} is not set.`);
+			return null;
 		}
 		const next: Policy = { ...policy };
 		delete next[rule];
@@ -106,7 +113,7 @@ export function removeRule(policy: Policy, rule: string): Policy {
 
 	const group = policy[chainRule] as Record<string, unknown> | undefined;
 	if (!group || !(chain in group)) {
-		throw new Error(`Nothing to remove: ${rule} is not set.`);
+		return null;
 	}
 
 	const nextGroup: Record<string, unknown> = { ...group };
@@ -247,12 +254,26 @@ export function registerPolicyCommands(program: Command) {
 				return;
 			}
 
+			let next: Policy | null;
 			try {
-				savePolicy(removeRule(current ?? {}, rule));
-				console.log(success(`Removed ${rule}`));
+				next = removeRule(current ?? {}, rule);
 			} catch (error) {
+				// An invalid rule path — an unknown chain, or a rule name FibX
+				// does not have — is a mistake, the same as a bad `set`.
 				console.error(formatError(error));
 				process.exitCode = 1;
+				return;
 			}
+
+			if (next === null) {
+				// A validly-named rule that simply is not set is not a mistake:
+				// exit 0, so a script clearing a rule defensively to reach a
+				// known state can no-op quietly instead of failing.
+				console.log(warn(`Nothing to remove: ${rule} is not set.`));
+				return;
+			}
+
+			savePolicy(next);
+			console.log(success(`Removed ${rule}`));
 		});
 }

@@ -44,27 +44,33 @@ describe("removeRule", () => {
 		});
 	});
 
-	// Same class of bug as storing an invalid value: telling the user
-	// something happened when it did not.
-	it("refuses to claim success removing a rule that was never set", () => {
-		expect(() => removeRule({}, "base.maxValue")).toThrow(/nothing to remove/i);
+	// A validly-named rule that simply is not set is not a mistake — a script
+	// clearing a rule defensively, to reach a known state, must be able to
+	// no-op quietly rather than being told it made an error it did not make.
+	// This is a different event from an invalid rule (below), and the two
+	// must stay distinguishable: throwing for both would tell a caller doing
+	// `fibx policy clear expiry` on a fresh install that it made a mistake.
+	it("reports no change removing a rule that was never set, rather than throwing", () => {
+		expect(removeRule({}, "base.maxValue")).toBeNull();
 	});
 
-	it("refuses to claim success removing one chain's cap when only a sibling's is set", () => {
+	it("reports no change removing one chain's cap when only a sibling's is set", () => {
 		const before = { maxValue: { monad: "10" } };
 
-		expect(() => removeRule(before, "base.maxValue")).toThrow(/nothing to remove/i);
+		expect(removeRule(before, "base.maxValue")).toBeNull();
 	});
 
-	it("refuses to claim success removing a scalar rule that was never set", () => {
-		expect(() => removeRule({}, "expiry")).toThrow(/nothing to remove/i);
+	it("reports no change removing a scalar rule that was never set", () => {
+		expect(removeRule({}, "expiry")).toBeNull();
 	});
 
-	it("refuses an unknown rule rather than silently no-op'ing", () => {
+	// An invalid rule name is a different event from "nothing to remove": it
+	// is a mistake, the same as a bad `set`, and still throws.
+	it("still throws for an invalid rule name rather than silently no-op'ing", () => {
 		expect(() => removeRule({}, "base.maxGas")).toThrow(/maxGas/);
 	});
 
-	it("refuses an unknown chain", () => {
+	it("still throws for an unknown chain", () => {
 		expect(() => removeRule({}, "solana.maxValue")).toThrow(/solana/);
 	});
 });
