@@ -65,4 +65,20 @@ describe("applyRule", () => {
 	it("refuses a chain allowlist naming a chain FibX does not offer", () => {
 		expect(() => applyRule({}, "allowedChains", "base,solana")).toThrow(/solana/);
 	});
+
+	/**
+	 * An empty allowlist is not an empty rule — it is a rule that forbids
+	 * everything. It fails closed, so nothing unsafe happens, but nobody types
+	 * `fibx policy set allowedChains ""` meaning "block every chain"; they mean
+	 * to remove the rule, which is `fibx policy clear allowedChains`.
+	 */
+	it("refuses an empty chain allowlist rather than blocking every chain", () => {
+		expect(() => applyRule({}, "allowedChains", "")).toThrow(/empty|clear/i);
+		expect(() => applyRule({}, "allowedChains", " , ")).toThrow(/empty|clear/i);
+	});
+
+	it("refuses an empty destination list rather than blocking every address", () => {
+		expect(() => applyRule({}, "base.allowedDestinations", "")).toThrow(/empty|clear/i);
+		expect(() => applyRule({}, "base.allowedDestinations", ",")).toThrow(/empty|clear/i);
+	});
 });

@@ -36,6 +36,28 @@ describe("evaluate", () => {
 			expect(verdict.rule).toBe("allowedChains");
 			expect(verdict.message).toContain("hyperevm");
 		});
+
+		/**
+		 * The file is meant to be hand-edited, and `allowedDestinations`
+		 * already lowercases both sides. Two normalisation rules for values
+		 * out of the same file is a trap: `["Base"]` failed closed with
+		 * `Policy does not allow base. Allowed: Base.`, which reads like a bug
+		 * in FibX rather than a capital letter in the user's file.
+		 */
+		it("matches a chain name case-insensitively, as destinations do", () => {
+			expect(evaluate(tx({ chain: "base" }), { allowedChains: ["Base"] }, NOW).allowed).toBe(
+				true
+			);
+			expect(evaluate(tx({ chain: "base" }), { allowedChains: ["BASE"] }, NOW).allowed).toBe(
+				true
+			);
+		});
+
+		it("still refuses a chain that is genuinely not listed", () => {
+			expect(
+				evaluate(tx({ chain: "hyperevm" }), { allowedChains: ["Base"] }, NOW).allowed
+			).toBe(false);
+		});
 	});
 
 	describe("maxValue", () => {

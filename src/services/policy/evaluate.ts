@@ -28,6 +28,8 @@ function chainKey(chain: string): ChainName | null {
 export function evaluate(tx: PolicyTransaction, policy: Policy | null, now: Date): PolicyVerdict {
 	if (!policy) return ALLOWED;
 
+	const chain = tx.chain.toLowerCase();
+
 	// First, because a lapsed policy makes every other rule moot — and because
 	// refusing is the only safe direction: treating a forgotten expiry as
 	// permission would silently remove every limit the user set.
@@ -47,14 +49,18 @@ export function evaluate(tx: PolicyTransaction, policy: Policy | null, now: Date
 		}
 	}
 
-	if (policy.allowedChains && !policy.allowedChains.includes(tx.chain)) {
+	// Compared case-insensitively, the same as allowedDestinations below: the
+	// file is hand-editable, and two normalisation rules for values out of one
+	// file is a trap. `["Base"]` used to fail closed with "Policy does not
+	// allow base. Allowed: Base.", which reads as a bug in FibX.
+	if (policy.allowedChains && !policy.allowedChains.some((c) => c.toLowerCase() === chain)) {
 		return refuse(
 			"allowedChains",
 			`Policy does not allow ${tx.chain}. Allowed: ${policy.allowedChains.join(", ")}.`
 		);
 	}
 
-	const key = chainKey(tx.chain);
+	const key = chainKey(chain);
 
 	const cap = key ? policy.maxValue?.[key] : undefined;
 	if (cap !== undefined) {

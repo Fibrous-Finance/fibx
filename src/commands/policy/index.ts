@@ -4,13 +4,36 @@ import { CHAIN_NAMES } from "../../services/chain/constants.js";
 import { clearPolicy, loadPolicy, policyPath, savePolicy } from "../../services/policy/store.js";
 import type { Policy } from "../../services/policy/types.js";
 import { formatError, success, warn } from "../../lib/format.js";
-
-const ADDRESS = /^0x[a-fA-F0-9]{40}$/;
+import { addressSchema } from "../../lib/validation.js";
 
 function assertChain(chain: string): void {
 	if (!(CHAIN_NAMES as readonly string[]).includes(chain)) {
 		throw new Error(`Unknown chain: ${chain}. Known: ${CHAIN_NAMES.join(", ")}.`);
 	}
+}
+
+/**
+ * Splits a comma-separated value, and refuses an empty result.
+ *
+ * An empty list is not an absent rule — it is a rule that forbids everything.
+ * It fails closed, so nothing unsafe follows, but nobody types
+ * `fibx policy set allowedChains ""` meaning "block every chain": they mean to
+ * remove the rule, and saying so is more useful than storing what they asked
+ * for and letting them discover it at the next transaction.
+ */
+function parseList(rule: string, value: string): string[] {
+	const items = value
+		.split(",")
+		.map((item) => item.trim())
+		.filter(Boolean);
+
+	if (items.length === 0) {
+		throw new Error(
+			`"${value}" is an empty list, which would block everything. Remove the rule with \`fibx policy clear ${rule}\` instead.`
+		);
+	}
+
+	return items;
 }
 
 /**
@@ -30,10 +53,7 @@ export function applyRule(policy: Policy, rule: string, value: string): Policy {
 	}
 
 	if (rule === "allowedChains") {
-		const chains = value
-			.split(",")
-			.map((c) => c.trim())
-			.filter(Boolean);
+		const chains = parseList(rule, value);
 		chains.forEach(assertChain);
 		next.allowedChains = chains;
 		return next;
@@ -58,12 +78,9 @@ export function applyRule(policy: Policy, rule: string, value: string): Policy {
 	}
 
 	if (chainRule === "allowedDestinations") {
-		const addresses = value
-			.split(",")
-			.map((a) => a.trim())
-			.filter(Boolean);
+		const addresses = parseList(rule, value);
 		for (const address of addresses) {
-			if (!ADDRESS.test(address)) {
+			if (!addressSchema.safeParse(address).success) {
 				throw new Error(`"${address}" is not an address.`);
 			}
 		}

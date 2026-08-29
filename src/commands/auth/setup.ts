@@ -89,7 +89,16 @@ export async function authSetupCommand(opts: OutputOptions): Promise<void> {
 
 		if (route === "import") {
 			const { authImportCommand } = await import("./import.js");
+			const exitCodeBefore = process.exitCode;
 			await authImportCommand(opts);
+
+			// It catches its own errors and reports them by setting exitCode
+			// rather than throwing, so that is the only signal there is. After
+			// a failed or aborted import the hint below is advice about a
+			// wallet that does not exist — and reads as confirmation that the
+			// import worked.
+			if (process.exitCode !== exitCodeBefore) return;
+
 			console.log(
 				chalk.gray(
 					"\n  This path has no limits until you set some.\n" +
