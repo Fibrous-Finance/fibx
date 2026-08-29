@@ -1,7 +1,7 @@
 import type { Address } from "viem";
 import { loadSession, requireSession } from "../../services/auth/session.js";
 import { getChainConfig } from "../../services/chain/constants.js";
-import { getWalletClient } from "../../services/chain/client.js";
+import { getWalletClient, managesOwnNonce } from "../../services/chain/client.js";
 import { resolveToken } from "../../services/fibrous/tokens.js";
 import { validateAmount } from "../../lib/validation.js";
 import { jsonResult } from "./utils.js";
@@ -17,8 +17,8 @@ export async function handleGetAaveStatus() {
 	const aave = new AaveService(chainConfig);
 
 	try {
-		const walletClient = getWalletClient(session, chainConfig);
-		aave.setWalletClient(walletClient);
+		const walletClient = await getWalletClient(session, chainConfig);
+		aave.setWalletClient(walletClient, { managesOwnNonce: managesOwnNonce(session) });
 	} catch {
 		// Read-only
 	}
@@ -85,8 +85,8 @@ export async function handleAaveAction({
 	const { AaveService } = await import("../../services/defi/aave.js");
 	const aave = new AaveService(chainConfig);
 
-	const walletClient = getWalletClient(session, chainConfig);
-	aave.setWalletClient(walletClient);
+	const walletClient = await getWalletClient(session, chainConfig);
+	aave.setWalletClient(walletClient, { managesOwnNonce: managesOwnNonce(session) });
 
 	let token = await resolveToken(tokenSymbol, chainConfig);
 	const isNativeETH =

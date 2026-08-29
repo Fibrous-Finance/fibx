@@ -121,9 +121,36 @@ export function formatTable(headers: string[], rows: string[][]): string {
 
 // ── Error Formatting ─────────────────────────────────────────────────
 
+/**
+ * Finds a FibxError anywhere in an error's `cause` chain.
+ *
+ * On the WalletConnect path the typed error is never the top-level one: the
+ * provider throws from inside viem's transport, and viem wraps what it catches
+ * as TransactionExecutionError <- UnknownRpcError <- FibxError. Reading only the
+ * outermost error sent those through parseEvmError, which matches no
+ * WalletConnect pattern and truncates — so the chain went unnamed and the
+ * instruction was cut mid-word.
+ *
+ * The chain comes from a dependency rather than from us, so the walk tracks what
+ * it has seen: a cycle ends the loop instead of hanging.
+ */
+function findFibxError(error: unknown): FibxError | null {
+	const seen = new Set<unknown>();
+	let current: unknown = error;
+
+	while (current && typeof current === "object" && !seen.has(current)) {
+		if (current instanceof FibxError) return current;
+		seen.add(current);
+		current = (current as { cause?: unknown }).cause;
+	}
+
+	return null;
+}
+
 export function formatError(error: unknown): string {
-	if (error instanceof FibxError) {
-		return chalk.red(`✖ [${error.code}] ${error.message}`);
+	const typed = findFibxError(error);
+	if (typed) {
+		return chalk.red(`✖ [${typed.code}] ${typed.message}`);
 	}
 	return chalk.red(`✖ ${parseEvmError(error)}`);
 }

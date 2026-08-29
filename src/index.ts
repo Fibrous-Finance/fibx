@@ -236,6 +236,15 @@ auth.command("import")
 		await authImportCommand({ json: globalOpts.json });
 	});
 
+auth.command("connect")
+	.description("Connect your own wallet over WalletConnect")
+	.addHelpText("after", "\nExamples:\n  $ fibx auth connect\n  $ fibx auth connect --json")
+	.action(async (_opts, cmd) => {
+		const globalOpts = cmd.parent!.parent!.opts();
+		const { authConnectCommand } = await import("./commands/auth/connect.js");
+		await authConnectCommand({ json: globalOpts.json });
+	});
+
 auth.addCommand(logoutCommand);
 
 // ── System Commands ──────────────────────────────────────────────────
@@ -416,6 +425,17 @@ Notes:
 		await startMcpServer();
 	});
 
-program.parseAsync().catch((error: unknown) => {
-	outputError(error, { json: !!program.opts().json });
-});
+program
+	.parseAsync()
+	.catch((error: unknown) => {
+		outputError(error, { json: !!program.opts().json });
+	})
+	.finally(async () => {
+		// A no-op unless this run actually opened a WalletConnect relay socket
+		// (dynamic import keeps the SDK out of runs that never touch it). Left
+		// open, the socket and the SignClient's heartbeat interval both keep the
+		// event loop alive and the CLI never returns to the shell — see
+		// `auth connect` and every signing command.
+		const { closeSignClient } = await import("./services/walletconnect/client.js");
+		await closeSignClient();
+	});

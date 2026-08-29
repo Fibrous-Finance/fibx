@@ -69,19 +69,20 @@ Add to `~/.gemini/antigravity/mcp_config.json`:
 
 > **Important:** You must be authenticated (`fibx auth login` or `fibx auth import`) before the MCP server can execute wallet operations.
 
-## Available Tools (11)
+## Available Tools (13)
 
-### Read-Only (7 tools)
+### Read-Only (8 tools)
 
-| Tool               | Description                                                  | Auth Required |
-| ------------------ | ------------------------------------------------------------ | ------------- |
-| `get_quote`        | Get swap price quote, exchange rate, and route info          | No            |
-| `get_auth_status`  | Check session and Fibrous API health                         | No            |
-| `get_balance`      | Get native and ERC-20 token balances                         | Yes           |
-| `get_portfolio`    | Cross-chain portfolio with USD valuations and DeFi positions | Yes           |
-| `get_tx_status`    | Check transaction receipt and status                         | No            |
-| `get_aave_status`  | Get Aave V3 position health on Base                          | Yes           |
-| `get_aave_markets` | List all Aave V3 reserves with APY, TVL, and LTV             | No            |
+| Tool                 | Description                                                  | Auth Required |
+| -------------------- | ------------------------------------------------------------ | ------------- |
+| `get_quote`          | Get swap price quote, exchange rate, and route info          | No            |
+| `get_auth_status`    | Check session and Fibrous API health                         | No            |
+| `get_connect_status` | Poll a pairing started by connect_wallet                     | No            |
+| `get_balance`        | Get native and ERC-20 token balances                         | Yes           |
+| `get_portfolio`      | Cross-chain portfolio with USD valuations and DeFi positions | Yes           |
+| `get_tx_status`      | Check transaction receipt and status                         | No            |
+| `get_aave_status`    | Get Aave V3 position health on Base                          | Yes           |
+| `get_aave_markets`   | List all Aave V3 reserves with APY, TVL, and LTV             | No            |
 
 ### Transactional (3 tools)
 
@@ -93,11 +94,15 @@ These tools advertise `destructiveHint: true`; confirmation behavior depends on 
 | `send_tokens` | Send native or ERC-20 tokens to a recipient             | ✅       |
 | `aave_action` | Supply, borrow, repay, or withdraw on Aave V3 (Base)    | ✅       |
 
-### Utility (1 tool)
+### Session & Configuration (2 tools)
 
-| Tool            | Description                                      |
-| --------------- | ------------------------------------------------ |
-| `config_action` | Set or view custom RPC URLs to avoid rate limits |
+These change local state rather than chain state, and both advertise
+`readOnlyHint: false`.
+
+| Tool             | Description                                                                |
+| ---------------- | -------------------------------------------------------------------------- |
+| `connect_wallet` | Start a WalletConnect pairing; **replaces the active session** on approval |
+| `config_action`  | Set or view custom RPC URLs to avoid rate limits                           |
 
 ## Tool Details
 
@@ -121,7 +126,38 @@ Check whether fibx is authenticated and the Fibrous API is reachable. **Always c
 
 ```
 Input:  { chain?: "base" | "hyperevm" | "monad" }
-Output: { authenticated, walletAddress, sessionType, chain, fibrousStatus }
+Output: { authenticated, walletAddress, sessionType, authType, requiresApprovalPerTransaction, chain, fibrousStatus }
+```
+
+`requiresApprovalPerTransaction` is `true` for a `walletconnect` session — the
+wallet itself prompts for every transaction, unlike `privy` and `private-key`
+sessions which sign server-side.
+
+### connect_wallet
+
+Starts a WalletConnect pairing. Returns immediately — show the QR, then poll.
+
+```
+Input:  { }
+Output: { uri, qrDataUri, pairingId }
+```
+
+`qrDataUri` is a `data:image/png;base64,...` URI so it can be rendered inside
+an MCP App's sandbox without an external request.
+
+**Not read-only.** When the user approves the pairing, this writes a new session
+and discards whatever was there — a Privy login or an imported private key
+included. It advertises `readOnlyHint: false`, `destructiveHint: false`,
+`openWorldHint: true`, so a host that auto-approves read-only tools does not
+auto-approve this one.
+
+### get_connect_status
+
+Polls a pairing started by connect_wallet.
+
+```
+Input:  { pairingId: string }
+Output: { status: "pending" | "connected" | "failed" | "unknown", address?, error? }
 ```
 
 ### get_balance
@@ -281,10 +317,18 @@ EVM-specific errors (reverts, gas estimation failures) are parsed and human-read
 
 ## Environment Variables
 
-| Variable              | Description                                             | Required |
-| --------------------- | ------------------------------------------------------- | -------- |
-| `FIBX_API_URL`        | Custom fibx-server URL (for Privy wallet operations)    | No       |
-| `FIBX_SESSION_SECRET` | Custom encryption key for session files (hex or string) | No       |
+| Variable              | Description                                                     | Required |
+| --------------------- | --------------------------------------------------------------- | -------- |
+| `FIBX_API_URL`        | Custom fibx-server URL (for Privy wallet operations)            | No       |
+| `FIBX_SESSION_SECRET` | Custom encryption key for session files (hex or string)         | No       |
+| `FIBX_WC_PROJECT_ID`  | WalletConnect Cloud project id for `connect_wallet` — see below | No       |
+
+A shared WalletConnect project id ships in the published bundle, so
+`connect_wallet` works with no setup. It is public by necessity — a CLI has no
+origin to allowlist — so its only real exposure is quota consumed by third
+parties. If pairing starts failing on quota, create a free project at
+[cloud.reown.com](https://cloud.reown.com) and set `FIBX_WC_PROJECT_ID` to your
+own id.
 
 If using Privy authentication, ensure [fibx-server](https://github.com/Fibrous-Finance/fibx-server) is running and accessible before starting the MCP server.
 

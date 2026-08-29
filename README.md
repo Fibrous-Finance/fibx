@@ -105,6 +105,40 @@ npx fibx auth logout
 
 > **Security:** When using `auth import`, your private key is encrypted at rest with AES-256-GCM. The encryption key is auto-generated per machine and stored in the OS config directory (e.g. `~/.config/fibx-nodejs/encryption-key` on Linux). You can also set the `FIBX_SESSION_SECRET` environment variable for CI/Docker environments.
 
+### Connect your own wallet
+
+```bash
+npx fibx auth connect
+```
+
+Pairs FibX with a wallet you already have — MetaMask, Rabby, Rainbow, Phantom —
+over WalletConnect. A QR code appears in the terminal; scan it with your phone.
+Every transaction is then approved in your wallet, so the keys never leave it.
+
+The chain you trade on must already be in your wallet, and it is approved when
+you pair. If you try to sign on a chain the session does not carry, FibX stops
+before contacting the wallet and names the chain: add it in your wallet, then run
+`npx fibx auth connect` again so the new chain is included.
+
+With `--json`, output is NDJSON — one JSON document per line, not one document
+for the whole run: the pairing URI prints first as `{"uri":"wc:..."}` so a
+script can act on it while it waits, then the result prints as its own compact
+JSON line once the wallet approves.
+
+`npx fibx auth logout` ends the connection on both sides: it tells your wallet to
+drop the session, so FibX stops appearing in its connected-apps list, and removes
+the pairing keys from disk along with the session.
+
+A shared WalletConnect project id ships in the published bundle, so this works
+with no setup. It is public by necessity — a CLI has no origin to allowlist — so
+its only real exposure is quota consumed by third parties. If pairing starts
+failing on quota, create a free project at
+[cloud.reown.com](https://cloud.reown.com) and set `FIBX_WC_PROJECT_ID` to your
+own id.
+
+`auth login` (email OTP) and `auth import` (private key) are unchanged and remain
+available.
+
 ### Global Options
 
 | Option               | Description                                          | Default |

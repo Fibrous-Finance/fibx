@@ -11,9 +11,12 @@ const sessionSchema = z.object({
 	walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
 	userJwt: z.string().optional(),
 	createdAt: z.string(),
-	type: z.enum(["privy", "private-key"]).default("privy"),
+	type: z.enum(["privy", "private-key", "walletconnect"]).default("privy"),
 	privateKey: z.string().optional(), // Legacy: plaintext (auto-migrated)
 	encryptedPrivateKey: z.string().optional(), // New: AES-256-GCM encrypted
+	// WalletConnect session topic. The pairing material itself lives in the
+	// SignClient store; this is the handle that reconnects to it.
+	wcTopic: z.string().optional(),
 });
 
 export type Session = z.infer<typeof sessionSchema>;

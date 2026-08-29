@@ -165,12 +165,12 @@ function getExplorerLink(txHash: string): string | undefined {
 async function attemptSessionLogin(aave: AaveService, chainConfig: ChainConfig) {
 	try {
 		const { loadSession } = await import("../../services/auth/session.js");
-		const { getWalletClient } = await import("../../services/chain/client.js");
+		const { getWalletClient, managesOwnNonce } = await import("../../services/chain/client.js");
 
 		const session = loadSession();
 		if (session) {
-			const walletClient = getWalletClient(session, chainConfig);
-			aave.setWalletClient(walletClient);
+			const walletClient = await getWalletClient(session, chainConfig);
+			aave.setWalletClient(walletClient, { managesOwnNonce: managesOwnNonce(session) });
 		}
 	} catch {
 		// No session

@@ -45,7 +45,7 @@ export async function tradeCommand(
 		const chain = getChainConfig(chainName);
 
 		const session = requireSession();
-		const walletClient = getWalletClient(session, chain);
+		const walletClient = await getWalletClient(session, chain);
 		const publicClient = getPublicClient(chain);
 		const wallet = session.walletAddress as Address;
 

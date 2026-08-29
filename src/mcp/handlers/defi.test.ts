@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
 	requireSession: vi.fn(),
 	getWalletClient: vi.fn(),
+	managesOwnNonce: vi.fn(() => false),
 	resolveToken: vi.fn(),
 	aave: {
 		setWalletClient: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock("../../services/chain/constants.js", () => ({
 
 vi.mock("../../services/chain/client.js", () => ({
 	getWalletClient: mocks.getWalletClient,
+	managesOwnNonce: mocks.managesOwnNonce,
 }));
 
 vi.mock("../../services/fibrous/tokens.js", () => ({
@@ -49,7 +51,7 @@ beforeEach(() => {
 	mocks.requireSession.mockReturnValue({
 		walletAddress: "0x1111111111111111111111111111111111111111",
 	});
-	mocks.getWalletClient.mockReturnValue({
+	mocks.getWalletClient.mockResolvedValue({
 		account: { address: "0x1111111111111111111111111111111111111111" },
 	});
 	mocks.resolveToken.mockResolvedValue({

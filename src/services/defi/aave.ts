@@ -66,10 +66,15 @@ export class AaveService {
 	private walletClient?: WalletClient;
 	private account?: Account;
 	private userAddress?: Address;
+	private walletManagesNonce = false;
 
 	private chainConfig: ChainConfig;
 
-	constructor(chainConfig: ChainConfig, walletClient?: WalletClient) {
+	constructor(
+		chainConfig: ChainConfig,
+		walletClient?: WalletClient,
+		opts?: { managesOwnNonce?: boolean }
+	) {
 		this.chainConfig = chainConfig;
 		this.publicClient = createPublicClient({
 			chain: chainConfig.viemChain,
@@ -77,7 +82,7 @@ export class AaveService {
 		}) as PublicClient;
 
 		if (walletClient) {
-			this.setWalletClient(walletClient);
+			this.setWalletClient(walletClient, opts);
 		}
 	}
 
@@ -89,8 +94,14 @@ export class AaveService {
 		this.userAddress = address;
 	}
 
-	public setWalletClient(walletClient: WalletClient) {
+	/**
+	 * `managesOwnNonce` is set when the signer is a remote wallet that both
+	 * signs and broadcasts — WalletConnect. Forcing a nonce on that path
+	 * conflicts with the wallet's own sequencing.
+	 */
+	public setWalletClient(walletClient: WalletClient, opts?: { managesOwnNonce?: boolean }) {
 		this.walletClient = walletClient;
+		this.walletManagesNonce = opts?.managesOwnNonce ?? false;
 		if (walletClient.account) {
 			this.account = walletClient.account;
 			this.userAddress = walletClient.account.address;
@@ -500,9 +511,14 @@ export class AaveService {
 
 	/**
 	 * Broadcasts under the shared nonce lock. Every writeContract in this
-	 * service goes through here so two of them can never claim the same nonce.
+	 * service goes through here so two of them can never claim the same nonce —
+	 * unless the wallet assigns nonces itself, in which case the field is left
+	 * undefined and viem omits it.
 	 */
-	private async sendWithNonce<T>(send: (nonce: number) => Promise<T>): Promise<T> {
+	private async sendWithNonce<T>(send: (nonce?: number) => Promise<T>): Promise<T> {
+		if (this.walletManagesNonce) {
+			return send(undefined);
+		}
 		return NonceManager.getInstance().withNonce(this.account!.address, this.publicClient, send);
 	}
 

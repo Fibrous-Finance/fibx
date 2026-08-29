@@ -91,7 +91,7 @@ beforeEach(() => {
 		wrappedNativeAddress: WRAPPED_NATIVE,
 		viemChain: {},
 	});
-	mocks.getWalletClient.mockReturnValue({
+	mocks.getWalletClient.mockResolvedValue({
 		sendTransaction: mocks.sendTransaction,
 	});
 	mocks.getPublicClient.mockReturnValue({

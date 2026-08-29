@@ -39,7 +39,7 @@ export async function handleSwapTokens({
 
 	const chainConfig = getChainConfig(chain);
 	const session = requireSession();
-	const walletClient = getWalletClient(session, chainConfig);
+	const walletClient = await getWalletClient(session, chainConfig);
 	const publicClient = getPublicClient(chainConfig);
 	const wallet = session.walletAddress as Address;
 

@@ -1,8 +1,14 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { handleGetAuthStatus, handleConfigAction } from "../handlers/auth.js";
+import {
+	handleGetAuthStatus,
+	handleConfigAction,
+	handleConnectWallet,
+	handleGetConnectStatus,
+} from "../handlers/auth.js";
 import { withErrorHandling } from "./error-handling.js";
 import { ChainEnum } from "./schemas.js";
+import { jsonResult } from "../handlers/utils.js";
 
 export function registerAuthAndConfigTools(server: McpServer): number {
 	server.registerTool(
@@ -51,5 +57,54 @@ export function registerAuthAndConfigTools(server: McpServer): number {
 		withErrorHandling(handleConfigAction)
 	);
 
-	return 2;
+	server.registerTool(
+		"connect_wallet",
+		{
+			title: "Connect an External Wallet",
+			description:
+				"Start a WalletConnect pairing so the user can sign with their own wallet " +
+				"(MetaMask, Rabby, Rainbow, Phantom). Returns a URI and a QR image immediately — " +
+				"show the QR to the user, then poll get_connect_status until it reports connected.",
+			inputSchema: {},
+			annotations: {
+				title: "Connect Wallet",
+				// Not read-only: on approval this writes a brand-new session and
+				// discards whatever was there, a Privy login or an imported
+				// private key included. Hosts key auto-approval off
+				// readOnlyHint, so claiming it would let a pairing replace a
+				// session without anyone being asked. Not destructive either —
+				// nothing on chain moves — and it reaches the relay, so the
+				// world is open.
+				readOnlyHint: false,
+				destructiveHint: false,
+				openWorldHint: true,
+			},
+		},
+		withErrorHandling(async () => jsonResult(await handleConnectWallet()))
+	);
+
+	server.registerTool(
+		"get_connect_status",
+		{
+			title: "Check Wallet Connection",
+			description:
+				"Poll a pairing started by connect_wallet. Returns pending, connected, failed, or unknown.",
+			inputSchema: {
+				pairingId: z.string().describe("The pairingId returned by connect_wallet"),
+			},
+			annotations: {
+				title: "Connection Status",
+				// Reads a process-local map and nothing else: no session write,
+				// no chain call, no relay round-trip.
+				readOnlyHint: true,
+				destructiveHint: false,
+				openWorldHint: false,
+			},
+		},
+		withErrorHandling(async (args: { pairingId: string }) =>
+			jsonResult(await handleGetConnectStatus(args))
+		)
+	);
+
+	return 4;
 }

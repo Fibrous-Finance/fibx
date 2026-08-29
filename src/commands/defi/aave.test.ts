@@ -68,7 +68,7 @@ vi.mock("../../services/auth/session.js", () => ({
 }));
 
 vi.mock("../../services/chain/client.js", () => ({
-	getWalletClient: vi.fn(() => ({
+	getWalletClient: vi.fn(async () => ({
 		account: { address: USER_ADDRESS },
 	})),
 }));

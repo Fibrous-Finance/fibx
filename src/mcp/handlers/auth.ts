@@ -1,6 +1,9 @@
-import { loadSession } from "../../services/auth/session.js";
+import { randomUUID } from "node:crypto";
+import { loadSession, saveSession } from "../../services/auth/session.js";
 import { getChainConfig, SUPPORTED_CHAINS } from "../../services/chain/constants.js";
 import { checkHealth } from "../../services/fibrous/health.js";
+import { createPairing } from "../../services/walletconnect/connect.js";
+import { renderQrDataUri } from "../../services/walletconnect/qr.js";
 import { jsonResult } from "./utils.js";
 
 export async function handleGetAuthStatus({ chain }: { chain: string }) {
@@ -20,6 +23,8 @@ export async function handleGetAuthStatus({ chain }: { chain: string }) {
 			authenticated: false,
 			walletAddress: null,
 			sessionType: null,
+			authType: null,
+			requiresApprovalPerTransaction: false,
 			chain: chainConfig.name,
 			fibrousStatus,
 		});
@@ -29,6 +34,8 @@ export async function handleGetAuthStatus({ chain }: { chain: string }) {
 		authenticated: true,
 		walletAddress: session.walletAddress,
 		sessionType: session.type,
+		authType: session.type,
+		requiresApprovalPerTransaction: session.type === "walletconnect",
 		chain: chainConfig.name,
 		fibrousStatus,
 	});
@@ -86,4 +93,64 @@ export async function handleConfigAction({
 
 	configService.setRpcUrl(chain, url);
 	return jsonResult({ action, chain, url });
+}
+
+type PairingState =
+	| { status: "pending" }
+	| { status: "connected"; address: string }
+	| { status: "failed"; error: string };
+
+/**
+ * What a caller can observe. Derived from PairingState so a new state cannot be
+ * added without appearing here; "unknown" is not a state a pairing reaches, it
+ * is this process not holding the id at all.
+ */
+type ConnectStatus = PairingState["status"] | "unknown";
+
+/**
+ * Pending pairings, keyed by an id handed back to the caller. The MCP server is
+ * one long-lived process, so this needs no persistence — and a pairing that
+ * outlives the process is not resumable anyway.
+ */
+const pairings = new Map<string, PairingState>();
+
+export async function handleConnectWallet(): Promise<{
+	uri: string;
+	qrDataUri: string;
+	pairingId: string;
+}> {
+	const { uri, approval } = await createPairing();
+	const pairingId = randomUUID();
+	pairings.set(pairingId, { status: "pending" });
+
+	// Resolve in the background: an MCP tool call must not block for as long as
+	// someone takes to find their phone.
+	void approval()
+		.then((session) => {
+			saveSession({
+				walletAddress: session.address,
+				createdAt: new Date().toISOString(),
+				type: "walletconnect",
+				wcTopic: session.topic,
+			});
+			pairings.set(pairingId, { status: "connected", address: session.address });
+		})
+		.catch((error: unknown) => {
+			pairings.set(pairingId, {
+				status: "failed",
+				error: error instanceof Error ? error.message : String(error),
+			});
+		});
+
+	return { uri, qrDataUri: await renderQrDataUri(uri), pairingId };
+}
+
+export async function handleGetConnectStatus({
+	pairingId,
+}: {
+	pairingId: string;
+}): Promise<{ status: ConnectStatus; address?: string; error?: string }> {
+	const state = pairings.get(pairingId);
+	if (!state) return { status: "unknown" };
+	return { ...state };
 }

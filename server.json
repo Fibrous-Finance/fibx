@@ -37,6 +37,12 @@
 					"description": "Encryption key for the local session file. Optional; auto-generated per machine when unset.",
 					"isRequired": false,
 					"isSecret": true
+				},
+				{
+					"name": "FIBX_WC_PROJECT_ID",
+					"description": "WalletConnect Cloud project id used by connect_wallet. Optional; a shared public id ships in the bundle. Set your own from cloud.reown.com if the shared id's quota is exhausted.",
+					"isRequired": false,
+					"isSecret": false
 				}
 			]
 		}
