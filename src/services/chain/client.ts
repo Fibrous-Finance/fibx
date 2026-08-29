@@ -5,7 +5,6 @@ import type { Session } from "../auth/session.js";
 import { getPrivateKey } from "../auth/session.js";
 import type { ChainConfig } from "./constants.js";
 import { toPrivyViemAccount } from "../privy/account.js";
-import { createWalletConnectProvider } from "../walletconnect/provider.js";
 import { ErrorCode, FibxError } from "../../lib/errors.js";
 
 export function getPublicClient(chain: ChainConfig) {
@@ -37,6 +36,12 @@ export async function getWalletClient(session: Session, chain: ChainConfig) {
 				"WalletConnect session has no pairing. Run `fibx auth connect`."
 			);
 		}
+
+		// Imported here rather than at the top so the WalletConnect SDK stays
+		// out of every other command's startup: this module is on the path of
+		// balance, send, trade, aave and tx-status, and a static import made all
+		// of them pay for it.
+		const { createWalletConnectProvider } = await import("../walletconnect/provider.js");
 
 		// The account is a bare address, not a local account: that makes viem
 		// emit eth_sendTransaction through the transport instead of signing
