@@ -14,11 +14,7 @@ function refuse(rule: string, message: string): PolicyVerdict {
  * Every rule is optional and an absent rule permits, so a fresh install with no
  * policy behaves exactly as it did before this existed.
  */
-export function evaluate(
-	tx: PolicyTransaction,
-	policy: Policy | null,
-	now: Date
-): PolicyVerdict {
+export function evaluate(tx: PolicyTransaction, policy: Policy | null, now: Date): PolicyVerdict {
 	if (!policy) return ALLOWED;
 
 	// First, because a lapsed policy makes every other rule moot — and because
@@ -49,7 +45,18 @@ export function evaluate(
 
 	const cap = policy.maxValue?.[tx.chain];
 	if (cap !== undefined) {
-		const capWei = parseEther(cap);
+		let capWei: bigint;
+		try {
+			capWei = parseEther(cap);
+		} catch {
+			// Reachable only past the schema — a direct caller, or a policy
+			// object built in code. Refusing keeps the contract that this
+			// function always returns a verdict, and keeps the failure closed.
+			return refuse(
+				"maxValue",
+				`Policy cap "${cap}" on ${tx.chain} is not an amount FibX can read, so nothing is signed. Fix it with \`fibx policy set ${tx.chain}.maxValue <amount>\`.`
+			);
+		}
 		if (tx.value > capWei) {
 			return refuse(
 				"maxValue",

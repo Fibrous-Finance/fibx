@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { evaluate } from "./evaluate.js";
+import { policySchema } from "./types.js";
 import type { Policy, PolicyTransaction } from "./types.js";
 
 const ROUTER = "0x274602a953847d807231d2370072f5f4e4594b44";
@@ -65,6 +66,17 @@ describe("evaluate", () => {
 				true
 			);
 		});
+
+		// A malformed cap (past the schema) should return a refusal, not throw.
+		it("refuses a malformed cap rather than throwing", () => {
+			const malformedPolicy: Policy = { maxValue: { base: "not-a-number" } };
+			const verdict = evaluate(tx(), malformedPolicy, NOW);
+
+			expect(verdict.allowed).toBe(false);
+			if (verdict.allowed) throw new Error("unreachable");
+			expect(verdict.rule).toBe("maxValue");
+			expect(verdict.message).toContain("not-a-number");
+		});
 	});
 
 	describe("allowedDestinations", () => {
@@ -116,13 +128,25 @@ describe("evaluate", () => {
 	// Order matters only for which message the user sees first; expiry is
 	// checked before anything else because a lapsed policy makes the rest moot.
 	it("reports expiry before another violated rule", () => {
-		const verdict = evaluate(tx({ chain: "hyperevm" }), {
-			expiry: "2026-08-28",
-			allowedChains: ["base"],
-		}, NOW);
+		const verdict = evaluate(
+			tx({ chain: "hyperevm" }),
+			{
+				expiry: "2026-08-28",
+				allowedChains: ["base"],
+			},
+			NOW
+		);
 
 		expect(verdict.allowed).toBe(false);
 		if (verdict.allowed) throw new Error("unreachable");
 		expect(verdict.rule).toBe("expiry");
+	});
+
+	describe("schema validation", () => {
+		// Schema catches malformed caps before they reach the evaluator.
+		it("rejects a policy with a malformed cap value", () => {
+			const malformed = { maxValue: { base: "not-a-number" } };
+			expect(() => policySchema.parse(malformed)).toThrow();
+		});
 	});
 });

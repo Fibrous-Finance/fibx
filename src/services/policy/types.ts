@@ -18,7 +18,12 @@ export interface PolicyTransaction {
 export const policySchema = z.object({
 	allowedChains: z.array(z.string()).optional(),
 	/** Chain name to a decimal amount in native units, e.g. { base: "0.05" }. */
-	maxValue: z.record(z.string(), z.string()).optional(),
+	maxValue: z
+		.record(
+			z.string(),
+			z.string().regex(/^\d+(\.\d+)?$/, "must be a decimal amount, e.g. 0.05")
+		)
+		.optional(),
 	/** Chain name to the addresses value and calls may go to. */
 	allowedDestinations: z.record(z.string(), z.array(z.string())).optional(),
 	/** ISO date. Past it, everything is refused. */
@@ -27,6 +32,4 @@ export const policySchema = z.object({
 
 export type Policy = z.infer<typeof policySchema>;
 
-export type PolicyVerdict =
-	| { allowed: true }
-	| { allowed: false; rule: string; message: string };
+export type PolicyVerdict = { allowed: true } | { allowed: false; rule: string; message: string };
