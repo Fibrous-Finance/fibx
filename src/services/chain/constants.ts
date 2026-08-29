@@ -69,13 +69,31 @@ export interface ChainConfig {
 }
 
 /**
- * Single source of truth for chain names. The MCP tool schemas derive their
- * `chain` enum from this, so adding a chain here surfaces it everywhere.
- * Keep in sync with the keys of SUPPORTED_CHAINS below.
+ * What the CLI offers, one entry per chain. The MCP tool schemas derive their
+ * `chain` enum from this and getChainConfig gates on it, so adding a chain here
+ * surfaces it everywhere and removing one withdraws it everywhere.
+ *
+ * Withdrawing a chain leaves its row in SUPPORTED_CHAINS below. The code to
+ * talk to it — viem chain definition, router ABI, RPC — stays; it just stops
+ * being offered. This is a literal rather than a filter over SUPPORTED_CHAINS
+ * because ChainEnum needs the tuple type to build the MCP enum.
+ *
+ * Citrea was withdrawn on 2026-08-29: Fibrous delisted it upstream on
+ * 2026-08-10 and took its router (502 on every path) and graph service (404)
+ * down with it, so quotes, trades and balances cannot work there.
  */
-export const CHAIN_NAMES = ["base", "citrea", "hyperevm", "monad"] as const;
+export const CHAIN_NAMES = ["base", "hyperevm", "monad"] as const;
 export type ChainName = (typeof CHAIN_NAMES)[number];
 
+function isOffered(network: string): network is ChainName {
+	return (CHAIN_NAMES as readonly string[]).includes(network);
+}
+
+/**
+ * Every chain this codebase knows how to talk to, offered or not. Structural:
+ * keyed lookups resolve through it, and a withdrawn chain needs its row to
+ * exist for anything still holding a reference to it.
+ */
 export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
 	base: {
 		id: 8453,
@@ -125,8 +143,8 @@ export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
 
 export function getChainConfig(network: string): ChainConfig {
 	const config = SUPPORTED_CHAINS[network];
-	if (!config) {
-		const supported = Object.keys(SUPPORTED_CHAINS).join(", ");
+	if (!config || !isOffered(network)) {
+		const supported = CHAIN_NAMES.join(", ");
 		throw new FibxError(
 			ErrorCode.UNSUPPORTED_CHAIN,
 			`Unsupported chain: ${network}. Supported: ${supported}`

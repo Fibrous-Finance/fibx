@@ -13,7 +13,7 @@ const pkg = {
 			: (createRequire(import.meta.url)("../../package.json") as { version: string }).version,
 };
 
-const MCP_INSTRUCTIONS = `fibx is a multi-chain EVM DeFi toolkit for Base, Citrea, HyperEVM, and Monad. You can:
+const MCP_INSTRUCTIONS = `fibx is a multi-chain EVM DeFi toolkit for Base, HyperEVM, and Monad. You can:
 - Get price quotes without authentication (get_quote — no wallet needed)
 - Check auth status and configure custom RPC URLs per chain
 - Query native and ERC-20 token balances on any supported chain

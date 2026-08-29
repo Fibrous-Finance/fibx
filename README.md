@@ -1,12 +1,12 @@
 # FibX
 
-A command-line tool for DeFi operations on **Base, Citrea, HyperEVM, and Monad**, powered by [Fibrous](https://fibrous.finance) aggregation and [Privy](https://privy.io) Server Wallets.
+A command-line tool for DeFi operations on **Base, HyperEVM, and Monad**, powered by [Fibrous](https://fibrous.finance) aggregation and [Privy](https://privy.io) Server Wallets.
 
 [![npm version](https://badge.fury.io/js/fibx.svg)](https://badge.fury.io/js/fibx)
 
 ## Features
 
-- **Multi-Chain Support**: Base, Citrea, HyperEVM, and Monad
+- **Multi-Chain Support**: Base, HyperEVM, and Monad
 - **Portfolio**: Cross-chain portfolio overview with USD valuations and DeFi positions
 - **Token Swaps**: Optimal routing via Fibrous aggregation with auto-slippage
 - **Transfers**: Send ETH or any ERC-20 token
@@ -26,7 +26,6 @@ A command-line tool for DeFi operations on **Base, Citrea, HyperEVM, and Monad**
 | Chain    | Native Token | Aave V3 |
 | -------- | ------------ | ------- |
 | Base     | ETH          | ✅      |
-| Citrea   | cBTC         | —       |
 | HyperEVM | HYPE         | —       |
 | Monad    | MON          | —       |
 
@@ -110,14 +109,14 @@ npx fibx auth logout
 
 | Option               | Description                                          | Default |
 | -------------------- | ---------------------------------------------------- | ------- |
-| `-c, --chain <name>` | Target chain (`base`, `citrea`, `hyperevm`, `monad`) | `base`  |
+| `-c, --chain <name>` | Target chain (`base`, `hyperevm`, `monad`) | `base`  |
 | `--json`             | Output results as JSON                               | `false` |
 
 ### Balance
 
 ```bash
 npx fibx balance
-npx fibx balance --chain citrea
+npx fibx balance --chain hyperevm
 ```
 
 ### Portfolio
@@ -129,7 +128,7 @@ npx fibx portfolio           # Table output across all chains
 npx fibx portfolio --json    # Structured JSON for scripting
 ```
 
-Shows all token holdings across Base, Citrea, HyperEVM, and Monad with USD values. Includes DeFi positions (Aave V3 collateral/debt) and total portfolio net worth. Token prices are sourced live from Fibrous.
+Shows all token holdings across Base, HyperEVM, and Monad with USD values. Includes DeFi positions (Aave V3 collateral/debt) and total portfolio net worth. Token prices are sourced live from Fibrous.
 
 ### Send
 

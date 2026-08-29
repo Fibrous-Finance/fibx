@@ -120,7 +120,7 @@ still requires native gas.
 Check whether fibx is authenticated and the Fibrous API is reachable. **Always call this first** before any transactional tool.
 
 ```
-Input:  { chain?: "base" | "citrea" | "hyperevm" | "monad" }
+Input:  { chain?: "base" | "hyperevm" | "monad" }
 Output: { authenticated, walletAddress, sessionType, chain, fibrousStatus }
 ```
 
@@ -129,7 +129,7 @@ Output: { authenticated, walletAddress, sessionType, chain, fibrousStatus }
 Fetch all token balances for the active wallet. Only returns non-zero balances.
 
 ```
-Input:  { chain?: "base" | "citrea" | "hyperevm" | "monad" }
+Input:  { chain?: "base" | "hyperevm" | "monad" }
 Output: { wallet, chain, balances: { "ETH": "0.5", "USDC": "100.0", ... } }
 ```
 
@@ -276,7 +276,6 @@ EVM-specific errors (reverts, gas estimation failures) are parsed and human-read
 | Chain    | Native Token | Fibrous Network |
 | -------- | ------------ | --------------- |
 | Base     | ETH          | base            |
-| Citrea   | cBTC         | citrea          |
 | HyperEVM | HYPE         | hyperevm        |
 | Monad    | MON          | monad           |
 

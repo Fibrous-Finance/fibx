@@ -86,7 +86,7 @@ export function registerWalletTools(server: McpServer): number {
 		{
 			title: "Cross-Chain Portfolio",
 			description:
-				"Get a complete cross-chain portfolio overview with USD valuations for all token holdings across Base, Citrea, HyperEVM, and Monad. Includes DeFi positions (Aave V3). Returns total net worth.",
+				"Get a complete cross-chain portfolio overview with USD valuations for all token holdings across Base, HyperEVM, and Monad. Includes DeFi positions (Aave V3). Returns total net worth.",
 			inputSchema: {},
 			annotations: {
 				title: "Portfolio Overview",

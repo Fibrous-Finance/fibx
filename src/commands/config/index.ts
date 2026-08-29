@@ -13,7 +13,7 @@ export function registerConfigCommands(program: Command) {
 	configCmd
 		.command("set-rpc")
 		.description("Set a custom RPC URL for a specific chain")
-		.argument("<chain>", "Chain name (base, citrea, hyperevm, monad)")
+		.argument("<chain>", "Chain name (base, hyperevm, monad)")
 		.argument("<url>", "RPC URL")
 		.addHelpText(
 			"after",

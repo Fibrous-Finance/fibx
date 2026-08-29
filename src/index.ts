@@ -200,7 +200,7 @@ program.configureHelp({
 
 registerConfigCommands(program);
 program
-	.option("-c, --chain <chain>", "Chain to use (base, citrea, hyperevm, monad)", "base")
+	.option("-c, --chain <chain>", "Chain to use (base, hyperevm, monad)", "base")
 	.option("--json", "Output results as JSON", false)
 	.showHelpAfterError();
 
@@ -285,7 +285,7 @@ program
 	.description("Show native token and ERC-20 balances")
 	.addHelpText(
 		"after",
-		"\nExamples:\n  $ fibx balance\n  $ fibx balance --chain citrea\n  $ fibx balance --json"
+		"\nExamples:\n  $ fibx balance\n  $ fibx balance --chain hyperevm\n  $ fibx balance --json"
 	)
 	.action(async (_opts, cmd) => {
 		const globalOpts = cmd.parent!.opts();

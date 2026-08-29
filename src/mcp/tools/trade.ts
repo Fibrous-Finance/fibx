@@ -11,7 +11,7 @@ export function registerTradeTools(server: McpServer): number {
 		{
 			title: "Get Swap Quote",
 			description:
-				"Get a price quote for a token swap without authentication. Shows expected output amount, exchange rate, and route info. No wallet or session required — use this to check prices before committing to a swap. Supported chains: Base, Citrea, HyperEVM, Monad.",
+				"Get a price quote for a token swap without authentication. Shows expected output amount, exchange rate, and route info. No wallet or session required — use this to check prices before committing to a swap. Supported chains: Base, HyperEVM, Monad.",
 			inputSchema: {
 				amount: z.string().describe("Amount to quote (e.g. '0.1', '100')"),
 				from_token: z.string().describe("Source token symbol (e.g. 'ETH', 'USDC', 'MON')"),
@@ -38,7 +38,7 @@ export function registerTradeTools(server: McpServer): number {
 		{
 			title: "Swap Tokens via Fibrous",
 			description:
-				"Swap tokens using Fibrous aggregator for optimal routing. Handles ERC-20 approvals and wrap/unwrap automatically. Supported chains: Base, Citrea, HyperEVM, Monad. Set simulate=true for a no-broadcast preview; a gas estimate is returned where it can be calculated safely.",
+				"Swap tokens using Fibrous aggregator for optimal routing. Handles ERC-20 approvals and wrap/unwrap automatically. Supported chains: Base, HyperEVM, Monad. Set simulate=true for a no-broadcast preview; a gas estimate is returned where it can be calculated safely.",
 			inputSchema: {
 				amount: z.string().describe("Amount to swap (e.g. '0.1', '100')"),
 				from_token: z.string().describe("Source token symbol (e.g. 'ETH', 'USDC', 'MON')"),
