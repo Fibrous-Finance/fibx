@@ -70,7 +70,7 @@ export function requireSession(): Session {
 	if (!session) {
 		throw new FibxError(
 			ErrorCode.NOT_AUTHENTICATED,
-			"Not authenticated. Run `fibx auth login <email>` first."
+			"Not authenticated. Run `fibx auth setup` to choose how FibX should sign."
 		);
 	}
 

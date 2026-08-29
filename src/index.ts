@@ -247,6 +247,14 @@ auth.command("connect")
 		await authConnectCommand({ json: globalOpts.json });
 	});
 
+auth.command("setup")
+	.description("Choose how FibX should sign, with the trade-offs explained")
+	.action(async (_opts, cmd) => {
+		const globalOpts = cmd.parent!.parent!.opts();
+		const { authSetupCommand } = await import("./commands/auth/setup.js");
+		await authSetupCommand({ json: globalOpts.json });
+	});
+
 auth.addCommand(logoutCommand);
 
 // ── System Commands ──────────────────────────────────────────────────

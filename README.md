@@ -86,22 +86,19 @@ That's it. Three steps from zero to first swap.
 
 ## Usage
 
-### Authentication
+### Choosing how FibX signs
 
-```bash
-# Email OTP (uses Privy server wallet)
-npx fibx auth login user@example.com
-npx fibx auth verify user@example.com 123456
+Run `fibx auth setup` and it will ask. The three paths differ on one thing:
 
-# Or import a private key (local signing, no server needed)
-npx fibx auth import
+| Path | Key held by | Runs while you are away | Bounded by |
+| --- | --- | --- | --- |
+| `auth connect` | your own wallet | no | you, on your phone |
+| `auth login` | Privy | yes | Privy's signing policy |
+| `auth import` | this machine | yes | the local policy you set |
 
-# Check session status
-npx fibx status
-
-# Logout
-npx fibx auth logout
-```
+Keeping your own wallet *and* having FibX act unattended needs ERC-7715, which
+wallets do not yet expose over WalletConnect. `fibx auth setup` explains the
+closest options.
 
 > **Security:** When using `auth import`, your private key is encrypted at rest with AES-256-GCM. The encryption key is auto-generated per machine and stored in the OS config directory (e.g. `~/.config/fibx-nodejs/encryption-key` on Linux). You can also set the `FIBX_SESSION_SECRET` environment variable for CI/Docker environments.
 
@@ -138,6 +135,28 @@ own id.
 
 `auth login` (email OTP) and `auth import` (private key) are unchanged and remain
 available.
+
+### Signing policy
+
+`fibx policy` bounds what FibX is allowed to sign, on top of whichever path
+from the table above holds the key — a client-side cap evaluated before every
+local-key, Privy, or WalletConnect transaction:
+
+```bash
+npx fibx policy show                    # Print the active policy
+
+npx fibx policy set base.maxValue 0.05
+npx fibx policy set allowedChains base,monad
+npx fibx policy set expiry 2026-12-31
+
+npx fibx policy clear base.maxValue     # Remove one rule
+npx fibx policy clear                   # Remove the whole policy
+```
+
+A local policy guarding a local key is advisory: anything that can read the
+key can edit the policy, so this is worth nothing against malware. What it
+does bound is the agent — a model that misbehaves, or a prompt injection
+telling it to. "Drain the wallet" hits the cap.
 
 ### Global Options
 
