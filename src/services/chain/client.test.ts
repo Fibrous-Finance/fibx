@@ -1,11 +1,15 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import type { LocalAccount } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import type { Session } from "../auth/session.js";
 import { SUPPORTED_CHAINS } from "./constants.js";
+import { ErrorCode, FibxError } from "../../lib/errors.js";
 
-const mocks = vi.hoisted(() => ({ createWalletConnectProvider: vi.fn() }));
+const mocks = vi.hoisted(() => ({ createWalletConnectProvider: vi.fn(), assertAllowed: vi.fn() }));
 vi.mock("../walletconnect/provider.js", () => ({
 	createWalletConnectProvider: mocks.createWalletConnectProvider,
 }));
+vi.mock("../policy/enforce.js", () => ({ assertAllowed: mocks.assertAllowed }));
 
 const { getWalletClient, managesOwnNonce } = await import("./client.js");
 
@@ -94,5 +98,94 @@ describe("managesOwnNonce", () => {
 		expect(managesOwnNonce(wcSession)).toBe(true);
 		expect(managesOwnNonce({ ...wcSession, type: "privy" })).toBe(false);
 		expect(managesOwnNonce({ ...wcSession, type: "private-key" })).toBe(false);
+	});
+});
+
+describe("policy enforcement on the account paths", () => {
+	const PRIVATE_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+
+	// The assertion that matters is not that the evaluator said no — it is that
+	// nothing was signed. A correct rule behind a gate nothing calls is worth
+	// nothing.
+	it("refuses to sign a transaction the policy blocks", async () => {
+		mocks.assertAllowed.mockImplementation(() => {
+			throw new FibxError(ErrorCode.POLICY_BLOCKED, "nope");
+		});
+
+		const client = await getWalletClient(
+			{
+				walletAddress: privateKeyToAccount(PRIVATE_KEY).address,
+				createdAt: "2026-08-29T00:00:00.000Z",
+				type: "private-key",
+				privateKey: PRIVATE_KEY,
+			},
+			BASE
+		);
+
+		await expect(
+			(client.account as LocalAccount).signTransaction({
+				chainId: 8453,
+				to: "0x2222222222222222222222222222222222222222",
+				value: 0n,
+			})
+		).rejects.toMatchObject({ code: ErrorCode.POLICY_BLOCKED });
+	});
+
+	it("signs normally when the policy permits", async () => {
+		mocks.assertAllowed.mockImplementation(() => {});
+
+		const client = await getWalletClient(
+			{
+				walletAddress: privateKeyToAccount(PRIVATE_KEY).address,
+				createdAt: "2026-08-29T00:00:00.000Z",
+				type: "private-key",
+				privateKey: PRIVATE_KEY,
+			},
+			BASE
+		);
+
+		const signed = await (client.account as LocalAccount).signTransaction({
+			chainId: 8453,
+			to: "0x2222222222222222222222222222222222222222",
+			value: 0n,
+			gas: 21000n,
+			maxFeePerGas: 1000000000n,
+			maxPriorityFeePerGas: 1n,
+			nonce: 0,
+			type: "eip1559",
+		});
+
+		expect(signed.startsWith("0x")).toBe(true);
+	});
+
+	it("hands the policy the chain name and the value, not raw viem fields", async () => {
+		mocks.assertAllowed.mockImplementation(() => {});
+
+		const client = await getWalletClient(
+			{
+				walletAddress: privateKeyToAccount(PRIVATE_KEY).address,
+				createdAt: "2026-08-29T00:00:00.000Z",
+				type: "private-key",
+				privateKey: PRIVATE_KEY,
+			},
+			BASE
+		);
+
+		await (client.account as LocalAccount).signTransaction({
+			chainId: 8453,
+			to: "0x2222222222222222222222222222222222222222",
+			value: 7n,
+			gas: 21000n,
+			maxFeePerGas: 1000000000n,
+			maxPriorityFeePerGas: 1n,
+			nonce: 0,
+			type: "eip1559",
+		});
+
+		expect(mocks.assertAllowed).toHaveBeenCalledWith({
+			chain: "base",
+			to: "0x2222222222222222222222222222222222222222",
+			value: 7n,
+		});
 	});
 });
