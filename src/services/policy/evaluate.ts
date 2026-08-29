@@ -1,0 +1,79 @@
+import { formatEther, parseEther } from "viem";
+import type { Policy, PolicyTransaction, PolicyVerdict } from "./types.js";
+
+const ALLOWED: PolicyVerdict = { allowed: true };
+
+function refuse(rule: string, message: string): PolicyVerdict {
+	return { allowed: false, rule, message };
+}
+
+/**
+ * Decides whether one transaction is within the policy. Pure: no I/O, no clock
+ * of its own — `now` is passed so expiry is testable.
+ *
+ * Every rule is optional and an absent rule permits, so a fresh install with no
+ * policy behaves exactly as it did before this existed.
+ */
+export function evaluate(
+	tx: PolicyTransaction,
+	policy: Policy | null,
+	now: Date
+): PolicyVerdict {
+	if (!policy) return ALLOWED;
+
+	// First, because a lapsed policy makes every other rule moot — and because
+	// refusing is the only safe direction: treating a forgotten expiry as
+	// permission would silently remove every limit the user set.
+	if (policy.expiry !== undefined) {
+		const expiresAt = new Date(policy.expiry);
+		if (Number.isNaN(expiresAt.getTime())) {
+			return refuse(
+				"expiry",
+				`Policy expiry "${policy.expiry}" is not a date FibX can read, so nothing is signed. Fix it with \`fibx policy set expiry <YYYY-MM-DD>\`.`
+			);
+		}
+		if (now >= expiresAt) {
+			return refuse(
+				"expiry",
+				`Policy expired on ${policy.expiry}. Extend it with \`fibx policy set expiry <YYYY-MM-DD>\`, or remove it with \`fibx policy clear expiry\`.`
+			);
+		}
+	}
+
+	if (policy.allowedChains && !policy.allowedChains.includes(tx.chain)) {
+		return refuse(
+			"allowedChains",
+			`Policy does not allow ${tx.chain}. Allowed: ${policy.allowedChains.join(", ")}.`
+		);
+	}
+
+	const cap = policy.maxValue?.[tx.chain];
+	if (cap !== undefined) {
+		const capWei = parseEther(cap);
+		if (tx.value > capWei) {
+			return refuse(
+				"maxValue",
+				`Transaction exceeds the per-transaction cap on ${tx.chain}: ${formatEther(tx.value)} attempted, ${cap} allowed.`
+			);
+		}
+	}
+
+	const destinations = policy.allowedDestinations?.[tx.chain];
+	if (destinations) {
+		const to = tx.to?.toLowerCase();
+		if (!to) {
+			return refuse(
+				"allowedDestinations",
+				`Policy limits where funds may go on ${tx.chain}, and this transaction has no destination (contract creation).`
+			);
+		}
+		if (!destinations.some((d) => d.toLowerCase() === to)) {
+			return refuse(
+				"allowedDestinations",
+				`Policy does not allow sending to ${tx.to} on ${tx.chain}.`
+			);
+		}
+	}
+
+	return ALLOWED;
+}
