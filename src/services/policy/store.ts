@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, unlinkSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, unlinkSync, chmodSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { paths } from "../../lib/config.js";
 import { policySchema, type Policy } from "./types.js";
@@ -21,8 +21,13 @@ export function loadPolicy(): Policy | null | "unreadable" {
 	let raw: string;
 	try {
 		raw = readFileSync(policyPath(), "utf-8");
-	} catch {
-		return null;
+	} catch (error) {
+		// Absent means no policy, which permits. Anything else means a file is
+		// there and cannot be read — a permission error, or a directory where a
+		// file should be — and that must refuse rather than silently lift every
+		// limit the user set.
+		if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+		return "unreadable";
 	}
 
 	try {
@@ -40,6 +45,9 @@ export function savePolicy(policy: Policy): void {
 		encoding: "utf-8",
 		mode: 0o600,
 	});
+	// mode on writeFileSync only applies when the file is created, so an
+	// existing file keeps whatever permissions it had. Re-assert them.
+	chmodSync(filePath, 0o600);
 }
 
 export function clearPolicy(): void {

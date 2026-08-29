@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach, vi } from "vitest";
-import { rmSync, writeFileSync, mkdirSync, statSync } from "node:fs";
+import { rmSync, writeFileSync, mkdirSync, statSync, chmodSync } from "node:fs";
 import { join } from "node:path";
 
 // env-paths ignores XDG_CONFIG_HOME on macOS and returns a real user
@@ -67,5 +67,35 @@ describe("policy store", () => {
 
 	it("does not fail when clearing a policy that is not there", () => {
 		expect(() => clearPolicy()).not.toThrow();
+	});
+
+	// A file that exists but cannot be read (permission denied) must refuse
+	// rather than silently lift every limit. This test may be skipped on systems
+	// where the test runner has permission to read files with 0o000 mode (e.g.,
+	// running as root).
+	it("reports a present-but-unreadable file as unreadable, not absent", () => {
+		writeRaw("{}");
+		try {
+			chmodSync(join(configDir, "policy.json"), 0o000);
+		} catch {
+			// Running as root: we cannot test permission denial. Skip.
+			expect.soft("test skipped on root or chmod-restricted system").toBeDefined();
+			return;
+		}
+
+		expect(loadPolicy()).toBe("unreadable");
+	});
+
+	// writeFileSync's mode only applies when creating. An existing file that
+	// has been loosened (e.g., by a previous save with a race or external
+	// chmod) must have its permissions re-tightened.
+	it("re-tightens loose permissions when saving an existing file", () => {
+		savePolicy({ allowedChains: ["base"] });
+		chmodSync(policyPath(), 0o644);
+
+		// Re-save should re-tighten to 0600.
+		savePolicy({ allowedChains: ["base"] });
+
+		expect(statSync(policyPath()).mode & 0o777).toBe(0o600);
 	});
 });
