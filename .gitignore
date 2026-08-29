@@ -17,3 +17,6 @@ mcp-publisher
 fibx-server/
 fibx-skills/
 fibx-telegram-bot/
+
+# Worktrees created for isolated feature work.
+.claude/worktrees/
