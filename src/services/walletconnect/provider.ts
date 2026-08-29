@@ -47,9 +47,14 @@ export function createWalletConnectProvider(
 			// The most common outcome here is the user declining in their wallet;
 			// that must not escape as a raw, non-FibxError rejection.
 			if (isWalletRejection(error)) {
+				// Wallets are not obliged to say why. Zerion sends an empty
+				// message on Cancel, which left the sentence trailing a colon.
+				const reason = error.message.trim();
 				throw new FibxError(
 					ErrorCode.WALLET_ERROR,
-					`Wallet rejected the request: ${error.message}`
+					reason
+						? `Wallet rejected the request: ${reason}`
+						: "Wallet rejected the request."
 				);
 			}
 			throw new FibxError(

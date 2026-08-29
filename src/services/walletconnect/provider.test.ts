@@ -121,6 +121,19 @@ describe("walletconnect provider", () => {
 		});
 	});
 
+	// Zerion sends { code: 5000, message: "" } when the user taps Cancel, which
+	// left the message trailing a bare colon with nothing after it.
+	it("reads as a sentence when the wallet sends no rejection text", async () => {
+		const request = vi.fn().mockRejectedValue({ code: 5000, message: "" });
+		mocks.getSignClient.mockResolvedValue({ request });
+
+		const provider = createWalletConnectProvider("t", BASE);
+		const attempt = provider.request({ method: "personal_sign", params: ["0x1", "0xabc"] });
+
+		await expect(attempt).rejects.toMatchObject({ code: ErrorCode.WALLET_ERROR });
+		await expect(attempt).rejects.toThrow(/Wallet rejected the request\.$/);
+	});
+
 	// A relay or socket failure throws a real Error rather than the wallet's
 	// JSON-RPC error object; it should read as a transport failure, not a
 	// decline, so the two are not reported identically.

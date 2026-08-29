@@ -25,6 +25,12 @@ export async function getSignClient(): Promise<ISignClient> {
 		client = SignClient.init({
 			projectId: getWcProjectId(),
 			storage: walletConnectStore(),
+			// @walletconnect/logger writes pino records straight to the console,
+			// so a cancelled transaction printed a bare
+			// `{ time: …, level: 50, msg: '' }` above FibX's own output. Nothing
+			// is lost by silencing it: every failure on this path surfaces as a
+			// thrown FibxError.
+			logger: "silent",
 			metadata: {
 				name: "FibX",
 				description: "DeFi CLI and MCP server powered by Fibrous aggregation",

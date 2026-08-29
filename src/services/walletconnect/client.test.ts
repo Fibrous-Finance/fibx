@@ -46,6 +46,20 @@ describe("getSignClient", () => {
 		expect(mocks.init).toHaveBeenCalledTimes(1);
 	});
 
+	// @walletconnect/logger writes pino records straight to the console. A
+	// user cancelling a transaction produced a bare
+	// `{ time: …, level: 50, msg: '' }` line above FibX's own output — noise
+	// carrying nothing, since every failure here surfaces as a thrown FibxError.
+	it("initialises the SDK with logging silenced", async () => {
+		const { signClient } = fakeSignClient();
+		mocks.init.mockResolvedValue(signClient);
+
+		const { getSignClient } = await import("./client.js");
+		await getSignClient();
+
+		expect(mocks.init).toHaveBeenCalledWith(expect.objectContaining({ logger: "silent" }));
+	});
+
 	// A failed init must not be cached, or one unreachable relay poisons the
 	// process for every later command.
 	it("wraps an init failure as WALLET_ERROR and lets the next call retry", async () => {
