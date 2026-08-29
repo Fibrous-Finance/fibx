@@ -16,6 +16,7 @@ import { walletsCommand } from "./commands/wallet/list.js";
 import { txStatusCommand } from "./commands/chain/transaction.js";
 import { aaveCommand } from "./commands/defi/aave.js";
 import { registerConfigCommands } from "./commands/config/index.js";
+import { registerPolicyCommands } from "./commands/policy/index.js";
 import { logoutCommand } from "./commands/auth/logout.js";
 
 declare const FIBX_VERSION: string;
@@ -199,6 +200,7 @@ program.configureHelp({
 });
 
 registerConfigCommands(program);
+registerPolicyCommands(program);
 program
 	.option("-c, --chain <chain>", "Chain to use (base, hyperevm, monad)", "base")
 	.option("--json", "Output results as JSON", false)
