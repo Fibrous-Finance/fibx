@@ -40,6 +40,7 @@ describe("routeChoice", () => {
  */
 describe("the imported-key hint", () => {
 	const originalIsTty = process.stdout.isTTY;
+	const originalStdinIsTty = process.stdin.isTTY;
 
 	function captureStdout(): string[] {
 		const lines: string[] = [];
@@ -52,12 +53,14 @@ describe("the imported-key hint", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		process.stdout.isTTY = true;
+		process.stdin.isTTY = true;
 		process.exitCode = undefined;
 		mocks.prompt.mockResolvedValue({ choice: "3" });
 	});
 
 	afterEach(() => {
 		process.stdout.isTTY = originalIsTty;
+		process.stdin.isTTY = originalStdinIsTty;
 		process.exitCode = undefined;
 		vi.restoreAllMocks();
 	});
@@ -82,6 +85,61 @@ describe("the imported-key hint", () => {
 		await authSetupCommand({ json: false });
 
 		expect(logged.join("\n")).not.toContain("fibx policy set");
+		expect(process.exitCode).toBe(1);
+	});
+});
+
+/**
+ * `auth setup` asks a question, and a question needs something on the other
+ * end that can answer it. A terminal on stdout is not that thing:
+ * `foo | fibx auth setup` renders the list to a TTY and then blocks on a pipe
+ * forever.
+ */
+describe("the terminal guard", () => {
+	const originalIsTty = process.stdout.isTTY;
+	const originalStdinIsTty = process.stdin.isTTY;
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		process.exitCode = undefined;
+	});
+
+	afterEach(() => {
+		process.stdout.isTTY = originalIsTty;
+		process.stdin.isTTY = originalStdinIsTty;
+		process.exitCode = undefined;
+		vi.restoreAllMocks();
+	});
+
+	function captureStderr(): string[] {
+		const lines: string[] = [];
+		vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+			lines.push(args.map(String).join(" "));
+		});
+		return lines;
+	}
+
+	it("refuses with no terminal at all, naming the three direct commands", async () => {
+		process.stdout.isTTY = false;
+		process.stdin.isTTY = false;
+		const errors = captureStderr();
+
+		await authSetupCommand({ json: false });
+
+		expect(mocks.prompt).not.toHaveBeenCalled();
+		expect(errors.join("\n")).toContain("fibx auth connect");
+		expect(errors.join("\n")).toContain("fibx auth import");
+		expect(process.exitCode).toBe(1);
+	});
+
+	it("refuses when stdout is a terminal but stdin is not", async () => {
+		process.stdout.isTTY = true;
+		process.stdin.isTTY = false;
+		captureStderr();
+
+		await authSetupCommand({ json: false });
+
+		expect(mocks.prompt).not.toHaveBeenCalled();
 		expect(process.exitCode).toBe(1);
 	});
 });

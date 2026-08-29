@@ -39,7 +39,7 @@ const EXPLANATION = `
 
 export async function authSetupCommand(opts: OutputOptions): Promise<void> {
 	try {
-		if (!process.stdout.isTTY) {
+		if (!process.stdout.isTTY || !process.stdin.isTTY) {
 			console.error(
 				formatError(
 					new Error(

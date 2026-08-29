@@ -200,7 +200,7 @@ function printRules(policy: Policy): void {
  */
 export async function clearWholePolicy(opts: { yes?: boolean }): Promise<void> {
 	if (!opts.yes) {
-		if (!process.stdout.isTTY) {
+		if (!process.stdout.isTTY || !process.stdin.isTTY) {
 			console.error(
 				formatError(
 					new Error(
@@ -305,7 +305,7 @@ export function registerPolicyCommands(program: Command) {
 				console.error(
 					formatError(
 						new Error(
-							`Policy at ${policyPath()} cannot be read. Fix it, or run \`fibx policy clear\` to start over.`
+							`Policy at ${policyPath()} cannot be read. Fix it, or run \`fibx policy clear --yes\` to start over.`
 						)
 					)
 				);
@@ -338,7 +338,7 @@ export function registerPolicyCommands(program: Command) {
 				console.error(
 					formatError(
 						new Error(
-							`Policy at ${policyPath()} cannot be read. Fix it, or run \`fibx policy clear\` to start over.`
+							`Policy at ${policyPath()} cannot be read. Fix it, or run \`fibx policy clear --yes\` to start over.`
 						)
 					)
 				);

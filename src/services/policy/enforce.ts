@@ -18,7 +18,7 @@ export function assertAllowed(tx: PolicyTransaction): void {
 		throw new FibxError(
 			ErrorCode.POLICY_BLOCKED,
 			`Signing policy at ${policyPath()} cannot be read, so nothing will be signed. ` +
-				`Fix the file, or remove it with \`fibx policy clear\`.`
+				`Fix the file, or remove it with \`fibx policy clear --yes\`.`
 		);
 	}
 

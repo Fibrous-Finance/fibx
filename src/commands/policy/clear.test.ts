@@ -103,6 +103,7 @@ describe("removeRule", () => {
  */
 describe("clearWholePolicy", () => {
 	const originalIsTty = process.stdout.isTTY;
+	const originalStdinIsTty = process.stdin.isTTY;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -114,6 +115,7 @@ describe("clearWholePolicy", () => {
 
 	afterEach(() => {
 		process.stdout.isTTY = originalIsTty;
+		process.stdin.isTTY = originalStdinIsTty;
 		process.exitCode = undefined;
 		vi.restoreAllMocks();
 	});
@@ -121,6 +123,7 @@ describe("clearWholePolicy", () => {
 	// Outcome 1a: confirmed at the prompt.
 	it("removes the policy when the prompt is confirmed", async () => {
 		process.stdout.isTTY = true;
+		process.stdin.isTTY = true;
 		mocks.prompt.mockResolvedValue({ confirmed: true });
 
 		await clearWholePolicy({});
@@ -135,6 +138,7 @@ describe("clearWholePolicy", () => {
 	// look like a failure to every script that checks the exit code.
 	it("leaves the policy alone and exits 0 when the prompt is declined", async () => {
 		process.stdout.isTTY = true;
+		process.stdin.isTTY = true;
 		mocks.prompt.mockResolvedValue({ confirmed: false });
 
 		await clearWholePolicy({});
@@ -147,6 +151,7 @@ describe("clearWholePolicy", () => {
 	// lose, because `clear` and `clear expiry` are one word apart.
 	it("shows the rules it is about to remove before asking", async () => {
 		process.stdout.isTTY = true;
+		process.stdin.isTTY = true;
 		mocks.prompt.mockResolvedValue({ confirmed: false });
 		mocks.loadPolicy.mockReturnValue({ expiry: "2026-12-31", maxValue: { base: "0.05" } });
 		const logged: string[] = [];
@@ -163,6 +168,7 @@ describe("clearWholePolicy", () => {
 	// Outcome 2: the scripted path. No prompt, on a TTY or off it.
 	it("removes the policy immediately with --yes, without prompting", async () => {
 		process.stdout.isTTY = true;
+		process.stdin.isTTY = true;
 
 		await clearWholePolicy({ yes: true });
 
@@ -173,6 +179,7 @@ describe("clearWholePolicy", () => {
 
 	it("removes the policy with --yes when there is no terminal either", async () => {
 		process.stdout.isTTY = false;
+		process.stdin.isTTY = false;
 
 		await clearWholePolicy({ yes: true });
 
@@ -185,6 +192,26 @@ describe("clearWholePolicy", () => {
 	// the absence of an answer as a yes. Refuse, and name the flag.
 	it("refuses without a terminal and without --yes, naming --yes, exit 1", async () => {
 		process.stdout.isTTY = false;
+		process.stdin.isTTY = false;
+		const errors: string[] = [];
+		vi.mocked(console.error).mockImplementation((...args: unknown[]) => {
+			errors.push(args.map(String).join(" "));
+		});
+
+		await clearWholePolicy({});
+
+		expect(mocks.prompt).not.toHaveBeenCalled();
+		expect(mocks.clearPolicy).not.toHaveBeenCalled();
+		expect(errors.join("\n")).toContain("--yes");
+		expect(process.exitCode).toBe(1);
+	});
+	// A terminal on stdout is not enough, because the prompt reads stdin.
+	// `foo | fibx policy clear` from a terminal renders the question to a TTY
+	// and then waits on a pipe that will never answer it — which is the hang
+	// outcome 3 exists to prevent.
+	it("refuses when stdout is a terminal but stdin is not", async () => {
+		process.stdout.isTTY = true;
+		process.stdin.isTTY = false;
 		const errors: string[] = [];
 		vi.mocked(console.error).mockImplementation((...args: unknown[]) => {
 			errors.push(args.map(String).join(" "));
