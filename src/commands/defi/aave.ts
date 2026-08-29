@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import { AaveService } from "../../services/defi/aave.js";
 import { getChainConfig, type ChainConfig } from "../../services/chain/constants.js";
+import { AUTH_HINT } from "../../services/auth/session.js";
 import { resolveToken, type Token } from "../../services/fibrous/tokens.js";
 import type { Address } from "viem";
 import {
@@ -42,7 +43,7 @@ export const aaveCommand = async (
 
 		if (action === "status") {
 			if (!userAddress) {
-				spinner.fail("No wallet connected. Run `fibx auth login` or `fibx auth import`.");
+				spinner.fail(`No wallet connected. ${AUTH_HINT}`);
 				process.exitCode = 1;
 				return;
 			}

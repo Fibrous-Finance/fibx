@@ -1,5 +1,5 @@
 import type { Address } from "viem";
-import { loadSession, requireSession } from "../../services/auth/session.js";
+import { AUTH_HINT, loadSession, requireSession } from "../../services/auth/session.js";
 import { getChainConfig } from "../../services/chain/constants.js";
 import { getPublicClient, getWalletClient } from "../../services/chain/client.js";
 import { getTokens, resolveToken } from "../../services/fibrous/tokens.js";
@@ -12,7 +12,7 @@ import { jsonResult } from "./utils.js";
 export async function handleGetBalance({ chain }: { chain: string }) {
 	const session = loadSession();
 	if (!session) {
-		throw new Error("No active session. Run 'fibx auth login <email>' first.");
+		throw new Error(`No active session. ${AUTH_HINT}`);
 	}
 
 	const chainConfig = getChainConfig(chain);

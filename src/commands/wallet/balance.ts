@@ -1,5 +1,5 @@
 import type { Address } from "viem";
-import { loadSession } from "../../services/auth/session.js";
+import { AUTH_HINT, loadSession } from "../../services/auth/session.js";
 import { getPublicClient } from "../../services/chain/client.js";
 import { getChainConfig } from "../../services/chain/constants.js";
 import { getTokens, type Token } from "../../services/fibrous/tokens.js";
@@ -51,7 +51,7 @@ export async function balanceCommand(opts: OutputOptions): Promise<void> {
 	try {
 		const session = loadSession();
 		if (!session) {
-			spinner.fail("No active session. Run 'fibx auth login <email>' first.");
+			spinner.fail(`No active session. ${AUTH_HINT}`);
 			return;
 		}
 

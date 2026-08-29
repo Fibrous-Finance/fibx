@@ -274,7 +274,13 @@ export function registerPolicyCommands(program: Command) {
 			"\nExamples:\n" +
 				"  $ fibx policy set base.maxValue 0.05\n" +
 				"  $ fibx policy set allowedChains base,monad\n" +
-				"  $ fibx policy set expiry 2026-12-31"
+				"  $ fibx policy set base.allowedDestinations 0xAbC...,0xDeF...\n" +
+				"  $ fibx policy set expiry 2026-12-31\n" +
+				"\nmaxValue caps the native value of one transaction. It does not bound\n" +
+				"token amounts — an ERC-20 transfer carries value 0 — so use\n" +
+				"allowedDestinations to bound where tokens may go.\n" +
+				"\nA bare expiry date means UTC midnight at the START of that day:\n" +
+				"`expiry 2026-12-31` lapses as Dec 31 begins, not as it ends."
 		)
 		.action((rule: string, value: string) => {
 			const current = loadPolicy();

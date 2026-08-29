@@ -27,43 +27,45 @@
 
 **Created:**
 
-| File | Responsibility |
-|---|---|
-| `src/services/policy/types.ts` | `Policy`, `PolicyTransaction`, `PolicyVerdict`, and the zod schema |
-| `src/services/policy/evaluate.ts` | The pure evaluator — no I/O, no imports beyond types |
-| `src/services/policy/store.ts` | Load and save `policy.json` at `0600`; corrupt file refuses |
-| `src/services/policy/enforce.ts` | `assertAllowed` — loads, evaluates, throws `POLICY_BLOCKED` |
-| `src/commands/policy/index.ts` | `fibx policy show / set / clear` |
-| `src/commands/auth/setup.ts` | `fibx auth setup` and its pure routing function |
+| File                              | Responsibility                                                     |
+| --------------------------------- | ------------------------------------------------------------------ |
+| `src/services/policy/types.ts`    | `Policy`, `PolicyTransaction`, `PolicyVerdict`, and the zod schema |
+| `src/services/policy/evaluate.ts` | The pure evaluator — no I/O, no imports beyond types               |
+| `src/services/policy/store.ts`    | Load and save `policy.json` at `0600`; corrupt file refuses        |
+| `src/services/policy/enforce.ts`  | `assertAllowed` — loads, evaluates, throws `POLICY_BLOCKED`        |
+| `src/commands/policy/index.ts`    | `fibx policy show / set / clear`                                   |
+| `src/commands/auth/setup.ts`      | `fibx auth setup` and its pure routing function                    |
 
 **Modified:**
 
-| File | Change |
-|---|---|
-| `src/lib/errors.ts` | Add `POLICY_BLOCKED` |
-| `src/services/chain/client.ts` | Wrap the account paths with the policy |
-| `src/services/walletconnect/provider.ts` | Check the policy on `eth_sendTransaction` |
-| `src/services/auth/session.ts` | `requireSession()` points at `fibx auth setup` |
-| `src/index.ts` | Register `policy` and `auth setup` |
-| `README.md` | Document the three paths, the policy, and what it does not protect against |
+| File                                     | Change                                                                     |
+| ---------------------------------------- | -------------------------------------------------------------------------- |
+| `src/lib/errors.ts`                      | Add `POLICY_BLOCKED`                                                       |
+| `src/services/chain/client.ts`           | Wrap the account paths with the policy                                     |
+| `src/services/walletconnect/provider.ts` | Check the policy on `eth_sendTransaction`                                  |
+| `src/services/auth/session.ts`           | `requireSession()` points at `fibx auth setup`                             |
+| `src/index.ts`                           | Register `policy` and `auth setup`                                         |
+| `README.md`                              | Document the three paths, the policy, and what it does not protect against |
 
 ---
 
 ### Task 1: The policy evaluator
 
 **Files:**
+
 - Create: `src/services/policy/types.ts`, `src/services/policy/evaluate.ts`
 - Test: `src/services/policy/evaluate.test.ts`
 - Modify: `src/lib/errors.ts`
 
 **Interfaces:**
+
 - Consumes: nothing
 - Produces:
-  - `interface PolicyTransaction { chain: string; to?: string; value: bigint }`
-  - `interface Policy { allowedChains?: string[]; maxValue?: Record<string, string>; allowedDestinations?: Record<string, string[]>; expiry?: string }`
-  - `type PolicyVerdict = { allowed: true } | { allowed: false; rule: string; message: string }`
-  - `evaluate(tx: PolicyTransaction, policy: Policy | null, now: Date): PolicyVerdict`
-  - `ErrorCode.POLICY_BLOCKED`
+    - `interface PolicyTransaction { chain: string; to?: string; value: bigint }`
+    - `interface Policy { allowedChains?: string[]; maxValue?: Record<string, string>; allowedDestinations?: Record<string, string[]>; expiry?: string }`
+    - `type PolicyVerdict = { allowed: true } | { allowed: false; rule: string; message: string }`
+    - `evaluate(tx: PolicyTransaction, policy: Policy | null, now: Date): PolicyVerdict`
+    - `ErrorCode.POLICY_BLOCKED`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -188,10 +190,14 @@ describe("evaluate", () => {
 	// Order matters only for which message the user sees first; expiry is
 	// checked before anything else because a lapsed policy makes the rest moot.
 	it("reports expiry before another violated rule", () => {
-		const verdict = evaluate(tx({ chain: "hyperevm" }), {
-			expiry: "2026-08-28",
-			allowedChains: ["base"],
-		}, NOW);
+		const verdict = evaluate(
+			tx({ chain: "hyperevm" }),
+			{
+				expiry: "2026-08-28",
+				allowedChains: ["base"],
+			},
+			NOW
+		);
 
 		expect(verdict.allowed).toBe(false);
 		if (verdict.allowed) throw new Error("unreachable");
@@ -239,9 +245,7 @@ export const policySchema = z.object({
 
 export type Policy = z.infer<typeof policySchema>;
 
-export type PolicyVerdict =
-	| { allowed: true }
-	| { allowed: false; rule: string; message: string };
+export type PolicyVerdict = { allowed: true } | { allowed: false; rule: string; message: string };
 ```
 
 - [ ] **Step 4: Write the evaluator**
@@ -265,11 +269,7 @@ function refuse(rule: string, message: string): PolicyVerdict {
  * Every rule is optional and an absent rule permits, so a fresh install with no
  * policy behaves exactly as it did before this existed.
  */
-export function evaluate(
-	tx: PolicyTransaction,
-	policy: Policy | null,
-	now: Date
-): PolicyVerdict {
+export function evaluate(tx: PolicyTransaction, policy: Policy | null, now: Date): PolicyVerdict {
 	if (!policy) return ALLOWED;
 
 	// First, because a lapsed policy makes every other rule moot — and because
@@ -364,16 +364,18 @@ would turn a forgotten limit into no limits at all."
 ### Task 2: Policy storage
 
 **Files:**
+
 - Create: `src/services/policy/store.ts`
 - Test: `src/services/policy/store.test.ts`
 
 **Interfaces:**
+
 - Consumes: `policySchema`, `Policy` from `./types.js`; `paths` from `src/lib/config.ts`
 - Produces:
-  - `loadPolicy(): Policy | null | "unreadable"`
-  - `savePolicy(policy: Policy): void`
-  - `clearPolicy(): void`
-  - `policyPath(): string`
+    - `loadPolicy(): Policy | null | "unreadable"`
+    - `savePolicy(policy: Policy): void`
+    - `clearPolicy(): void`
+    - `policyPath(): string`
 
 `loadPolicy` returns three states rather than two, and the third is the point: an absent file permits, an unreadable one must refuse. Collapsing them would fail open.
 
@@ -541,10 +543,12 @@ half-edited policy silently become no policy."
 ### Task 3: The enforcement gate
 
 **Files:**
+
 - Create: `src/services/policy/enforce.ts`
 - Test: `src/services/policy/enforce.test.ts`
 
 **Interfaces:**
+
 - Consumes: `evaluate` from `./evaluate.js`; `loadPolicy` from `./store.js`; `FibxError`, `ErrorCode`
 - Produces: `assertAllowed(tx: PolicyTransaction): void` — throws `FibxError(POLICY_BLOCKED)` or returns
 
@@ -559,7 +563,10 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { ErrorCode } from "../../lib/errors.js";
 
 const mocks = vi.hoisted(() => ({ loadPolicy: vi.fn() }));
-vi.mock("./store.js", () => ({ loadPolicy: mocks.loadPolicy, policyPath: () => "/tmp/policy.json" }));
+vi.mock("./store.js", () => ({
+	loadPolicy: mocks.loadPolicy,
+	policyPath: () => "/tmp/policy.json",
+}));
 
 const { assertAllowed } = await import("./enforce.js");
 
@@ -675,10 +682,12 @@ message a user sees is written once."
 ### Task 4: Enforce on the account paths
 
 **Files:**
+
 - Modify: `src/services/chain/client.ts`
 - Test: `src/services/chain/client.test.ts` (extend the existing file)
 
 **Interfaces:**
+
 - Consumes: `assertAllowed` from `src/services/policy/enforce.js`
 - Produces: `getWalletClient` unchanged in signature; the account it returns refuses out-of-policy transactions
 
@@ -711,7 +720,11 @@ describe("policy enforcement on the account paths", () => {
 		);
 
 		await expect(
-			client.account!.signTransaction({ chainId: 8453, to: "0x2222222222222222222222222222222222222222", value: 0n })
+			client.account!.signTransaction({
+				chainId: 8453,
+				to: "0x2222222222222222222222222222222222222222",
+				value: 0n,
+			})
 		).rejects.toMatchObject({ code: ErrorCode.POLICY_BLOCKED });
 	});
 
@@ -836,11 +849,11 @@ function withPolicy<T extends Account>(account: T, chain: ChainConfig): T {
 Then, in `getWalletClient`, change the final return so the account is wrapped:
 
 ```typescript
-	return createWalletClient({
-		account: withPolicy(account, chain),
-		chain: chain.viemChain,
-		transport: http(chain.rpcUrl),
-	});
+return createWalletClient({
+	account: withPolicy(account, chain),
+	chain: chain.viemChain,
+	transport: http(chain.rpcUrl),
+});
 ```
 
 Add `Account` to the type imports from `viem`.
@@ -869,10 +882,12 @@ transport through viem's own action."
 ### Task 5: Enforce on the WalletConnect path
 
 **Files:**
+
 - Modify: `src/services/walletconnect/provider.ts`
 - Test: `src/services/walletconnect/provider.test.ts` (extend)
 
 **Interfaces:**
+
 - Consumes: `assertAllowed` from `src/services/policy/enforce.js`
 - Produces: the provider refuses out-of-policy `eth_sendTransaction` before it reaches the relay
 
@@ -937,9 +952,7 @@ describe("policy enforcement", () => {
 			params: [{ to: "0x2222222222222222222222222222222222222222" }],
 		});
 
-		expect(mocks.assertAllowed).toHaveBeenCalledWith(
-			expect.objectContaining({ value: 0n })
-		);
+		expect(mocks.assertAllowed).toHaveBeenCalledWith(expect.objectContaining({ value: 0n }));
 	});
 
 	it("does not consult the policy for a signature request", async () => {
@@ -985,19 +998,19 @@ import { assertAllowed } from "../policy/enforce.js";
 In `request()`, inside the existing `eth_sendTransaction` branch, before `ensureChain()`:
 
 ```typescript
-			if (method === "eth_sendTransaction") {
-				// The wallet path has no local account, so the fields arrive as
-				// hex in the params. Checking here means a refusal never becomes
-				// a confusing request on the user's phone.
-				const tx = (params[0] ?? {}) as { to?: string; value?: string };
-				assertAllowed({
-					chain: chain.name,
-					to: tx.to,
-					value: tx.value ? BigInt(tx.value) : 0n,
-				});
+if (method === "eth_sendTransaction") {
+	// The wallet path has no local account, so the fields arrive as
+	// hex in the params. Checking here means a refusal never becomes
+	// a confusing request on the user's phone.
+	const tx = (params[0] ?? {}) as { to?: string; value?: string };
+	assertAllowed({
+		chain: chain.name,
+		to: tx.to,
+		value: tx.value ? BigInt(tx.value) : 0n,
+	});
 
-				await ensureChain();
-			}
+	await ensureChain();
+}
 ```
 
 - [ ] **Step 4: Run the tests**
@@ -1023,15 +1036,17 @@ hex fields rather than a viem account, so they are normalised here."
 ### Task 6: `fibx policy`
 
 **Files:**
+
 - Create: `src/commands/policy/index.ts`
 - Test: `src/commands/policy/set.test.ts`
 - Modify: `src/index.ts`
 
 **Interfaces:**
+
 - Consumes: `loadPolicy`, `savePolicy`, `clearPolicy`, `policyPath` from the store; `CHAIN_NAMES`
 - Produces:
-  - `registerPolicyCommands(program: Command): void`
-  - `applyRule(policy: Policy, rule: string, value: string): Policy` — pure, exported for testing
+    - `registerPolicyCommands(program: Command): void`
+    - `applyRule(policy: Policy, rule: string, value: string): Policy` — pure, exported for testing
 
 A limit the user cannot read is a limit they will be surprised by, so `show` matters as much as `set`. `applyRule` is separated out because validating what goes into the file is the failure this command exists to prevent: a stored value the evaluator will not honour is worse than no policy.
 
@@ -1063,7 +1078,8 @@ describe("applyRule", () => {
 	});
 
 	it("sets per-chain destinations from a comma-separated list", () => {
-		const value = "0x1111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222";
+		const value =
+			"0x1111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222";
 
 		expect(applyRule({}, "base.allowedDestinations", value)).toEqual({
 			allowedDestinations: {
@@ -1151,7 +1167,10 @@ export function applyRule(policy: Policy, rule: string, value: string): Policy {
 	}
 
 	if (rule === "allowedChains") {
-		const chains = value.split(",").map((c) => c.trim()).filter(Boolean);
+		const chains = value
+			.split(",")
+			.map((c) => c.trim())
+			.filter(Boolean);
 		chains.forEach(assertChain);
 		next.allowedChains = chains;
 		return next;
@@ -1167,14 +1186,19 @@ export function applyRule(policy: Policy, rule: string, value: string): Policy {
 
 	if (chainRule === "maxValue") {
 		if (!/^\d+(\.\d+)?$/.test(value)) {
-			throw new Error(`"${value}" is not a number. Give an amount in native units, e.g. 0.05.`);
+			throw new Error(
+				`"${value}" is not a number. Give an amount in native units, e.g. 0.05.`
+			);
 		}
 		next.maxValue = { ...next.maxValue, [chain]: value };
 		return next;
 	}
 
 	if (chainRule === "allowedDestinations") {
-		const addresses = value.split(",").map((a) => a.trim()).filter(Boolean);
+		const addresses = value
+			.split(",")
+			.map((a) => a.trim())
+			.filter(Boolean);
 		for (const address of addresses) {
 			if (!ADDRESS.test(address)) {
 				throw new Error(`"${address}" is not an address.`);
@@ -1184,9 +1208,7 @@ export function applyRule(policy: Policy, rule: string, value: string): Policy {
 		return next;
 	}
 
-	throw new Error(
-		`Unknown rule: ${chainRule}. Try maxValue or allowedDestinations.`
-	);
+	throw new Error(`Unknown rule: ${chainRule}. Try maxValue or allowedDestinations.`);
 }
 
 function show(): void {
@@ -1211,7 +1233,8 @@ function show(): void {
 
 	console.log();
 	if (policy.expiry) console.log(`  expiry              ${policy.expiry}`);
-	if (policy.allowedChains) console.log(`  allowedChains       ${policy.allowedChains.join(", ")}`);
+	if (policy.allowedChains)
+		console.log(`  allowedChains       ${policy.allowedChains.join(", ")}`);
 	for (const [chain, cap] of Object.entries(policy.maxValue ?? {})) {
 		console.log(`  ${chain}.maxValue${" ".repeat(Math.max(1, 10 - chain.length))}${cap}`);
 	}
@@ -1227,15 +1250,15 @@ export function registerPolicyCommands(program: Command) {
 		.command("policy")
 		.description("Read and change the local signing policy");
 
-	policyCmd
-		.command("show")
-		.description("Print the active signing policy")
-		.action(show);
+	policyCmd.command("show").description("Print the active signing policy").action(show);
 
 	policyCmd
 		.command("set")
 		.description("Set one rule")
-		.argument("<rule>", "expiry, allowedChains, <chain>.maxValue or <chain>.allowedDestinations")
+		.argument(
+			"<rule>",
+			"expiry, allowedChains, <chain>.maxValue or <chain>.allowedDestinations"
+		)
 		.argument("<value>", "The value; comma-separated for lists")
 		.addHelpText(
 			"after",
@@ -1343,15 +1366,17 @@ believes they have a limit they do not have."
 ### Task 7: `fibx auth setup`
 
 **Files:**
+
 - Create: `src/commands/auth/setup.ts`
 - Test: `src/commands/auth/setup.test.ts`
 - Modify: `src/index.ts`, `src/services/auth/session.ts`
 
 **Interfaces:**
+
 - Consumes: the existing auth commands, imported dynamically
 - Produces:
-  - `routeChoice(choice: string): "connect" | "privy" | "import" | "explain"` — pure
-  - `authSetupCommand(opts: OutputOptions): Promise<void>`
+    - `routeChoice(choice: string): "connect" | "privy" | "import" | "explain"` — pure
+    - `authSetupCommand(opts: OutputOptions): Promise<void>`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1456,9 +1481,18 @@ export async function authSetupCommand(opts: OutputOptions): Promise<void> {
 				name: "choice",
 				message: "How should FibX sign?",
 				choices: [
-					{ name: "Connect a wallet I already have — approved on your phone", value: "1" },
-					{ name: "Create a wallet FibX can use on its own — bounded by Privy", value: "2" },
-					{ name: "Import a private key — unattended, limits are yours to set", value: "3" },
+					{
+						name: "Connect a wallet I already have — approved on your phone",
+						value: "1",
+					},
+					{
+						name: "Create a wallet FibX can use on its own — bounded by Privy",
+						value: "2",
+					},
+					{
+						name: "Import a private key — unattended, limits are yours to set",
+						value: "3",
+					},
 					{ name: "I want my own wallet AND unattended operation", value: "?" },
 				],
 			},
@@ -1518,7 +1552,7 @@ auth.command("setup")
 In `src/services/auth/session.ts`, change the message in `requireSession()`:
 
 ```typescript
-			"Not authenticated. Run `fibx auth setup` to choose how FibX should sign."
+"Not authenticated. Run `fibx auth setup` to choose how FibX should sign.";
 ```
 
 It named one of three paths, so every new user was steered to Privy without learning the other two exist.
@@ -1547,13 +1581,13 @@ table and the line under it:
 
 Run `fibx auth setup` and it will ask. The three paths differ on one thing:
 
-| Path | Key held by | Runs while you are away | Bounded by |
-| --- | --- | --- | --- |
-| `auth connect` | your own wallet | no | you, on your phone |
-| `auth login` | Privy | yes | Privy's signing policy |
-| `auth import` | this machine | yes | the local policy you set |
+| Path           | Key held by     | Runs while you are away | Bounded by               |
+| -------------- | --------------- | ----------------------- | ------------------------ |
+| `auth connect` | your own wallet | no                      | you, on your phone       |
+| `auth login`   | Privy           | yes                     | Privy's signing policy   |
+| `auth import`  | this machine    | yes                     | the local policy you set |
 
-Keeping your own wallet *and* having FibX act unattended needs ERC-7715, which
+Keeping your own wallet _and_ having FibX act unattended needs ERC-7715, which
 wallets do not yet expose over WalletConnect. `fibx auth setup` explains the
 closest options.
 ```

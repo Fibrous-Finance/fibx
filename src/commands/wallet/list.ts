@@ -1,4 +1,4 @@
-import { loadSession } from "../../services/auth/session.js";
+import { AUTH_HINT, loadSession } from "../../services/auth/session.js";
 import { outputResult, formatError, type OutputOptions } from "../../lib/format.js";
 
 export async function walletsCommand(opts: OutputOptions): Promise<void> {
@@ -6,10 +6,7 @@ export async function walletsCommand(opts: OutputOptions): Promise<void> {
 		const session = loadSession();
 
 		if (!session) {
-			outputResult(
-				{ message: "No active session. Run `fibx auth login <email>` first." },
-				opts
-			);
+			outputResult({ message: `No active session. ${AUTH_HINT}` }, opts);
 			return;
 		}
 

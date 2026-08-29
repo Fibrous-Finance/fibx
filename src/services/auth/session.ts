@@ -21,6 +21,19 @@ const sessionSchema = z.object({
 
 export type Session = z.infer<typeof sessionSchema>;
 
+/**
+ * One wording for "you have no wallet yet", used everywhere that discovers it.
+ *
+ * It has to name both `auth setup` and the three commands it routes to,
+ * because it is read on two surfaces with opposite constraints. On a terminal
+ * `auth setup` is the right answer — it asks which path you want instead of
+ * assuming Privy. Over MCP it is the wrong one: `auth setup` refuses without a
+ * TTY by design, so an agent following that advice is guaranteed to fail, and
+ * needs a command it can actually relay.
+ */
+export const AUTH_HINT =
+	"Run `fibx auth setup` to choose a signing path, or `fibx auth connect` / `fibx auth login <email>` / `fibx auth import` directly.";
+
 function getSessionPath(): string {
 	return join(paths.config, "session.json");
 }
@@ -86,18 +99,12 @@ export function loadSession(): Session | null {
 export function requireSession(): Session {
 	const session = loadSession();
 	if (!session) {
-		throw new FibxError(
-			ErrorCode.NOT_AUTHENTICATED,
-			"Not authenticated. Run `fibx auth setup` to choose how FibX should sign."
-		);
+		throw new FibxError(ErrorCode.NOT_AUTHENTICATED, `Not authenticated. ${AUTH_HINT}`);
 	}
 
 	if (session.userJwt && isSessionExpired(session.userJwt)) {
 		clearSession();
-		throw new FibxError(
-			ErrorCode.SESSION_EXPIRED,
-			"Session expired. Run `fibx auth login <email>` again."
-		);
+		throw new FibxError(ErrorCode.SESSION_EXPIRED, `Session expired. ${AUTH_HINT}`);
 	}
 
 	return session;

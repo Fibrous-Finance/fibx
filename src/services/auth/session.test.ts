@@ -16,7 +16,8 @@ const { configDir } = await vi.hoisted(async () => {
 // session.ts and crypto.ts import only `paths` from this module.
 vi.mock("../../lib/config.js", () => ({ paths: { config: configDir } }));
 
-const { loadSession, saveSession, clearSession } = await import("./session.js");
+const { loadSession, saveSession, clearSession, requireSession, AUTH_HINT } =
+	await import("./session.js");
 
 function writeRaw(contents: unknown): void {
 	mkdirSync(configDir, { recursive: true });
@@ -65,6 +66,32 @@ describe("session schema", () => {
 
 		const raw = JSON.parse(readFileSync(join(configDir, "session.json"), "utf-8"));
 		expect(raw.wcTopic).toBeUndefined();
+	});
+});
+
+/**
+ * The message is read on two surfaces with opposite constraints, and naming
+ * only one of them is a correctness bug rather than a wording preference.
+ */
+describe("the not-authenticated message", () => {
+	// `auth setup` refuses without a TTY by design, so an MCP agent told only
+	// to run it gets advice guaranteed to fail. It needs a command the MCP
+	// `login` tool can actually relay.
+	it("names a command that works over stdio, not only `auth setup`", () => {
+		expect(AUTH_HINT).toContain("fibx auth login <email>");
+		expect(AUTH_HINT).toContain("fibx auth import");
+		expect(AUTH_HINT).toContain("fibx auth connect");
+	});
+
+	// The whole point of `auth setup`: stop steering every new user to Privy.
+	it("offers the chooser first, rather than naming one path as the way in", () => {
+		expect(AUTH_HINT).toContain("fibx auth setup");
+	});
+
+	it("is what requireSession throws when there is no session", () => {
+		clearSession();
+
+		expect(() => requireSession()).toThrow(AUTH_HINT);
 	});
 });
 

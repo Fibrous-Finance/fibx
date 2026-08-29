@@ -123,6 +123,25 @@ describe("evaluate", () => {
 		it("refuses an unparseable expiry rather than ignoring it", () => {
 			expect(evaluate(tx(), { expiry: "not-a-date" }, NOW).allowed).toBe(false);
 		});
+
+		/**
+		 * A bare date parses as UTC midnight at the START of that day, so
+		 * `expiry 2026-12-31` lapses as Dec 31 begins, not as it ends. That is
+		 * `new Date("YYYY-MM-DD")`'s documented behaviour and the `set` help
+		 * text now says so; this pins it, because the tempting "fix" — rolling
+		 * the date forward to the end of the day — would silently extend every
+		 * expiry already on disk by a day.
+		 */
+		it("treats a bare date as the start of that day in UTC, not the end", () => {
+			const oneSecondIntoTheDay = new Date("2026-12-31T00:00:01Z");
+
+			expect(evaluate(tx(), { expiry: "2026-12-31" }, oneSecondIntoTheDay).allowed).toBe(
+				false
+			);
+			expect(
+				evaluate(tx(), { expiry: "2026-12-31" }, new Date("2026-12-30T23:59:59Z")).allowed
+			).toBe(true);
+		});
 	});
 
 	// Order matters only for which message the user sees first; expiry is

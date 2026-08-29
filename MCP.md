@@ -67,7 +67,9 @@ Add to `~/.gemini/antigravity/mcp_config.json`:
 }
 ```
 
-> **Important:** You must be authenticated (`fibx auth login` or `fibx auth import`) before the MCP server can execute wallet operations.
+> **Important:** You must be authenticated before the MCP server can execute wallet
+> operations. Run `fibx auth setup` to choose a signing path, or `fibx auth connect` /
+> `fibx auth login <email>` / `fibx auth import` directly.
 
 ## Available Tools (13)
 
@@ -289,6 +291,17 @@ configuration:
   configured chains, caps each transaction's native-token `value`, and denies
   key export. `fibx-server` also validates transaction shape. Server credentials
   and custom policy configuration remain part of the trust boundary.
+- **A local policy bounds all three signing paths.** `fibx policy` writes a file
+  on the user's machine that is evaluated before every transaction is signed —
+  local key, Privy, or WalletConnect alike — so it applies on this surface,
+  where a misbehaving model is the threat it exists for. It bounds the native
+  value per transaction (`maxValue`), which chains may be used
+  (`allowedChains`), where anything may be sent (`allowedDestinations`), and
+  for how long the whole policy stands (`expiry`). A refusal comes back as
+  `POLICY_BLOCKED` with the rule and the limit named. Two honest limits: it
+  does not bound token amounts — an ERC-20 transfer carries `value: 0`, so only
+  `allowedDestinations` constrains it — and it is a local file, so it is worth
+  nothing against something that can already write to the user's disk.
 - **Read-only tools need no wallet.** `get_quote`, `get_tx_status`, and
   `get_aave_markets` work with no session at all, so an agent can explore
   prices and rates before any wallet exists.
@@ -300,10 +313,14 @@ All tool errors are returned as structured JSON with `isError: true`:
 ```json
 {
 	"success": false,
-	"error": "Not authenticated. Run `fibx auth login <email>` first.",
+	"error": "Not authenticated. Run `fibx auth setup` to choose a signing path, or `fibx auth connect` / `fibx auth login <email>` / `fibx auth import` directly.",
 	"code": "NOT_AUTHENTICATED"
 }
 ```
+
+`code` is read from the typed error anywhere in the `cause` chain, so a refusal
+raised inside a transport — a `POLICY_BLOCKED` from the signing policy, say —
+arrives with its own code and message rather than as `UNKNOWN_ERROR`.
 
 EVM-specific errors (reverts, gas estimation failures) are parsed and human-readable via the `parseEvmError` utility.
 
@@ -334,11 +351,11 @@ If using Privy authentication, ensure [fibx-server](https://github.com/Fibrous-F
 
 ## Troubleshooting
 
-| Problem                    | Solution                                                             |
-| -------------------------- | -------------------------------------------------------------------- |
-| Server won't start         | Ensure Node.js >= 18 is installed and `npx fibx --version` works     |
-| "Not authenticated" errors | Run `fibx auth login <email>` or `fibx auth import` before starting  |
-| Wallet operations fail     | Ensure `fibx-server` is running (not needed for private key imports) |
-| Rate limit errors          | Use `config_action` tool to set a custom RPC URL                     |
-| Editor can't connect       | Verify the MCP config JSON syntax and restart the editor             |
-| Stale tool responses       | Config changes are auto-detected via hot-reload — no restart needed  |
+| Problem                    | Solution                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------ |
+| Server won't start         | Ensure Node.js >= 18 is installed and `npx fibx --version` works               |
+| "Not authenticated" errors | Run `fibx auth setup` (or `auth connect` / `auth login` / `auth import`) first |
+| Wallet operations fail     | Ensure `fibx-server` is running (not needed for private key imports)           |
+| Rate limit errors          | Use `config_action` tool to set a custom RPC URL                               |
+| Editor can't connect       | Verify the MCP config JSON syntax and restart the editor                       |
+| Stale tool responses       | Config changes are auto-detected via hot-reload — no restart needed            |
