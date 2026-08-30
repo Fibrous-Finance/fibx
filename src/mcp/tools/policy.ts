@@ -64,8 +64,12 @@ export function registerPolicyTools(server: McpServer): number {
 				"the policy entirely. Removing everything leaves nothing limiting what this " +
 				"wallet will sign.",
 			inputSchema: {
+				// min(1): omitting the field means "remove everything", and an
+				// explicit empty string must not be silently treated the same
+				// way — a blank form field in the panel sends "", not omission.
 				rule: z
 					.string()
+					.min(1)
 					.optional()
 					.describe("The rule to remove; omit to remove the whole policy"),
 			},

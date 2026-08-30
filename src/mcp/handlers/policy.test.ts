@@ -128,4 +128,26 @@ describe("clear_policy_rule", () => {
 		expect(mocks.clearPolicy).toHaveBeenCalled();
 		expect(mocks.savePolicy).not.toHaveBeenCalled();
 	});
+
+	// A fresh install (or the state right after clearing the whole policy)
+	// has no file at all — loadPolicy returns null. An invalid rule name
+	// must still be rejected in that state, not reported as "not set": that
+	// would tell a caller their nonsense rule was a valid no-op.
+	it("still validates the rule name when no policy file exists", async () => {
+		mocks.loadPolicy.mockReturnValue(null);
+
+		await expect(handleClearPolicyRule({ rule: "nonsense" })).rejects.toThrow();
+		expect(mocks.savePolicy).not.toHaveBeenCalled();
+	});
+
+	// An omitted rule and an explicit empty string are not the same value.
+	// A blank field in the panel's form sends "", and that must not silently
+	// wipe every bound the way leaving the argument off does.
+	it("rejects an empty rule string instead of clearing the whole policy", async () => {
+		mocks.loadPolicy.mockReturnValue({ maxValue: { base: "0.05" } });
+
+		await expect(handleClearPolicyRule({ rule: "" })).rejects.toThrow();
+		expect(mocks.clearPolicy).not.toHaveBeenCalled();
+		expect(mocks.savePolicy).not.toHaveBeenCalled();
+	});
 });

@@ -50,15 +50,25 @@ function readForWrite() {
 
 export async function handleSetPolicyRule({ rule, value }: { rule: string; value: string }) {
 	const current = readForWrite();
-	// applyRule throws FibxError on an unknown rule, chain, address or number.
-	// Letting that propagate keeps one grammar and one set of messages.
+	// applyRule throws a plain Error (not FibxError) on an unknown rule, chain,
+	// address or number. findFibxError won't match a plain Error, so
+	// withErrorHandling falls back to reporting it as UNKNOWN_ERROR via the
+	// same parseEvmError path the CLI's own catch already uses for these same
+	// throws — MCP and CLI still agree on the message. Letting it propagate
+	// keeps one grammar and one set of messages; promoting these throw sites
+	// to FibxError is its own task, since it also changes the CLI's visible
+	// output.
 	const next = applyRule(current ?? {}, rule, value);
 	savePolicy(next);
 	return jsonResult({ ok: true, rule, value, rules: next });
 }
 
 export async function handleClearPolicyRule({ rule }: { rule?: string }) {
-	if (!rule) {
+	// Only an omitted rule means "remove everything". An explicit empty
+	// string is a different value — the shape a blank panel form field
+	// sends — and must fall through to validation below instead of being
+	// treated the same as omission.
+	if (rule === undefined) {
 		clearPolicy();
 		return jsonResult({
 			ok: true,
@@ -69,8 +79,11 @@ export async function handleClearPolicyRule({ rule }: { rule?: string }) {
 
 	const current = readForWrite();
 	// removeRule returns null when the rule is valid but was never set, and
-	// throws when the rule name itself is wrong. Two different answers.
-	const next = current ? removeRule(current, rule) : null;
+	// throws when the rule name itself is wrong — "" included, since it splits
+	// to no chain. Two different answers. current ?? {} is passed even when no
+	// policy file exists at all, so an invalid rule name is still rejected
+	// rather than quietly reported as "not set".
+	const next = removeRule(current ?? {}, rule);
 	if (!next) {
 		return jsonResult({ ok: true, changed: false, message: `${rule} was not set.` });
 	}
