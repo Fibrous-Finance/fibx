@@ -159,7 +159,7 @@ function isEmptyGroup(group: Record<string, unknown> | undefined): boolean {
 	return !group || Object.keys(group).length === 0;
 }
 
-function isEmptyPolicy(policy: Policy): boolean {
+export function isEmptyPolicy(policy: Policy): boolean {
 	return (
 		policy.expiry === undefined &&
 		policy.allowedChains === undefined &&

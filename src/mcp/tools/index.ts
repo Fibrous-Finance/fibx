@@ -3,6 +3,7 @@ import { registerAuthAndConfigTools } from "./auth.js";
 import { registerWalletTools } from "./wallet.js";
 import { registerTradeTools } from "./trade.js";
 import { registerDefiTools } from "./defi.js";
+import { registerPolicyTools } from "./policy.js";
 
 export interface ToolCategory {
 	name: string;
@@ -20,6 +21,7 @@ export function registerTools(server: McpServer): ToolSummary {
 		{ name: "Wallet & Portfolio", count: registerWalletTools(server) },
 		{ name: "Trading", count: registerTradeTools(server) },
 		{ name: "DeFi (Aave V3)", count: registerDefiTools(server) },
+		{ name: "Policy", count: registerPolicyTools(server) },
 	];
 
 	return {
