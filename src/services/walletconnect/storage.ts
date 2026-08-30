@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, rmSync, chmodSync } from "node:fs";
 import { dirname } from "node:path";
 import type { IKeyValueStorage } from "@walletconnect/keyvaluestorage";
 
@@ -30,6 +30,9 @@ export class FileKeyValueStorage implements IKeyValueStorage {
 	private write(data: Record<string, unknown>): void {
 		mkdirSync(dirname(this.file), { recursive: true });
 		writeFileSync(this.file, JSON.stringify(data), { encoding: "utf-8", mode: 0o600 });
+		// mode on writeFileSync only applies when the file is created, so an
+		// existing store keeps whatever permissions it had. Re-assert them.
+		chmodSync(this.file, 0o600);
 	}
 
 	async getKeys(): Promise<string[]> {

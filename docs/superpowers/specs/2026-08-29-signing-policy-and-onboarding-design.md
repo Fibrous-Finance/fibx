@@ -9,11 +9,11 @@
 FibX now offers three ways to sign, and they differ on one axis: who holds the
 key, and what bounds it.
 
-| Path | Key held by | Runs unattended | Bounded by |
-|---|---|---|---|
-| `auth login` (Privy) | Privy's infrastructure | yes | Privy signing policy |
-| `auth import` (private key) | this machine, encrypted | yes | **nothing** |
-| `auth connect` (WalletConnect) | the user's own wallet | no | the human |
+| Path                           | Key held by             | Runs unattended | Bounded by           |
+| ------------------------------ | ----------------------- | --------------- | -------------------- |
+| `auth login` (Privy)           | Privy's infrastructure  | yes             | Privy signing policy |
+| `auth import` (private key)    | this machine, encrypted | yes             | **nothing**          |
+| `auth connect` (WalletConnect) | the user's own wallet   | no              | the human            |
 
 Two problems follow.
 
@@ -38,13 +38,13 @@ telling them plainly when what they want does not exist yet.
 ## What the research settled
 
 Phase 2 was originally scoped as ERC-7715 session keys: the user keeps their own
-wallet *and* grants FibX bounded, unattended authority. That is the one
+wallet _and_ grants FibX bounded, unattended authority. That is the one
 combination none of the three paths offers, and it turns out not to be available.
 
 Measured or verified on 2026-08-29:
 
 - **EIP-7702 is live on all three chains.** A well-formed type-4 transaction with
-  a deliberately unrecoverable signature was rejected at the *signature* layer by
+  a deliberately unrecoverable signature was rejected at the _signature_ layer by
   Base, Monad and HyperEVM alike — meaning each decoded the `authorizationList`.
   Base named the type outright (`rlp: too few elements for types.SetCodeTx`).
   This corrects an earlier reading of HyperEVM's block header: `requestsHash`
@@ -65,7 +65,7 @@ Measured or verified on 2026-08-29:
   third party this work exists to remove, and none of it is headless.
 
 The conclusion is that the third combination is unavailable today, not that it is
-undesirable. This design takes the two paths that *are* available and makes both
+undesirable. This design takes the two paths that _are_ available and makes both
 honest, and turns the negative result into something onboarding can explain.
 
 ## Non-goals
@@ -122,7 +122,7 @@ a few lines.
 
 ### Why the policy binds all three paths
 
-For the imported key it is the *only* bound. For Privy it is defence in depth,
+For the imported key it is the _only_ bound. For Privy it is defence in depth,
 and it fails locally with a clearer message than a server-side rejection. For
 WalletConnect it means an agent attempting something absurd is stopped on this
 machine, with a readable reason, instead of pushing a confusing request to the
@@ -137,12 +137,12 @@ One enforcement rule, one mental model, three paths.
 Every rule is a pure function of the transaction. All are optional; an absent
 rule permits.
 
-| Rule | Shape | Bounds |
-|---|---|---|
-| Allowed chains | list of chain names | which networks may be signed for |
-| Per-transaction native cap | per chain, decimal native units | the size of one mistake |
-| Allowed destinations | per chain, list of addresses | where value and calls may go |
-| Expiry | ISO date | how long the policy is honoured |
+| Rule                       | Shape                           | Bounds                           |
+| -------------------------- | ------------------------------- | -------------------------------- |
+| Allowed chains             | list of chain names             | which networks may be signed for |
+| Per-transaction native cap | per chain, decimal native units | the size of one mistake          |
+| Allowed destinations       | per chain, list of addresses    | where value and calls may go     |
+| Expiry                     | ISO date                        | how long the policy is honoured  |
 
 "Destinations" rather than "contracts" because the rule reads the transaction's
 `to` and does not care what is deployed there: a swap through a Fibrous router
@@ -179,9 +179,27 @@ key can edit the policy, so this is worth nothing against malware, and the
 documentation will say so in those words.
 
 The threat it does meet is the one FibX's positioning is about: a model that
-misbehaves, or a prompt injection that tells it to. "Drain the wallet" hits the
-cap. That is a real and different guarantee from "your machine is secure", and
-conflating the two would be dishonest.
+misbehaves, or a prompt injection that tells it to. That is a real and different
+guarantee from "your machine is secure", and conflating the two would be
+dishonest.
+
+It also does not bound token holdings. `maxValue` caps the native `value` field
+of a transaction and nothing else. An ERC-20 transfer arrives at the policy as
+`{to: <the token contract>, value: 0n}` — the amount lives in the calldata,
+which no rule here reads — so `base.maxValue 0.05` places no limit at all on
+`fibx send 50000 USDC 0xattacker`, on the token side of a trade, or on an Aave
+borrow or withdraw. An earlier draft of this section claimed "'Drain the wallet'
+hits the cap"; that is true of native value and false of everything else, and
+the README inherited the overclaim.
+
+`allowedDestinations` is what bounds tokens, and it does so by destination
+rather than by amount. It cannot be made to do both: to trade a token you must
+allowlist that token's contract, because the `approve` call's `to` IS the token
+— and once it is allowlisted, `transfer(attacker, everything)` is permitted too.
+
+A real token-value cap needs per-token decimals and a token registry at
+evaluation time, and is out of scope for this phase. The documentation says so
+plainly rather than implying a bound that does not exist.
 
 ### Reading and changing it: `fibx policy`
 

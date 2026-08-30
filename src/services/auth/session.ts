@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, unlinkSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, unlinkSync, mkdirSync, chmodSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { z } from "zod";
 import { paths } from "../../lib/config.js";
@@ -21,8 +21,40 @@ const sessionSchema = z.object({
 
 export type Session = z.infer<typeof sessionSchema>;
 
+/**
+ * One wording for "you have no wallet yet", used everywhere that discovers it.
+ *
+ * It has to name both `auth setup` and the three commands it routes to,
+ * because it is read on two surfaces with opposite constraints. On a terminal
+ * `auth setup` is the right answer — it asks which path you want instead of
+ * assuming Privy. Over MCP it is the wrong one: `auth setup` refuses without a
+ * TTY by design, so an agent following that advice is guaranteed to fail, and
+ * needs a command it can actually relay.
+ */
+export const AUTH_HINT =
+	"Run `fibx auth setup` to choose a signing path, or `fibx auth connect` / `fibx auth login <email>` / `fibx auth import` directly.";
+
 function getSessionPath(): string {
 	return join(paths.config, "session.json");
+}
+
+/**
+ * Written 0600: session.json holds the encrypted private key and a live Privy
+ * JWT — anything that can read it can act as the wallet.
+ *
+ * The chmod is not redundant with the mode. POSIX open() applies `mode` only
+ * when it creates the file, so a session.json written by an earlier version
+ * (which passed no mode at all, leaving it -rw-r--r--) would keep those
+ * permissions through every later save.
+ */
+function writeSessionFile(session: Session): void {
+	const filePath = getSessionPath();
+	mkdirSync(dirname(filePath), { recursive: true });
+	writeFileSync(filePath, JSON.stringify(session, null, 2), {
+		encoding: "utf-8",
+		mode: 0o600,
+	});
+	chmodSync(filePath, 0o600);
 }
 
 /**
@@ -41,8 +73,7 @@ function migrateIfNeeded(session: Session): Session {
 			delete migrated.privateKey;
 
 			// Persist the migration
-			const filePath = getSessionPath();
-			writeFileSync(filePath, JSON.stringify(migrated, null, 2), "utf-8");
+			writeSessionFile(migrated);
 
 			return migrated;
 		} catch {
@@ -68,18 +99,12 @@ export function loadSession(): Session | null {
 export function requireSession(): Session {
 	const session = loadSession();
 	if (!session) {
-		throw new FibxError(
-			ErrorCode.NOT_AUTHENTICATED,
-			"Not authenticated. Run `fibx auth login <email>` first."
-		);
+		throw new FibxError(ErrorCode.NOT_AUTHENTICATED, `Not authenticated. ${AUTH_HINT}`);
 	}
 
 	if (session.userJwt && isSessionExpired(session.userJwt)) {
 		clearSession();
-		throw new FibxError(
-			ErrorCode.SESSION_EXPIRED,
-			"Session expired. Run `fibx auth login <email>` again."
-		);
+		throw new FibxError(ErrorCode.SESSION_EXPIRED, `Session expired. ${AUTH_HINT}`);
 	}
 
 	return session;
@@ -120,9 +145,6 @@ function isSessionExpired(token: string): boolean {
 }
 
 export function saveSession(session: Session): void {
-	const filePath = getSessionPath();
-	mkdirSync(dirname(filePath), { recursive: true });
-
 	// Clone to avoid mutating the caller's object
 	const toSave = { ...session };
 
@@ -133,7 +155,7 @@ export function saveSession(session: Session): void {
 	}
 
 	sessionSchema.parse(toSave);
-	writeFileSync(filePath, JSON.stringify(toSave, null, 2), "utf-8");
+	writeSessionFile(toSave);
 }
 
 export function clearSession(): void {

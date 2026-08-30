@@ -16,6 +16,7 @@ import { walletsCommand } from "./commands/wallet/list.js";
 import { txStatusCommand } from "./commands/chain/transaction.js";
 import { aaveCommand } from "./commands/defi/aave.js";
 import { registerConfigCommands } from "./commands/config/index.js";
+import { registerPolicyCommands } from "./commands/policy/index.js";
 import { logoutCommand } from "./commands/auth/logout.js";
 
 declare const FIBX_VERSION: string;
@@ -77,7 +78,7 @@ const COMMAND_GROUPS: Record<string, string[]> = {
 	Wallet: ["address", "balance", "wallets", "send"],
 	Trading: ["quote", "trade", "portfolio"],
 	DeFi: ["aave"],
-	System: ["status", "tx-status", "config", "mcp-start", "help"],
+	System: ["status", "tx-status", "config", "policy", "mcp-start", "help"],
 };
 
 // ── Program Setup ────────────────────────────────────────────────────
@@ -199,6 +200,7 @@ program.configureHelp({
 });
 
 registerConfigCommands(program);
+registerPolicyCommands(program);
 program
 	.option("-c, --chain <chain>", "Chain to use (base, hyperevm, monad)", "base")
 	.option("--json", "Output results as JSON", false)
@@ -243,6 +245,14 @@ auth.command("connect")
 		const globalOpts = cmd.parent!.parent!.opts();
 		const { authConnectCommand } = await import("./commands/auth/connect.js");
 		await authConnectCommand({ json: globalOpts.json });
+	});
+
+auth.command("setup")
+	.description("Choose how FibX should sign, with the trade-offs explained")
+	.action(async (_opts, cmd) => {
+		const globalOpts = cmd.parent!.parent!.opts();
+		const { authSetupCommand } = await import("./commands/auth/setup.js");
+		await authSetupCommand({ json: globalOpts.json });
 	});
 
 auth.addCommand(logoutCommand);

@@ -86,22 +86,19 @@ That's it. Three steps from zero to first swap.
 
 ## Usage
 
-### Authentication
+### Choosing how FibX signs
 
-```bash
-# Email OTP (uses Privy server wallet)
-npx fibx auth login user@example.com
-npx fibx auth verify user@example.com 123456
+Run `fibx auth setup` and it will ask. The three paths differ on one thing:
 
-# Or import a private key (local signing, no server needed)
-npx fibx auth import
+| Path           | Key held by     | Runs while you are away | Bounded by               |
+| -------------- | --------------- | ----------------------- | ------------------------ |
+| `auth connect` | your own wallet | no                      | you, on your phone       |
+| `auth login`   | Privy           | yes                     | Privy's signing policy   |
+| `auth import`  | this machine    | yes                     | the local policy you set |
 
-# Check session status
-npx fibx status
-
-# Logout
-npx fibx auth logout
-```
+Keeping your own wallet _and_ having FibX act unattended needs ERC-7715, which
+wallets do not yet expose over WalletConnect. `fibx auth setup` explains the
+closest options.
 
 > **Security:** When using `auth import`, your private key is encrypted at rest with AES-256-GCM. The encryption key is auto-generated per machine and stored in the OS config directory (e.g. `~/.config/fibx-nodejs/encryption-key` on Linux). You can also set the `FIBX_SESSION_SECRET` environment variable for CI/Docker environments.
 
@@ -139,12 +136,51 @@ own id.
 `auth login` (email OTP) and `auth import` (private key) are unchanged and remain
 available.
 
+### Signing policy
+
+`fibx policy` bounds what FibX is allowed to sign, on top of whichever path
+from the table above holds the key — a client-side cap evaluated before every
+local-key, Privy, or WalletConnect transaction:
+
+```bash
+npx fibx policy show                    # Print the active policy
+
+npx fibx policy set base.maxValue 0.05
+npx fibx policy set allowedChains base,monad
+npx fibx policy set base.allowedDestinations 0xYourColdWallet,0xTheRouter
+npx fibx policy set expiry 2026-12-31   # UTC midnight starting that day
+
+npx fibx policy clear base.maxValue     # Remove one rule
+npx fibx policy clear                   # Remove the whole policy (asks first)
+```
+
+A local policy guarding a local key is advisory: anything that can read the
+key can edit the policy, so this is worth nothing against malware. What it
+does bound is the agent — a model that misbehaves, or a prompt injection
+telling it to.
+
+Know what each rule bounds, because they are not the same:
+
+- `maxValue` caps the **native** value of a single transaction — ETH on Base,
+  HYPE on HyperEVM, MON on Monad. It does not bound tokens. An ERC-20 transfer
+  reaches the policy as a call to the token's contract carrying `value: 0`, so
+  the amount is invisible to it: `base.maxValue 0.05` places no limit on
+  `fibx send 50000 USDC 0xsomewhere`, on the token side of a trade, or on an
+  Aave borrow. A token-value cap needs decimals and a token registry, and is
+  not in this release.
+- `allowedDestinations` is the rule that bounds tokens, by bounding where
+  anything may go. It is the one to set if the worry is an agent moving your
+  holdings somewhere. Note that allowlisting a token's contract so a trade can
+  approve it also permits transfers of that token.
+- `allowedChains` and `expiry` do exactly what they say. A lapsed or
+  unparseable policy refuses everything rather than permitting it.
+
 ### Global Options
 
-| Option               | Description                                          | Default |
-| -------------------- | ---------------------------------------------------- | ------- |
+| Option               | Description                                | Default |
+| -------------------- | ------------------------------------------ | ------- |
 | `-c, --chain <name>` | Target chain (`base`, `hyperevm`, `monad`) | `base`  |
-| `--json`             | Output results as JSON                               | `false` |
+| `--json`             | Output results as JSON                     | `false` |
 
 ### Balance
 

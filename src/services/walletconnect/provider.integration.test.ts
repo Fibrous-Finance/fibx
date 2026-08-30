@@ -1,10 +1,13 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterAll } from "vitest";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import {
 	getInternalError,
 	isValidNamespacesChainId,
 	isValidNamespacesRequest,
 } from "@walletconnect/utils";
 import { parseAbi } from "viem";
+import type * as ConfigModule from "../../lib/config.js";
 import type { Session } from "../auth/session.js";
 import { SUPPORTED_CHAINS } from "../chain/constants.js";
 import { buildOptionalNamespaces } from "./namespaces.js";
@@ -31,6 +34,30 @@ import { buildOptionalNamespaces } from "./namespaces.js";
 const mocks = vi.hoisted(() => ({ getSignClient: vi.fn(), getActiveSession: vi.fn() }));
 vi.mock("./client.js", () => ({ getSignClient: mocks.getSignClient }));
 vi.mock("./connect.js", () => ({ getActiveSession: mocks.getActiveSession }));
+
+/**
+ * The real policy gate sits on this path — that is the point of the file, and
+ * `refuses a transaction the policy blocks` below is the only end-to-end proof
+ * of it. But the real gate reads the real `policy.json`, so without this the
+ * suite reads the developer's own config directory and the first person to run
+ * `fibx policy set base.maxValue 0` gets four failures here.
+ *
+ * env-paths ignores XDG_CONFIG_HOME on macOS, so an env var would not isolate
+ * it; `policy/store.test.ts` mocks this module for exactly the same reason.
+ * Only `paths` is replaced — every other export stays real, because this graph
+ * pulls in more of the module than the policy store does.
+ */
+const { configDir } = await vi.hoisted(async () => {
+	const { mkdtempSync } = await import("node:fs");
+	const { tmpdir } = await import("node:os");
+	const { join: joinPath } = await import("node:path");
+	return { configDir: mkdtempSync(joinPath(tmpdir(), "fibx-wc-integration-")) };
+});
+
+vi.mock("../../lib/config.js", async (importOriginal) => ({
+	...(await importOriginal<typeof ConfigModule>()),
+	paths: { config: configDir },
+}));
 
 const { getWalletClient } = await import("../chain/client.js");
 
@@ -94,7 +121,17 @@ function wcSession(chain = BASE): Session {
 	};
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+	vi.clearAllMocks();
+	rmSync(join(configDir, "policy.json"), { force: true });
+});
+
+afterAll(() => rmSync(configDir, { recursive: true, force: true }));
+
+function writePolicy(policy: unknown): void {
+	mkdirSync(configDir, { recursive: true });
+	writeFileSync(join(configDir, "policy.json"), JSON.stringify(policy), "utf-8");
+}
 
 const AAVE_POOL_ABI = parseAbi([
 	"function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode)",
@@ -183,5 +220,30 @@ describe("real viem over a namespace-validating WalletConnect session", () => {
 		});
 
 		expect(relayed.map((r) => r.chainId)).toEqual(["eip155:143"]);
+	});
+
+	/**
+	 * The end-to-end proof that the signing policy sits on the real
+	 * WalletConnect path. `provider.test.ts` proves the gate is called with the
+	 * right transaction; only here does the refusal travel through real viem,
+	 * and only here is it visible that a blocked transaction never reaches the
+	 * relay — so the wallet never asks the user to approve something FibX has
+	 * already decided against.
+	 */
+	it("refuses a transaction the signing policy blocks, before the relay sees it", async () => {
+		writePolicy({ maxValue: { base: "0" } });
+		const { relayed, signClient } = relayStub();
+		mocks.getSignClient.mockResolvedValue(signClient);
+		mocks.getActiveSession.mockResolvedValue({ topic: "topic-8453", namespaces: APPROVED });
+
+		const client = await getWalletClient(wcSession(), BASE);
+
+		await expect(
+			client.sendTransaction({
+				to: "0x2222222222222222222222222222222222222222",
+				value: 1n,
+			})
+		).rejects.toThrow(/exceeds the per-transaction cap/);
+		expect(relayed).toEqual([]);
 	});
 });

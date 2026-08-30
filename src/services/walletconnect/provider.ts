@@ -3,6 +3,7 @@ import { getSignClient } from "./client.js";
 import { getActiveSession } from "./connect.js";
 import { caip2, sessionHasChain } from "./namespaces.js";
 import { ErrorCode, FibxError } from "../../lib/errors.js";
+import { assertAllowed } from "../policy/enforce.js";
 
 /** Requests that only make sense against the wallet's own key. */
 const READ_ONLY_REJECT = new Set(["eth_signTransaction"]);
@@ -113,6 +114,16 @@ export function createWalletConnectProvider(
 			}
 
 			if (method === "eth_sendTransaction") {
+				// The wallet path has no local account, so the fields arrive as
+				// hex in the params. Checking here means a refusal never becomes
+				// a confusing request on the user's phone.
+				const tx = (params[0] ?? {}) as { to?: string; value?: string };
+				assertAllowed({
+					chain: chain.name,
+					to: tx.to,
+					value: tx.value ? BigInt(tx.value) : 0n,
+				});
+
 				await ensureChain();
 			}
 

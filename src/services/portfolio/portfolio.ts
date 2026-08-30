@@ -1,5 +1,5 @@
 import type { Address } from "viem";
-import { loadSession } from "../auth/session.js";
+import { AUTH_HINT, loadSession } from "../auth/session.js";
 import { getChainConfig, SUPPORTED_CHAINS, type ChainConfig } from "../chain/constants.js";
 import { getPublicClient } from "../chain/client.js";
 import { getTokens, type Token } from "../fibrous/tokens.js";
@@ -95,7 +95,7 @@ async function fetchAavePosition(wallet: Address): Promise<DeFiPosition | null> 
 export async function getPortfolio(): Promise<Portfolio> {
 	const session = loadSession();
 	if (!session) {
-		throw new Error("No active session. Run 'fibx auth login <email>' first.");
+		throw new Error(`No active session. ${AUTH_HINT}`);
 	}
 
 	const wallet = session.walletAddress as Address;

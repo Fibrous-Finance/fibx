@@ -1,4 +1,5 @@
 import { createPublicClient, createWalletClient, custom, http } from "viem";
+import type { LocalAccount } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
 import type { Session } from "../auth/session.js";
@@ -6,12 +7,38 @@ import { getPrivateKey } from "../auth/session.js";
 import type { ChainConfig } from "./constants.js";
 import { toPrivyViemAccount } from "../privy/account.js";
 import { ErrorCode, FibxError } from "../../lib/errors.js";
+import { assertAllowed } from "../policy/enforce.js";
 
 export function getPublicClient(chain: ChainConfig) {
 	return createPublicClient({
 		chain: chain.viemChain,
 		transport: http(chain.rpcUrl),
 	});
+}
+
+/**
+ * Puts the policy gate on an account's signTransaction.
+ *
+ * This is the last point where the transaction is readable and the last before
+ * anything reaches the network. Wrapping the wallet client instead would miss
+ * writeContract — Aave's eight writes reach the transport through viem's own
+ * action, not through a method we could have overridden.
+ */
+function withPolicy<T extends LocalAccount>(account: T, chain: ChainConfig): T {
+	return {
+		...account,
+		async signTransaction(transaction: Parameters<T["signTransaction"]>[0], args?: unknown) {
+			assertAllowed({
+				chain: chain.name,
+				to: transaction.to ?? undefined,
+				value: transaction.value ?? 0n,
+			});
+			return (account.signTransaction as (t: unknown, a?: unknown) => Promise<`0x${string}`>)(
+				transaction,
+				args
+			);
+		},
+	} as T;
 }
 
 /**
@@ -79,7 +106,7 @@ export async function getWalletClient(session: Session, chain: ChainConfig) {
 	}
 
 	return createWalletClient({
-		account,
+		account: withPolicy(account, chain),
 		chain: chain.viemChain,
 		transport: http(chain.rpcUrl),
 	});
