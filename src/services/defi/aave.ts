@@ -24,6 +24,7 @@ import {
 	InterestRateMode,
 } from "./constants.js";
 import { NonceManager } from "../chain/nonceManager.js";
+import { AUTH_HINT } from "../auth/session.js";
 import { waitForAllowance } from "../chain/erc20.js";
 import { ErrorCode, FibxError } from "../../lib/errors.js";
 import { calculateMaxSafeWithdraw } from "./risk.js";
@@ -502,10 +503,7 @@ export class AaveService {
 
 	private async ensureWalletConnection() {
 		if (!this.walletClient || !this.account) {
-			throw new FibxError(
-				ErrorCode.WALLET_ERROR,
-				"Wallet not connected. Please login or provide a PRIVATE_KEY."
-			);
+			throw new FibxError(ErrorCode.WALLET_ERROR, `Wallet not connected. ${AUTH_HINT}`);
 		}
 	}
 

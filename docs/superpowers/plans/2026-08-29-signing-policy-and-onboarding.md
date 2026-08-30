@@ -1716,33 +1716,39 @@ node dist/index.js policy clear
 
 Steps 3 to 7 exercise the WalletConnect adapter. The account adapter is a
 different piece of code, and it guards the path that has no other bound, so it
-needs its own look. A refusal needs no funds, so use a throwaway key for an
-empty address — one generated for this test and used nowhere else:
+needs its own look.
+
+`fibx send` cannot show this on an empty address. It simulates before it signs,
+and on an address with no gas money the simulation fails at `eth_estimateGas`
+before the policy is ever consulted — so you get "Simulation failed", not
+`[POLICY_BLOCKED]`. Funding a throwaway address just to watch a refusal is not
+worth it. Drive the gate directly instead, in an isolated config so nothing
+touches the real session:
 
 ```bash
 node -e "const {generatePrivateKey,privateKeyToAccount}=require('viem/accounts');const k=generatePrivateKey();console.log(k, privateKeyToAccount(k).address)"
 ```
 
-Import it, set a cap of zero, and attempt a transfer:
+Seed that key into a throwaway `HOME` and drive `getWalletClient` →
+`signTransaction` with a fully-specified transaction, so no RPC is needed:
+`.superpowers/seed-session.ts` and `.superpowers/probe-account-gate.ts` do
+exactly this. With `base.maxValue` at 0 the probe must print `REFUSED` naming
+both figures; raise the cap and the same transaction must sign, which is what
+proves the wrapper is a gate rather than a wall.
+
+Cover the same rules the WalletConnect steps did — destination, expiry, corrupt
+file — plus the two hand-edit cases the schema now rejects:
 
 ```bash
-node dist/index.js auth import
+echo '{"maxvalue":{"base":"0.00001"}}' > "$FAKE_HOME/Library/Preferences/fibx-nodejs/policy.json"
 ```
 
 ```bash
-node dist/index.js policy set base.maxValue 0
+echo '{"maxValue":{"Base":"0.00001"}}' > "$FAKE_HOME/Library/Preferences/fibx-nodejs/policy.json"
 ```
 
-```bash
-node dist/index.js send 0.0001 0x0000000000000000000000000000000000000001 --chain base
-```
-
-Expected: `[POLICY_BLOCKED]` naming the cap — refused by the policy, not by the
-empty balance. Then reconnect the real wallet:
-
-```bash
-node dist/index.js auth connect
-```
+Both must refuse. A misspelled key that parses to an empty policy is the
+fail-open this design exists to prevent.
 
 - [ ] **Step 9: Walk the onboarding**
 
