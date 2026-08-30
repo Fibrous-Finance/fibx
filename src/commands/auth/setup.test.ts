@@ -1,11 +1,25 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
-const mocks = vi.hoisted(() => ({ prompt: vi.fn(), authImportCommand: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+	prompt: vi.fn(),
+	authImportCommand: vi.fn(),
+	loadSession: vi.fn(),
+}));
 
-vi.mock("inquirer", () => ({ default: { prompt: mocks.prompt } }));
+vi.mock("inquirer", () => ({
+	default: {
+		prompt: mocks.prompt,
+		// SIGNING_PROMPT builds one at module load, so the mock has to carry it.
+		Separator: class {
+			readonly separator = "\u2500\u2500";
+		},
+	},
+}));
 vi.mock("./import.js", () => ({ authImportCommand: mocks.authImportCommand }));
+// Never let the intro line read the developer's real session file.
+vi.mock("../../services/auth/session.js", () => ({ loadSession: mocks.loadSession }));
 
-const { routeChoice, authSetupCommand } = await import("./setup.js");
+const { routeChoice, authSetupCommand, SIGNING_PROMPT } = await import("./setup.js");
 
 describe("routeChoice", () => {
 	it("routes a wallet the user already has to WalletConnect", () => {
@@ -24,6 +38,10 @@ describe("routeChoice", () => {
 	// rather than a path, which is the honest answer.
 	it("routes the unavailable combination to an explanation", () => {
 		expect(routeChoice("?")).toBe("explain");
+	});
+
+	it("routes the cancel choice to leaving everything alone", () => {
+		expect(routeChoice("cancel")).toBe("cancel");
 	});
 
 	it("treats anything else as the explanation too, rather than guessing", () => {
@@ -141,5 +159,36 @@ describe("the terminal guard", () => {
 
 		expect(mocks.prompt).not.toHaveBeenCalled();
 		expect(process.exitCode).toBe(1);
+	});
+});
+
+/**
+ * `auth setup` shipped with `type: "list"`, which inquirer 13 no longer
+ * registers — it renamed that prompt to `select`. An unregistered type does not
+ * throw: it renders a prompt with no choices, accepts a keypress, and returns a
+ * value matching none of them, so the command silently fell through to the
+ * explanation whatever the user pressed. Every test passed, because the only
+ * one that existed covered `routeChoice`, which is pure and was never wrong.
+ */
+describe("the prompt's shape", () => {
+	it("uses a prompt type inquirer actually registers", async () => {
+		const actual = (await vi.importActual("inquirer")) as {
+			default: { prompt: { prompts: Record<string, unknown> } };
+		};
+		const registered = Object.keys(actual.default.prompt.prompts);
+
+		expect(registered).toContain(SIGNING_PROMPT.type);
+	});
+
+	it("offers every route the router knows, and no dead ones", () => {
+		// Separators carry no value; everything else must route somewhere real.
+		const values = SIGNING_PROMPT.choices
+			.map((choice) => (choice as { value?: string }).value)
+			.filter((value) => value !== undefined);
+
+		expect(values).toEqual(["1", "2", "3", "?", "cancel"]);
+		expect(new Set(values.map(routeChoice))).toEqual(
+			new Set(["connect", "privy", "import", "explain", "cancel"])
+		);
 	});
 });
