@@ -28,6 +28,13 @@ export default defineConfig({
 			...options.define,
 			FIBX_VERSION: JSON.stringify(pkg.version),
 		};
+		options.loader = {
+			...options.loader,
+			// The panel is a build artifact, not a dependency: Vite bundles it
+			// into one self-contained file and esbuild inlines that file's text
+			// into the server bundle.
+			".html": "text",
+		};
 	},
 
 	// Some bundled deps (MCP SDK, inquirer) use CJS require() for Node
