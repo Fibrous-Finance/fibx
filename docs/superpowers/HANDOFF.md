@@ -110,11 +110,11 @@ infrastructure, which is the one property this product is built to avoid.
 | 1 — build pipeline, panel renders as a `ui://` resource | code complete (`bedbe04`), reviewed clean; **its manual gate is unanswered** |
 | 2 — `get_policy` tool                                   | complete (`ceca59f`), reviewed clean                                         |
 | 3 — `set_policy_rule`, `clear_policy_rule`              | complete (`52d3fd4`..`081e7e7`), reviewed clean after one fix round          |
-| 4 — `logout` tool                                       | in progress — last of the four MCP-surface tasks, independent of the gate    |
+| 4 — `logout` tool                                       | complete (`04f36f5`), reviewed clean                                         |
 | 5-8 — the panel's real UI                               | not started, contingent on the gate                                          |
 | 9 — manual verification                                 | not started                                                                  |
 
-Test count moved 229 → 231 (Task 1) → 235 (Task 2) → 244 (Task 3, including its fix round).
+Test count moved 229 → 246. **Tasks 1-4 are all complete and reviewed.** The branch is at a clean stopping point: whether it grows further is what the gate decides.
 
 ---
 
