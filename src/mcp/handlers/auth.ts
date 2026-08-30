@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { loadSession, saveSession } from "../../services/auth/session.js";
+import { clearSession, loadSession, saveSession } from "../../services/auth/session.js";
+import { releaseWalletConnectSession } from "../../services/auth/release.js";
 import { getChainConfig, SUPPORTED_CHAINS } from "../../services/chain/constants.js";
 import { checkHealth } from "../../services/fibrous/health.js";
 import { createPairing } from "../../services/walletconnect/connect.js";
@@ -153,4 +154,16 @@ export async function handleGetConnectStatus({
 	const state = pairings.get(pairingId);
 	if (!state) return { status: "unknown" };
 	return { ...state };
+}
+
+export async function handleLogout() {
+	try {
+		await releaseWalletConnectSession();
+	} finally {
+		// The user asked to leave. Whatever became of the wallet's side, the
+		// local session goes — a teardown problem is still reported, but it
+		// never leaves them logged in.
+		clearSession();
+	}
+	return jsonResult({ ok: true, message: "Logged out. Session cleared." });
 }

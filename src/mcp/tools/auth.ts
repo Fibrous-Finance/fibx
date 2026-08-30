@@ -6,6 +6,7 @@ import {
 	handleConfigAction,
 	handleConnectWallet,
 	handleGetConnectStatus,
+	handleLogout,
 } from "../handlers/auth.js";
 import { withErrorHandling } from "./error-handling.js";
 import { ChainEnum } from "./schemas.js";
@@ -110,5 +111,24 @@ export function registerAuthAndConfigTools(server: McpServer): number {
 		)
 	);
 
-	return 4;
+	server.registerTool(
+		"logout",
+		{
+			title: "End the Session",
+			description:
+				"Log out: end any WalletConnect pairing and clear the local session. " +
+				"The user will need to authenticate again before signing anything.",
+			inputSchema: {},
+			annotations: {
+				title: "Log Out",
+				// Discards the session and reaches the relay to end the pairing.
+				readOnlyHint: false,
+				destructiveHint: true,
+				openWorldHint: true,
+			},
+		},
+		withErrorHandling(handleLogout)
+	);
+
+	return 5;
 }

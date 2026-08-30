@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
 	createPairing: vi.fn(),
 	renderQrDataUri: vi.fn().mockResolvedValue("data:image/png;base64,AAA"),
 	saveSession: vi.fn(),
+	clearSession: vi.fn(),
+	releaseWalletConnectSession: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("../../services/walletconnect/connect.js", () => ({ createPairing: mocks.createPairing }));
 vi.mock("../../services/walletconnect/qr.js", () => ({ renderQrDataUri: mocks.renderQrDataUri }));
@@ -13,11 +15,16 @@ vi.mock("../../services/auth/session.js", () => ({
 	saveSession: mocks.saveSession,
 	loadSession: vi.fn().mockReturnValue(null),
 	requireSession: vi.fn(),
-	clearSession: vi.fn(),
+	clearSession: mocks.clearSession,
 	getPrivateKey: vi.fn(),
 }));
+// Mocked so a logout test cannot reach the real relay or the developer's own
+// pairing store.
+vi.mock("../../services/auth/release.js", () => ({
+	releaseWalletConnectSession: mocks.releaseWalletConnectSession,
+}));
 
-const { handleConnectWallet, handleGetConnectStatus } = await import("./auth.js");
+const { handleConnectWallet, handleGetConnectStatus, handleLogout } = await import("./auth.js");
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -84,5 +91,26 @@ describe("get_connect_status", () => {
 
 	it("reports an unknown pairing id", async () => {
 		expect((await handleGetConnectStatus({ pairingId: "nope" })).status).toBe("unknown");
+	});
+});
+
+describe("logout", () => {
+	it("releases the pairing before clearing the session", async () => {
+		await handleLogout();
+
+		expect(mocks.releaseWalletConnectSession).toHaveBeenCalled();
+		expect(mocks.clearSession).toHaveBeenCalled();
+		expect(mocks.releaseWalletConnectSession.mock.invocationCallOrder[0]).toBeLessThan(
+			mocks.clearSession.mock.invocationCallOrder[0]
+		);
+	});
+
+	// The user asked to leave. Whatever became of the wallet's side, the local
+	// session goes — otherwise a teardown failure leaves them logged in.
+	it("clears the session even when releasing the pairing fails", async () => {
+		mocks.releaseWalletConnectSession.mockRejectedValue(new Error("relay down"));
+
+		await expect(handleLogout()).rejects.toThrow();
+		expect(mocks.clearSession).toHaveBeenCalled();
 	});
 });
