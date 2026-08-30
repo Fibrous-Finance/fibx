@@ -66,14 +66,14 @@ infrastructure, which is the one property this product is built to avoid.
 
 **On the branch (`worktree-mcp-apps-panel`):**
 
-| Task                                                    | State                                                                                       |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| 1 — build pipeline, panel renders as a `ui://` resource | code complete (`bedbe04`), reviewed clean; **its manual gate is unanswered**                |
-| 2 — `get_policy` tool                                   | complete (`ceca59f`), reviewed clean                                                        |
-| 3 — `set_policy_rule`, `clear_policy_rule`              | complete (`52d3fd4`); its review was still running when this was written — check the ledger |
-| 4 — `logout` tool                                       | not started                                                                                 |
-| 5-8 — the panel's real UI                               | not started, contingent on the gate                                                         |
-| 9 — manual verification                                 | not started                                                                                 |
+| Task                                                    | State                                                                                                                   |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 1 — build pipeline, panel renders as a `ui://` resource | code complete (`bedbe04`), reviewed clean; **its manual gate is unanswered**                                            |
+| 2 — `get_policy` tool                                   | complete (`ceca59f`), reviewed clean                                                                                    |
+| 3 — `set_policy_rule`, `clear_policy_rule`              | code at `52d3fd4`; **in fix round 1** — review found `clear_policy_rule` skipping validation when no policy file exists |
+| 4 — `logout` tool                                       | not started                                                                                                             |
+| 5-8 — the panel's real UI                               | not started, contingent on the gate                                                                                     |
+| 9 — manual verification                                 | not started                                                                                                             |
 
 Test count moved 229 → 231 (Task 1) → 235 (Task 2) → 242 (Task 3).
 
@@ -188,6 +188,17 @@ claimed otherwise once; do not let a UI reintroduce the claim.
 simulation fails at `eth_estimateGas` before the policy is consulted, so an
 empty throwaway wallet cannot demonstrate a policy refusal through the CLI.
 Drive the gate directly instead — the plan's Task 8 has the code.
+
+**Open follow-up: promote `applyRule` / `removeRule` to `FibxError`.**
+They throw plain `Error`, so a bad rule name reaches MCP callers with the right
+message and an uninformative `UNKNOWN_ERROR` code. `ErrorCode.VALIDATION_ERROR`
+already exists, unused, in `src/lib/errors.ts`. The fix belongs at the one
+source of truth in `src/commands/policy/index.ts` and would improve the CLI and
+MCP together — but it changes the CLI's visible output across about six throw
+sites (`✖ [VALIDATION_ERROR] …` instead of `✖ …`), so it is its own task. Until
+then, a UI must render the message rather than branching on the code. The one
+exception is the unreadable-policy refusal, which reliably carries
+`POLICY_BLOCKED`.
 
 **Validation errors from the policy tools carry `UNKNOWN_ERROR`.**
 `applyRule` and `removeRule` throw plain `Error`, not `FibxError`, so a bad rule
