@@ -1729,12 +1729,57 @@ touches the real session:
 node -e "const {generatePrivateKey,privateKeyToAccount}=require('viem/accounts');const k=generatePrivateKey();console.log(k, privateKeyToAccount(k).address)"
 ```
 
-Seed that key into a throwaway `HOME` and drive `getWalletClient` →
-`signTransaction` with a fully-specified transaction, so no RPC is needed:
-`.superpowers/seed-session.ts` and `.superpowers/probe-account-gate.ts` do
-exactly this. With `base.maxValue` at 0 the probe must print `REFUSED` naming
-both figures; raise the cap and the same transaction must sign, which is what
-proves the wrapper is a gate rather than a wall.
+Seed that key into a throwaway `HOME` using the production `saveSession`, so
+the session file is genuine — `auth import`'s password prompt needs a TTY and
+cannot be piped. Put this in a scratch file inside the repo, so `node_modules`
+resolves:
+
+```typescript
+import { saveSession } from "../src/services/auth/session.js";
+import { privateKeyToAccount } from "viem/accounts";
+
+const pk = process.env.PK as `0x${string}`;
+saveSession({
+	userId: "local-user",
+	walletAddress: privateKeyToAccount(pk).address,
+	createdAt: new Date().toISOString(),
+	type: "private-key",
+	privateKey: pk,
+});
+```
+
+Then drive `getWalletClient` → `signTransaction` with a fully-specified
+transaction, so no nonce or gas estimate is needed and no RPC is involved:
+
+```typescript
+import { getWalletClient } from "../src/services/chain/client.js";
+import { requireSession } from "../src/services/auth/session.js";
+import { getChainConfig } from "../src/services/chain/constants.js";
+import { parseEther } from "viem";
+
+const chain = getChainConfig("base");
+const client = await getWalletClient(requireSession(), chain);
+try {
+	await client.account.signTransaction({
+		to: (process.env.TO ?? "0x0000000000000000000000000000000000000001") as `0x${string}`,
+		value: parseEther(process.env.VALUE ?? "0.0001"),
+		chainId: chain.id,
+		nonce: 0,
+		gas: 21000n,
+		maxFeePerGas: 1_000_000_000n,
+		maxPriorityFeePerGas: 1_000_000n,
+		type: "eip1559" as const,
+	});
+	console.log("SIGNED (gate did not fire)");
+} catch (error) {
+	console.log("REFUSED —", error instanceof Error ? error.message : String(error));
+}
+```
+
+Run both with `HOME` pointed at the throwaway directory. With `base.maxValue`
+at 0 the probe must print `REFUSED` naming both figures; raise the cap and the
+same transaction must sign, which is what proves the wrapper is a gate rather
+than a wall.
 
 Cover the same rules the WalletConnect steps did — destination, expiry, corrupt
 file — plus the two hand-edit cases the schema now rejects:

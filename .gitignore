@@ -20,3 +20,7 @@ fibx-telegram-bot/
 
 # Worktrees created for isolated feature work.
 .claude/worktrees/
+
+# Scratch for subagent-driven runs: task briefs, reports, review diffs
+# and one-off probes. Working notes, not part of the product.
+.superpowers/
