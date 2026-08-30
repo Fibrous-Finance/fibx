@@ -19,6 +19,45 @@ them. Both are described in full under "Waiting on you" below.
 2. `npm publish` of 0.10.0, which is built, tested, tagged in git and pushed —
    but not released.
 
+A status page covering the same ground, in a form that is easier to hand to
+someone else: https://claude.ai/code/artifact/3f864c62-98bf-4579-b7d9-f4ba65a7ea7f
+
+---
+
+## Starting a new session
+
+Paste this. It is written to stand on its own — a fresh agent needs no other
+context.
+
+```
+Read CLAUDE.md and docs/superpowers/HANDOFF.md in this repo, in that order, then
+continue the MCP Apps wallet panel work from where it stands.
+
+The branch is worktree-mcp-apps-panel. Execute the remaining tasks in
+docs/superpowers/plans/2026-08-30-mcp-apps-wallet-panel.md using the
+superpowers:subagent-driven-development skill — one implementer subagent per
+task, a review after each. `git log --oneline main..HEAD` tells you which tasks
+are already done, and the ledger at
+.superpowers/sdd/2026-08-30-mcp-apps-wallet-panel/progress.md carries the
+per-task rulings if that directory still exists.
+
+Two things are blocked on me rather than on you, and HANDOFF.md describes both.
+Do not attempt either — tell me when you need one and I will run it.
+
+Read the Landmines section before touching any test.
+```
+
+If the worktree directory is gone, run this first — the branch survives even
+when the worktree does not:
+
+```bash
+git worktree add .claude/worktrees/mcp-apps-panel worktree-mcp-apps-panel
+```
+
+```bash
+pnpm install && pnpm build
+```
+
 ---
 
 ## Where the work lives
