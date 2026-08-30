@@ -105,16 +105,16 @@ infrastructure, which is the one property this product is built to avoid.
 
 **On the branch (`worktree-mcp-apps-panel`):**
 
-| Task                                                    | State                                                                                                                   |
-| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| 1 — build pipeline, panel renders as a `ui://` resource | code complete (`bedbe04`), reviewed clean; **its manual gate is unanswered**                                            |
-| 2 — `get_policy` tool                                   | complete (`ceca59f`), reviewed clean                                                                                    |
-| 3 — `set_policy_rule`, `clear_policy_rule`              | code at `52d3fd4`; **in fix round 1** — review found `clear_policy_rule` skipping validation when no policy file exists |
-| 4 — `logout` tool                                       | not started                                                                                                             |
-| 5-8 — the panel's real UI                               | not started, contingent on the gate                                                                                     |
-| 9 — manual verification                                 | not started                                                                                                             |
+| Task                                                    | State                                                                        |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| 1 — build pipeline, panel renders as a `ui://` resource | code complete (`bedbe04`), reviewed clean; **its manual gate is unanswered** |
+| 2 — `get_policy` tool                                   | complete (`ceca59f`), reviewed clean                                         |
+| 3 — `set_policy_rule`, `clear_policy_rule`              | complete (`52d3fd4`..`081e7e7`), reviewed clean after one fix round          |
+| 4 — `logout` tool                                       | in progress — last of the four MCP-surface tasks, independent of the gate    |
+| 5-8 — the panel's real UI                               | not started, contingent on the gate                                          |
+| 9 — manual verification                                 | not started                                                                  |
 
-Test count moved 229 → 231 (Task 1) → 235 (Task 2) → 242 (Task 3).
+Test count moved 229 → 231 (Task 1) → 235 (Task 2) → 244 (Task 3, including its fix round).
 
 ---
 
