@@ -18,14 +18,15 @@ reviewed.** Two whole-branch reviews passed, each after one fix round. The
 branch is **merge-ready at `930d6fc`**. What remains is Task 9 — verifying
 the finished panel by hand in Claude Desktop — which only a human can do.
 
-Three things are now **with a human**, in this order:
+**Task 9 passed on 2026-09-02** — the finished panel verified by hand on a real
+wallet (see the table). **The plan is complete.** Two things remain, both a
+human's:
 
-1. **Task 9** — verify the finished panel by hand in Claude Desktop. Steps under
-   "Waiting on you"; the worktree build Claude Desktop already points at is
-   `930d6fc`. Quit and reopen Claude Desktop first so it loads that build.
-2. **Merge** — `git merge --no-ff worktree-mcp-apps-panel` from the main
+1. **Merge** — `git merge --no-ff worktree-mcp-apps-panel` from the main
    checkout. Deliberately not done by an agent: a shared-branch side effect.
-3. **`npm publish` of 0.10.0** — built, tested, pushed, not released, and it
+   After merging, the SDD workspace under `.superpowers/` and the worktree can
+   go.
+2. **`npm publish` of 0.10.0** — built, tested, pushed, not released, and it
    carries a hotfix worth shipping: `get_portfolio` was dying on the withdrawn
    Citrea chain in the published 0.9.0.
 
@@ -115,14 +116,14 @@ infrastructure, which is the one property this product is built to avoid.
 
 **On the branch (`worktree-mcp-apps-panel`):**
 
-| Task                                                    | State                                                                                                                                                  |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1 — build pipeline, panel renders as a `ui://` resource | complete (`bedbe04`), reviewed clean; **gate PASSED 2026-09-01** — panel rendered in Claude Desktop                                                    |
-| 2 — `get_policy` tool                                   | complete (`ceca59f`), reviewed clean                                                                                                                   |
-| 3 — `set_policy_rule`, `clear_policy_rule`              | complete (`52d3fd4`..`081e7e7`), reviewed clean after one fix round                                                                                    |
-| 4 — `logout` tool                                       | complete (`04f36f5`), reviewed clean                                                                                                                   |
-| 5-8 — the panel's real UI                               | all complete: 5 (`aa7fafb`), 6 (`182781c`), 7 (`ec0156c`), 8 (`1802499`); second whole-branch review passed after one fix round (`e42b460`, `930d6fc`) |
-| 9 — manual verification                                 | **yours** — steps below; the worktree build at `930d6fc` is what Claude Desktop already points at                                                      |
+| Task                                                    | State                                                                                                                                                                     |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 — build pipeline, panel renders as a `ui://` resource | complete (`bedbe04`), reviewed clean; **gate PASSED 2026-09-01** — panel rendered in Claude Desktop                                                                       |
+| 2 — `get_policy` tool                                   | complete (`ceca59f`), reviewed clean                                                                                                                                      |
+| 3 — `set_policy_rule`, `clear_policy_rule`              | complete (`52d3fd4`..`081e7e7`), reviewed clean after one fix round                                                                                                       |
+| 4 — `logout` tool                                       | complete (`04f36f5`), reviewed clean                                                                                                                                      |
+| 5-8 — the panel's real UI                               | all complete: 5 (`aa7fafb`), 6 (`182781c`), 7 (`ec0156c`), 8 (`1802499`); second whole-branch review passed after one fix round (`e42b460`, `930d6fc`)                    |
+| 9 — manual verification                                 | **done 2026-09-02** — disconnected/QR/shortcuts, re-pair, connected view, policy round trip all verified on a real wallet; the unreadable-file step was left to its tests |
 
 Test count moved 229 → 255. **Tasks 1-4 are complete, and the whole-branch review passed after one fix round** (`e081e0f`..`7b7efcf`). The branch is merge-ready at `7b7efcf`. Whether it grows further is what the gate decides; until then the plan is not finished, so the SDD workspace stays.
 
@@ -331,6 +332,14 @@ other error and returns a _normal_ result whose body is
 `{ success: false, error, code, rawMessage }`. `ui/src/rpc.ts` throws on
 either; a client that checks only `isError` decodes a failed `connect_wallet`
 as a pairing with undefined fields. `ui/src/rpc.test.ts` pins both shapes.
+
+**The model does not learn what the panel did.** MCP Apps do not push UI state
+back to the model: after a user re-pairs or logs out inside the panel, the
+model's next turn still believes the last tool result it saw, so its prose can
+say "not connected" under a panel that shows connected. Seen during Task 9.
+Not a defect in the panel — its own refetch is authoritative — but the fix is
+small: call `app.updateModelContext(...)` after connect and logout so the next
+turn knows. Worth doing alongside the component tests.
 
 **`panel.tsx` has no component tests.** Its pure helpers (`status.ts`, `rpc.ts`,
 `wallets.ts`) are tested; the 500-line state machine that gates every write is
