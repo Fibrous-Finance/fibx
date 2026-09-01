@@ -18,11 +18,16 @@ reviewed.** Two whole-branch reviews passed, each after one fix round. The
 branch is **merge-ready at `930d6fc`**. What remains is Task 9 — verifying
 the finished panel by hand in Claude Desktop — which only a human can do.
 
-One thing is still **blocked on a human**: `npm publish` of 0.10.0, built,
-tested, pushed — not released. And it now carries a hotfix worth shipping:
-`get_portfolio` was dying on the withdrawn Citrea chain in the published 0.9.0
-(found by the very Claude Desktop session that ran the gate). Details under
-"Waiting on you".
+Three things are now **with a human**, in this order:
+
+1. **Task 9** — verify the finished panel by hand in Claude Desktop. Steps under
+   "Waiting on you"; the worktree build Claude Desktop already points at is
+   `930d6fc`. Quit and reopen Claude Desktop first so it loads that build.
+2. **Merge** — `git merge --no-ff worktree-mcp-apps-panel` from the main
+   checkout. Deliberately not done by an agent: a shared-branch side effect.
+3. **`npm publish` of 0.10.0** — built, tested, pushed, not released, and it
+   carries a hotfix worth shipping: `get_portfolio` was dying on the withdrawn
+   Citrea chain in the published 0.9.0.
 
 A status page covering the same ground, in a form that is easier to hand to
 someone else: https://claude.ai/code/artifact/3f864c62-98bf-4579-b7d9-f4ba65a7ea7f
