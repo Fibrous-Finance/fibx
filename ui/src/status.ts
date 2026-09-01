@@ -68,3 +68,30 @@ export function describeSession(kind: SessionKind): {
 			};
 	}
 }
+
+export type Policy = {
+	maxValue?: Record<string, string>;
+	allowedChains?: string[];
+	allowedDestinations?: Record<string, string[]>;
+	expiry?: string;
+};
+
+export type PolicyRow = { rule: string; value: string };
+
+/**
+ * One row per rule, named exactly as `fibx policy set` names them, so the edit
+ * form can send the row back through set_policy_rule unchanged.
+ */
+export function policyRows(policy: Policy): PolicyRow[] {
+	const rows: PolicyRow[] = [];
+	if (policy.expiry) rows.push({ rule: "expiry", value: policy.expiry });
+	if (policy.allowedChains)
+		rows.push({ rule: "allowedChains", value: policy.allowedChains.join(",") });
+	for (const [chain, v] of Object.entries(policy.maxValue ?? {})) {
+		rows.push({ rule: `${chain}.maxValue`, value: v });
+	}
+	for (const [chain, list] of Object.entries(policy.allowedDestinations ?? {})) {
+		rows.push({ rule: `${chain}.allowedDestinations`, value: list.join(",") });
+	}
+	return rows;
+}

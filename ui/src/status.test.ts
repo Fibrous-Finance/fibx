@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeSession, nextPoll, parseToolJson, shortAddress } from "./status.js";
+import { describeSession, nextPoll, parseToolJson, policyRows, shortAddress } from "./status.js";
 
 describe("nextPoll", () => {
 	it("keeps polling while the pairing is pending", () => {
@@ -72,5 +72,29 @@ describe("describeSession", () => {
 		const d = describeSession("private-key");
 		expect(d.approvesPerTransaction).toBe(false);
 		expect(d.policyIsOnlyBound).toBe(true);
+	});
+});
+
+describe("policyRows", () => {
+	// The panel edits rules by the same names `fibx policy set` takes, so the
+	// flattening has to produce exactly those names — one grammar, two surfaces.
+	it("flattens a policy into the CLI's rule names", () => {
+		const rows = policyRows({
+			maxValue: { base: "0.05", monad: "1" },
+			allowedChains: ["base", "monad"],
+			allowedDestinations: { base: ["0xabc"] },
+			expiry: "2026-12-31",
+		});
+		expect(rows).toEqual([
+			{ rule: "expiry", value: "2026-12-31" },
+			{ rule: "allowedChains", value: "base,monad" },
+			{ rule: "base.maxValue", value: "0.05" },
+			{ rule: "monad.maxValue", value: "1" },
+			{ rule: "base.allowedDestinations", value: "0xabc" },
+		]);
+	});
+
+	it("returns nothing for an empty policy", () => {
+		expect(policyRows({})).toEqual([]);
 	});
 });

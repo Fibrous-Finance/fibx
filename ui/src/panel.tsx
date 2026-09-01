@@ -4,8 +4,10 @@ import { callJson } from "./rpc.js";
 import {
 	describeSession,
 	nextPoll,
+	policyRows,
 	shortAddress,
 	type ConnectStatus,
+	type Policy,
 	type SessionKind,
 } from "./status.js";
 import { walletLinks } from "./wallets.js";
@@ -165,9 +167,195 @@ function Connected({
 	);
 }
 
-/** Placeholder until Task 8; keeps Task 7 compiling on its own. */
-function PolicyCard(_: { app: App; sessionKind: SessionKind }) {
-	return null;
+type PolicyState =
+	| { state: "active"; rules: Policy; path: string }
+	| { state: "absent"; path: string; message: string }
+	| { state: "unreadable"; path: string; message: string };
+
+function PolicyCard({ app, sessionKind }: { app: App; sessionKind: SessionKind }) {
+	const [policy, setPolicy] = useState<PolicyState | null>(null);
+	const [pending, setPending] = useState<string | null>(null);
+	const [error, setError] = useState<string | null>(null);
+	const [draft, setDraft] = useState<{ rule: string; value: string }>({
+		rule: "base.maxValue",
+		value: "",
+	});
+	// Guards the whole-policy delete: sandboxed iframes run without
+	// `allow-modals`, so `window.confirm()` returns false silently and the
+	// button would never do anything, with nothing to explain why. This state
+	// swaps the button row for an inline "are you sure" instead.
+	const [confirmingWipe, setConfirmingWipe] = useState(false);
+
+	async function load() {
+		try {
+			setPolicy(await callJson<PolicyState>(app, "get_policy", {}));
+			setError(null);
+		} catch (e) {
+			setError(e instanceof Error ? e.message : String(e));
+		}
+	}
+
+	useEffect(() => {
+		void load();
+	}, []);
+
+	// Every write goes through the host's approval prompt. While that prompt
+	// is up the call has not returned, so say so — a frozen button reads as a
+	// bug. And never trust our own write: reload from get_policy afterwards.
+	async function write(label: string, name: string, args: Record<string, unknown>) {
+		setPending(label);
+		setError(null);
+		try {
+			await callJson(app, name, args);
+			await load();
+		} catch (e) {
+			// Validation failures arrive with the right message and an
+			// uninformative code — render the message, never branch on the code.
+			setError(e instanceof Error ? e.message : String(e));
+		} finally {
+			setPending(null);
+		}
+	}
+
+	if (!policy)
+		return (
+			<div class="card">
+				<h1>Signing policy</h1>
+				<p class="muted">loading…</p>
+			</div>
+		);
+
+	return (
+		<div class="card">
+			<div class="row">
+				<h1 style="margin:0">Signing policy</h1>
+				{policy.state === "active" && <span class="pill ok">active</span>}
+				{policy.state === "absent" && (
+					<span class={`pill ${sessionKind === "private-key" ? "warn" : ""}`}>
+						none set
+					</span>
+				)}
+				{policy.state === "unreadable" && <span class="pill err">unreadable</span>}
+			</div>
+
+			{policy.state === "unreadable" && (
+				<p class="error">
+					{policy.message} <span class="mono">{policy.path}</span>
+				</p>
+			)}
+			{policy.state === "absent" && (
+				<p class="muted">
+					{policy.message}
+					{sessionKind === "private-key" &&
+						" On an imported key this is the only bound there is."}
+				</p>
+			)}
+
+			{policy.state === "active" && (
+				<table>
+					<tbody>
+						{policyRows(policy.rules).map((row) => (
+							<tr key={row.rule}>
+								<td class="mono">{row.rule}</td>
+								<td class="mono">{row.value}</td>
+								<td>
+									<button
+										class="ghost"
+										disabled={pending !== null}
+										onClick={() =>
+											write(`Removing ${row.rule}…`, "clear_policy_rule", {
+												rule: row.rule,
+											})
+										}
+									>
+										Remove
+									</button>
+								</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+			)}
+
+			{policy.state !== "unreadable" && (
+				<form
+					class="row"
+					onSubmit={(e) => {
+						e.preventDefault();
+						if (!draft.value.trim()) return;
+						void write(`Setting ${draft.rule}…`, "set_policy_rule", {
+							rule: draft.rule,
+							value: draft.value.trim(),
+						});
+					}}
+				>
+					<input
+						class="mono"
+						value={draft.rule}
+						onInput={(e) => setDraft({ ...draft, rule: e.currentTarget.value })}
+						placeholder="base.maxValue"
+						aria-label="Rule"
+					/>
+					<input
+						class="mono"
+						value={draft.value}
+						onInput={(e) => setDraft({ ...draft, value: e.currentTarget.value })}
+						placeholder="0.05"
+						aria-label="Value"
+					/>
+					<button type="submit" disabled={pending !== null}>
+						{pending ?? "Set"}
+					</button>
+				</form>
+			)}
+
+			<p class="muted">
+				maxValue caps the native value of one transaction. It does not bound token amounts —
+				an ERC-20 transfer carries value 0 — so use allowedDestinations to bound where
+				tokens may go.
+			</p>
+
+			{policy.state !== "absent" && (
+				<div class="row">
+					{confirmingWipe ? (
+						<>
+							<span class="muted">
+								Remove the whole policy? Nothing will limit signing afterwards.
+							</span>
+							<button
+								class="ghost"
+								disabled={pending !== null}
+								onClick={() => {
+									setConfirmingWipe(false);
+									void write("Removing the policy…", "clear_policy_rule", {
+										all: true,
+									});
+								}}
+							>
+								Remove
+							</button>
+							<button
+								class="ghost"
+								disabled={pending !== null}
+								onClick={() => setConfirmingWipe(false)}
+							>
+								Keep
+							</button>
+						</>
+					) : (
+						<button
+							class="ghost"
+							disabled={pending !== null}
+							onClick={() => setConfirmingWipe(true)}
+						>
+							Remove whole policy
+						</button>
+					)}
+				</div>
+			)}
+			{error && <p class="error">{error}</p>}
+		</div>
+	);
 }
 
 export function Disconnected({ app, onConnected }: { app: App; onConnected: () => Promise<void> }) {

@@ -168,3 +168,14 @@ th {
 	color: rgb(var(--status-error));
 	font-size: 0.9rem;
 }
+
+input.mono {
+	font: inherit;
+	font-family: var(--font-rubik);
+	background: rgb(var(--bg-tertiary));
+	color: rgb(var(--text-primary));
+	border: 1px solid rgb(var(--surface-stroke) / 0.35);
+	border-radius: 8px;
+	padding: 7px 9px;
+	min-width: 9rem;
+}
