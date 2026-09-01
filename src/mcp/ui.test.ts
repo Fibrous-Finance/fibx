@@ -15,4 +15,12 @@ describe("the wallet panel resource", () => {
 		expect(walletPanelHtml).toContain("data-fibx-panel");
 		expect(walletPanelHtml).not.toMatch(/<script[^>]+src=/);
 	});
+
+	// The panel is inlined into the bundle every fibx invocation loads. The
+	// SDK layer sets the floor (~330 KB); the ceiling below leaves ~60 KB for
+	// the panel's own code and fails the suite before an accidental import
+	// doubles it.
+	it("stays under the size budget", () => {
+		expect(walletPanelHtml.length).toBeLessThan(400_000);
+	});
 });

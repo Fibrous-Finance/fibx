@@ -1,40 +1,48 @@
 import { render } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { App } from "@modelcontextprotocol/ext-apps";
+import { Panel, type AuthStatus } from "./panel.js";
+import { parseToolJson } from "./status.js";
+import "./tokens.css";
 
 const app = new App({ name: "FibX Wallet", version: "1.0.0" });
 
-function Panel() {
-	const [status, setStatus] = useState<string>("waiting for the host…");
+if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
+	document.documentElement.classList.add("dark");
+}
+
+function Root() {
+	const [initial, setInitial] = useState<AuthStatus | null>(null);
+	const [connectError, setConnectError] = useState<string | null>(null);
 
 	useEffect(() => {
-		// ontoolresult is deprecated in ext-apps@1.7.5 in favor of
-		// addEventListener, which composes with other listeners.
 		app.addEventListener("toolresult", (result) => {
-			const text = result.content?.find((c) => c.type === "text")?.text;
-			setStatus(text ?? "[no result]");
+			try {
+				setInitial(parseToolJson<AuthStatus>(result));
+			} catch (e) {
+				setConnectError(e instanceof Error ? e.message : String(e));
+			}
 		});
 
-		// connect() rejects when the ui/initialize handshake fails, closing the
-		// transport and rethrowing. Left as a floating promise, that rejection
-		// lands in a sandboxed iframe console nobody reads, and this panel's
-		// only job — Task 1's manual gate — is to tell apart "never rendered",
-		// "rendered but the handshake failed" and "connected, no result yet".
-		app.connect()
-			.then(() => setStatus("connected — waiting for a tool result"))
-			.catch((error: unknown) => setStatus(`connect failed: ${String(error)}`));
+		// connect() rejects when the ui/initialize handshake fails. Keep that
+		// visible: the gate that proved this pipeline relied on being able to
+		// tell "never rendered" from "rendered, handshake failed".
+		app.connect().catch((e: unknown) => setConnectError(`connect failed: ${String(e)}`));
 
 		return () => {
 			app.close().catch(() => {});
 		};
 	}, []);
 
-	return (
-		<div data-fibx-panel>
-			<h1>FibX Wallet</h1>
-			<pre>{status}</pre>
-		</div>
-	);
+	if (connectError) {
+		return (
+			<div data-fibx-panel>
+				<h1>FibX Wallet</h1>
+				<p class="error">{connectError}</p>
+			</div>
+		);
+	}
+	return <Panel app={app} initial={initial} />;
 }
 
-render(<Panel />, document.getElementById("root")!);
+render(<Root />, document.getElementById("root")!);
