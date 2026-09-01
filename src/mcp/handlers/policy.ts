@@ -63,18 +63,36 @@ export async function handleSetPolicyRule({ rule, value }: { rule: string; value
 	return jsonResult({ ok: true, rule, value, rules: next });
 }
 
-export async function handleClearPolicyRule({ rule }: { rule?: string }) {
-	// Only an omitted rule means "remove everything". An explicit empty
-	// string is a different value — the shape a blank panel form field
-	// sends — and must fall through to validation below instead of being
-	// treated the same as omission.
-	if (rule === undefined) {
+export async function handleClearPolicyRule({ rule, all }: { rule?: string; all?: true }) {
+	// The whole-policy delete needs an explicit, recognisable call — `{ all:
+	// true }` — rather than reading silence (neither argument) as consent, or
+	// guessing when both are given. Naming exactly what to pass beats either
+	// picking a default or reporting a generic schema failure.
+	if (all && rule !== undefined) {
+		throw new FibxError(
+			ErrorCode.VALIDATION_ERROR,
+			"Pass either `rule` to remove one rule, or `all: true` to remove the whole policy — not both."
+		);
+	}
+
+	if (all) {
+		// Deliberately does not go through readForWrite(): this must still
+		// delete an unreadable policy, exactly as `fibx policy clear --yes`
+		// does — refusing here would leave an untrustworthy file in place with
+		// no way to clear it from this surface.
 		clearPolicy();
 		return jsonResult({
 			ok: true,
 			changed: true,
 			message: "Signing policy removed — nothing limits signing now.",
 		});
+	}
+
+	if (rule === undefined) {
+		throw new FibxError(
+			ErrorCode.VALIDATION_ERROR,
+			"Pass `rule` to remove one rule, or `all: true` to remove the whole policy."
+		);
 	}
 
 	const current = readForWrite();

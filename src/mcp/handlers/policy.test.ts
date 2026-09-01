@@ -120,12 +120,50 @@ describe("clear_policy_rule", () => {
 		expect(mocks.savePolicy).not.toHaveBeenCalled();
 	});
 
-	it("removes the whole policy when no rule is named", async () => {
+	// The whole-policy delete is a distinct, explicit call shape — `{ all: true
+	// }` — not silence. The CLI refuses this exact operation without --yes or a
+	// terminal to confirm in; the MCP surface is the no-terminal case, and
+	// `clear_policy_rule({})` used to take that silence as consent.
+	it("removes the whole policy when `all: true` is given", async () => {
 		mocks.loadPolicy.mockReturnValue({ maxValue: { base: "0.05" } });
 
-		await handleClearPolicyRule({});
+		const out = parse(await handleClearPolicyRule({ all: true }));
 
 		expect(mocks.clearPolicy).toHaveBeenCalled();
+		expect(mocks.savePolicy).not.toHaveBeenCalled();
+		expect(out.ok).toBe(true);
+		expect(out.changed).toBe(true);
+	});
+
+	// Whole-policy delete deliberately does not go through readForWrite(): it
+	// must still delete an unreadable policy, exactly as `clear --yes` does.
+	it("removes an unreadable policy when `all: true` is given", async () => {
+		mocks.loadPolicy.mockReturnValue("unreadable");
+
+		await handleClearPolicyRule({ all: true });
+
+		expect(mocks.clearPolicy).toHaveBeenCalled();
+		expect(mocks.savePolicy).not.toHaveBeenCalled();
+	});
+
+	// Neither shape supplied reads as the least information at the highest
+	// stakes — reject it and name what to pass, rather than defaulting to
+	// either interpretation.
+	it("rejects a call that names neither `rule` nor `all`", async () => {
+		mocks.loadPolicy.mockReturnValue({ maxValue: { base: "0.05" } });
+
+		await expect(handleClearPolicyRule({})).rejects.toThrow(/rule|all/);
+		expect(mocks.clearPolicy).not.toHaveBeenCalled();
+		expect(mocks.savePolicy).not.toHaveBeenCalled();
+	});
+
+	// Both shapes supplied is ambiguous in the same way — refuse rather than
+	// picking one silently.
+	it("rejects a call that supplies both `rule` and `all`", async () => {
+		mocks.loadPolicy.mockReturnValue({ maxValue: { base: "0.05" } });
+
+		await expect(handleClearPolicyRule({ rule: "expiry", all: true })).rejects.toThrow();
+		expect(mocks.clearPolicy).not.toHaveBeenCalled();
 		expect(mocks.savePolicy).not.toHaveBeenCalled();
 	});
 

@@ -46,9 +46,15 @@ export function registerPolicyTools(server: McpServer): number {
 				title: "Set Policy Rule",
 				// Writes the file that bounds every signature. Hosts key their
 				// approval prompt off this, and a rule can loosen as well as
-				// tighten, so it must never claim to be read-only.
+				// tighten, so it must never claim to be read-only. It also must
+				// not claim to be additive: setting an existing rule *replaces*
+				// its value — a lower maxValue can widen back to a higher one —
+				// which is exactly the kind of update the SDK's destructiveHint
+				// exists to flag. Downgrading it to false would contradict
+				// clear_policy_rule's destructiveHint: true for the same
+				// consequence: a cap that stops binding.
 				readOnlyHint: false,
-				destructiveHint: false,
+				destructiveHint: true,
 				openWorldHint: false,
 			},
 		},
@@ -60,18 +66,23 @@ export function registerPolicyTools(server: McpServer): number {
 		{
 			title: "Remove a Signing Policy Rule",
 			description:
-				"Remove one rule from the local signing policy, or omit the rule to remove " +
-				"the policy entirely. Removing everything leaves nothing limiting what this " +
-				"wallet will sign.",
+				"Remove one rule from the local signing policy with `rule`, or remove the " +
+				"whole policy with `all: true`. Removing everything leaves nothing limiting " +
+				"what this wallet will sign. Exactly one of `rule` or `all` must be given — " +
+				"a call naming neither or both is rejected.",
 			inputSchema: {
-				// min(1): omitting the field means "remove everything", and an
-				// explicit empty string must not be silently treated the same
-				// way — a blank form field in the panel sends "", not omission.
-				rule: z
-					.string()
-					.min(1)
+				// min(1): an explicit empty string must not be silently treated
+				// the same as a valid rule name — a blank form field in the
+				// panel sends "", not omission.
+				rule: z.string().min(1).optional().describe("The rule to remove"),
+				// A required literal rather than a boolean default: the
+				// whole-policy delete must be an explicit, recognisable call,
+				// not something reached by omitting `rule` and letting silence
+				// read as consent.
+				all: z
+					.literal(true)
 					.optional()
-					.describe("The rule to remove; omit to remove the whole policy"),
+					.describe("Set to true to remove the whole policy, instead of `rule`"),
 			},
 			annotations: {
 				title: "Clear Policy Rule",
