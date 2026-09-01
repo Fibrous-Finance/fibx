@@ -1,6 +1,6 @@
 import type { Address } from "viem";
 import { AUTH_HINT, loadSession } from "../auth/session.js";
-import { getChainConfig, SUPPORTED_CHAINS, type ChainConfig } from "../chain/constants.js";
+import { CHAIN_NAMES, getChainConfig, type ChainConfig } from "../chain/constants.js";
 import { getPublicClient } from "../chain/client.js";
 import { getTokens, type Token } from "../fibrous/tokens.js";
 import { getBalances } from "../fibrous/balances.js";
@@ -99,7 +99,11 @@ export async function getPortfolio(): Promise<Portfolio> {
 	}
 
 	const wallet = session.walletAddress as Address;
-	const chainNames = Object.keys(SUPPORTED_CHAINS);
+	// The offered tuple, not the structural table: SUPPORTED_CHAINS keeps a
+	// withdrawn chain's row so old references still resolve, and getChainConfig
+	// refuses it — synchronously, while this array is still being built, which
+	// took the whole portfolio down with it after Citrea was withdrawn.
+	const chainNames = CHAIN_NAMES;
 
 	const results = await Promise.allSettled([
 		...chainNames.map((name) => fetchChainPortfolio(getChainConfig(name), wallet)),
