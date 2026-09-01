@@ -1,6 +1,6 @@
 # Handoff — where the work stands
 
-**Last updated:** 2026-09-01
+**Last updated:** 2026-09-02
 
 This file exists so a new session can pick the work up without the previous
 conversation. It is committed on purpose: the SDD ledger under `.superpowers/`
@@ -13,9 +13,10 @@ lives here.
 
 **The gate passed on 2026-09-01.** Claude Desktop rendered the panel inline for
 a local stdio server — `ext-apps` issue #671 does not apply here. Tasks 5-8 are
-unblocked. **They have since been re-specified at full resolution** — every
-interface read from source — and are being executed in order, Task 5 first;
-the ledger and `git log --oneline main..HEAD` say how far that has got.
+unblocked, re-specified at full resolution, and **all four are now built and
+reviewed.** Two whole-branch reviews passed, each after one fix round. The
+branch is **merge-ready at `930d6fc`**. What remains is Task 9 — verifying
+the finished panel by hand in Claude Desktop — which only a human can do.
 
 One thing is still **blocked on a human**: `npm publish` of 0.10.0, built,
 tested, pushed — not released. And it now carries a hotfix worth shipping:
@@ -109,14 +110,14 @@ infrastructure, which is the one property this product is built to avoid.
 
 **On the branch (`worktree-mcp-apps-panel`):**
 
-| Task                                                    | State                                                                                                                                                                    |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1 — build pipeline, panel renders as a `ui://` resource | complete (`bedbe04`), reviewed clean; **gate PASSED 2026-09-01** — panel rendered in Claude Desktop                                                                      |
-| 2 — `get_policy` tool                                   | complete (`ceca59f`), reviewed clean                                                                                                                                     |
-| 3 — `set_policy_rule`, `clear_policy_rule`              | complete (`52d3fd4`..`081e7e7`), reviewed clean after one fix round                                                                                                      |
-| 4 — `logout` tool                                       | complete (`04f36f5`), reviewed clean                                                                                                                                     |
-| 5-8 — the panel's real UI                               | 5 (`aa7fafb`), 6 (`182781c`), 7 (`ec0156c`) complete, reviewed clean; 8 code at `1802499`, in review — then a second whole-branch review of `7b7efcf..HEAD`, then Task 9 |
-| 9 — manual verification                                 | not started                                                                                                                                                              |
+| Task                                                    | State                                                                                                                                                  |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1 — build pipeline, panel renders as a `ui://` resource | complete (`bedbe04`), reviewed clean; **gate PASSED 2026-09-01** — panel rendered in Claude Desktop                                                    |
+| 2 — `get_policy` tool                                   | complete (`ceca59f`), reviewed clean                                                                                                                   |
+| 3 — `set_policy_rule`, `clear_policy_rule`              | complete (`52d3fd4`..`081e7e7`), reviewed clean after one fix round                                                                                    |
+| 4 — `logout` tool                                       | complete (`04f36f5`), reviewed clean                                                                                                                   |
+| 5-8 — the panel's real UI                               | all complete: 5 (`aa7fafb`), 6 (`182781c`), 7 (`ec0156c`), 8 (`1802499`); second whole-branch review passed after one fix round (`e42b460`, `930d6fc`) |
+| 9 — manual verification                                 | **yours** — steps below; the worktree build at `930d6fc` is what Claude Desktop already points at                                                      |
 
 Test count moved 229 → 255. **Tasks 1-4 are complete, and the whole-branch review passed after one fix round** (`e081e0f`..`7b7efcf`). The branch is merge-ready at `7b7efcf`. Whether it grows further is what the gate decides; until then the plan is not finished, so the SDD workspace stays.
 
@@ -325,6 +326,20 @@ other error and returns a _normal_ result whose body is
 `{ success: false, error, code, rawMessage }`. `ui/src/rpc.ts` throws on
 either; a client that checks only `isError` decodes a failed `connect_wallet`
 as a pairing with undefined fields. `ui/src/rpc.test.ts` pins both shapes.
+
+**`panel.tsx` has no component tests.** Its pure helpers (`status.ts`, `rpc.ts`,
+`wallets.ts`) are tested; the 500-line state machine that gates every write is
+not, because vitest runs with `environment: "node"`. The recipe when someone
+takes it on: `happy-dom` and `@testing-library/preact` as devDependencies, a
+vitest `environment` override for `ui/**`, and tests for the write gating (no
+tool call without a click) and the two-step wipe. This is the panel's top
+follow-up; both Important findings of the second whole-branch review were
+found by reading, not by a test.
+
+**Task 9's step 6 corrupts the real policy file on purpose — clean it up.**
+`echo '{ not json' > …/policy.json` is the right way to see the unreadable
+state, and an unreadable policy refuses every signature. Run
+`fibx policy clear --yes` afterwards or nothing signs until you do.
 
 **The annotation test reads a private SDK field.** `src/mcp/tools/annotations.test.ts`
 asserts against `McpServer._registeredTools`, which SDK 1.27.1 declares `private`
