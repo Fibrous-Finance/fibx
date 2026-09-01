@@ -22,7 +22,7 @@ function htmlAsText(): Plugin {
 export default defineConfig({
 	plugins: [htmlAsText()],
 	test: {
-		include: ["src/**/*.test.ts"],
+		include: ["src/**/*.test.ts", "ui/src/**/*.test.ts"],
 		environment: "node",
 	},
 });
