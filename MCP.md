@@ -71,9 +71,9 @@ Add to `~/.gemini/antigravity/mcp_config.json`:
 > operations. Run `fibx auth setup` to choose a signing path, or `fibx auth connect` /
 > `fibx auth login <email>` / `fibx auth import` directly.
 
-## Available Tools (13)
+## Available Tools (17)
 
-### Read-Only (8 tools)
+### Read-Only (9 tools)
 
 | Tool                 | Description                                                  | Auth Required |
 | -------------------- | ------------------------------------------------------------ | ------------- |
@@ -85,6 +85,7 @@ Add to `~/.gemini/antigravity/mcp_config.json`:
 | `get_tx_status`      | Check transaction receipt and status                         | No            |
 | `get_aave_status`    | Get Aave V3 position health on Base                          | Yes           |
 | `get_aave_markets`   | List all Aave V3 reserves with APY, TVL, and LTV             | No            |
+| `get_policy`         | Read the local signing policy that bounds every transaction  | No            |
 
 ### Transactional (3 tools)
 
@@ -96,15 +97,20 @@ These tools advertise `destructiveHint: true`; confirmation behavior depends on 
 | `send_tokens` | Send native or ERC-20 tokens to a recipient             | ✅       |
 | `aave_action` | Supply, borrow, repay, or withdraw on Aave V3 (Base)    | ✅       |
 
-### Session & Configuration (2 tools)
+### Session & Configuration (5 tools)
 
-These change local state rather than chain state, and both advertise
-`readOnlyHint: false`.
+These change local state rather than chain state, and all advertise
+`readOnlyHint: false`. `set_policy_rule`, `clear_policy_rule`, and `logout`
+also advertise `destructiveHint: true` — each can remove a bound that was
+protecting the wallet, or end the active session outright.
 
-| Tool             | Description                                                                |
-| ---------------- | -------------------------------------------------------------------------- |
-| `connect_wallet` | Start a WalletConnect pairing; **replaces the active session** on approval |
-| `config_action`  | Set or view custom RPC URLs to avoid rate limits                           |
+| Tool                | Description                                                                  |
+| ------------------- | ---------------------------------------------------------------------------- |
+| `connect_wallet`    | Start a WalletConnect pairing; **replaces the active session** on approval   |
+| `config_action`     | Set or view custom RPC URLs to avoid rate limits                             |
+| `set_policy_rule`   | Set one rule on the local signing policy — replaces an existing rule's value |
+| `clear_policy_rule` | Remove one policy rule, or the whole policy with `all: true`                 |
+| `logout`            | End the WalletConnect pairing and clear the local session                    |
 
 ## Tool Details
 
@@ -277,6 +283,77 @@ Output: { action, chain?, url?, rpcUrls? }
 ```
 
 **Example prompt:** "I'm getting rate limited on Base, set a custom RPC" or "Reset all RPCs to default"
+
+### get_policy
+
+Read the local signing policy without changing it. **No authentication required.**
+
+```
+Input:  {}
+Output: { state: "active" | "absent" | "unreadable", rules?, path, message }
+```
+
+`absent` means no policy is set — nothing limits what this wallet will sign.
+`unreadable` means a policy file exists but could not be parsed, which refuses
+every transaction until it is fixed or removed; it is deliberately kept
+distinct from `absent`, which permits everything.
+
+**Example prompt:** "What's my current signing policy?" or "Is anything limiting what fibx can sign?"
+
+### set_policy_rule
+
+Set one rule on the local signing policy — `expiry`, `allowedChains`,
+`<chain>.maxValue`, or `<chain>.allowedDestinations`. Lists are
+comma-separated.
+
+```
+Input:  { rule, value }
+Output: { ok, rule, value, rules }
+```
+
+**Not additive.** Setting a rule that already exists _replaces_ its value —
+a lower `maxValue` can be widened back to a higher one just as easily as it
+was tightened — so this advertises `destructiveHint: true`, matching
+`clear_policy_rule`'s annotation for the same consequence: a cap that stops
+binding. `maxValue` bounds only the native value of a transaction; an ERC-20
+transfer carries `value: 0`, so use `allowedDestinations` to bound where
+tokens may go.
+
+**Example prompt:** "Cap Base transactions at 0.05 ETH" or "Only allow sending to my own address on Base"
+
+### clear_policy_rule
+
+Remove one rule from the local signing policy, or remove the whole policy.
+
+```
+Input:  { rule: string } | { all: true }
+Output: { ok, changed, rule?, rules?, message }
+```
+
+The two call shapes are deliberately distinct and mutually exclusive — a call
+naming neither `rule` nor `all`, or both, is rejected rather than guessed at.
+Removing the whole policy (`{ all: true }`) leaves nothing limiting what this
+wallet will sign, which is why it needs the more deliberate shape rather than
+an omitted argument reading as consent.
+
+**Example prompt:** "Remove the expiry on my policy" or "Clear my whole signing policy"
+
+### logout
+
+End the active session: release any WalletConnect pairing, then clear the
+local session file.
+
+```
+Input:  {}
+Output: { ok, message }
+```
+
+The local session is cleared even if releasing the WalletConnect pairing
+fails — a teardown problem is reported, but it never leaves the caller logged
+in. Authentication must be set up again afterward via `fibx auth setup` or
+one of the three signing paths directly.
+
+**Example prompt:** "Log me out" or "End my session"
 
 ## Safety
 

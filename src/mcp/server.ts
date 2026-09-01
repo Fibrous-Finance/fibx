@@ -34,7 +34,8 @@ RULES:
 7. All write tools are destructive — confirm with the user before executing.
 8. Use simulate=true on transactional tools for a no-broadcast preview; gas estimates are returned only where available.
 9. Always call get_aave_markets before Aave supply/borrow operations.
-10. get_portfolio provides cross-chain overview including DeFi positions.`;
+10. get_portfolio provides cross-chain overview including DeFi positions.
+11. A local signing policy may refuse a transaction regardless of which tool sent it — get_policy explains what is set, and a refusal names the rule that blocked it.`;
 
 function printBanner(summary: ToolSummary): void {
 	const version = pkg.version;

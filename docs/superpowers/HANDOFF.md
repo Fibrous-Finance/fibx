@@ -229,23 +229,66 @@ empty throwaway wallet cannot demonstrate a policy refusal through the CLI.
 Drive the gate directly instead — the plan's Task 8 has the code.
 
 **Open follow-up: promote `applyRule` / `removeRule` to `FibxError`.**
-They throw plain `Error`, so a bad rule name reaches MCP callers with the right
-message and an uninformative `UNKNOWN_ERROR` code. `ErrorCode.VALIDATION_ERROR`
-already exists, unused, in `src/lib/errors.ts`. The fix belongs at the one
-source of truth in `src/commands/policy/index.ts` and would improve the CLI and
-MCP together — but it changes the CLI's visible output across about six throw
-sites (`✖ [VALIDATION_ERROR] …` instead of `✖ …`), so it is its own task. Until
-then, a UI must render the message rather than branching on the code. The one
-exception is the unreadable-policy refusal, which reliably carries
-`POLICY_BLOCKED`.
+They throw plain `Error`, so a bad rule name or chain reaches MCP callers with
+the right message but an uninformative `UNKNOWN_ERROR` code — not a break, since
+the message is what a caller reads, but a panel must not branch on the code for
+these paths. `ErrorCode.VALIDATION_ERROR` already exists, unused, in
+`src/lib/errors.ts`. The fix belongs at the one source of truth in
+`src/commands/policy/index.ts` and would improve the CLI and MCP together — but
+it changes the CLI's visible output across about six throw sites
+(`✖ [VALIDATION_ERROR] …` instead of `✖ …`), so it is its own task, deliberately
+deferred rather than an oversight. Until then, a UI must render the message
+rather than branching on the code. The one exception is the unreadable-policy
+refusal, which reliably carries `POLICY_BLOCKED`.
 
-**Validation errors from the policy tools carry `UNKNOWN_ERROR`.**
-`applyRule` and `removeRule` throw plain `Error`, not `FibxError`, so a bad rule
-name or chain surfaces over MCP with the right message but an uninformative
-code. Not a break — the message is what a caller reads — but a panel must not
-branch on the code for these paths. Changing `applyRule` to throw `FibxError`
-would also change the CLI's output (`✖ [VALIDATION_ERROR] …` instead of `✖ …`),
-so it is a deliberate open question rather than an oversight.
+**`parseEvmError` can rewrite a validation error into a retry-suggesting
+network error.** `withErrorHandling` routes any non-`FibxError` through it —
+which is exactly what `applyRule` / `removeRule` throw, per the follow-up
+above — and it was proved that `Unknown chain: 429` becomes "RPC rate limited
+— please retry", so a model given a permanently invalid rule name is told to
+loop instead of correcting it. The trigger is contrived (a rule name that
+happens to look like an HTTP status) and the realistic cases pass through
+verbatim, but it is evidence against this follow-up's premise that validation
+failures already reach callers with the right message — sometimes they do not.
+Found during the final-review round on the MCP Apps wallet panel branch
+(2026-09-01); not fixed, since the fix is the same deferred `FibxError`
+promotion above.
+
+**CLI-flavoured error text reaches MCP callers.** `set_policy_rule("allowedChains",
+"")` returns "Remove the rule with `fibx policy clear allowedChains` instead" —
+a shell command, to a caller that now has `clear_policy_rule`. Same family:
+policy refusals name `fibx policy show` and `fibx policy set expiry`. Harmless
+today (the message is still readable), but worth cleaning up whenever the
+`FibxError` promotion above happens, since both touch the same throw sites.
+
+**The wallet panel resource's metadata is thin.** `src/mcp/ui.ts` passes the
+`ui://` URI itself as the human-readable `name` argument to
+`registerAppResource`, so `resources/list` returns the URI string as the name,
+and there is no `description`. The explicit `{ mimeType: RESOURCE_MIME_TYPE }`
+passed alongside it is also redundant — `registerAppResource` already defaults
+`mimeType` to that same constant.
+
+**The five-line logout comment is duplicated verbatim** between
+`src/commands/auth/logout.ts` and `src/mcp/handlers/auth.ts` ("The user asked
+to leave. Whatever became of the wallet's side, the local session goes...").
+Worth factoring out if either surface's logout behavior changes.
+
+**`prepublishOnly` shells out to `npm run build`** in `package.json`, while the
+rest of the repo and its release recipe use pnpm. Works today because `npm run
+build` still resolves the same script, but it is the odd one out.
+
+**The panel costs 408 KB in the published bundle** (+17.2%: 2,374,418 →
+2,782,567 bytes, measured on this branch before the final-review round).
+The panel itself is 339,617 bytes of that and is roughly 90% zod and the MCP
+SDK's schema layer, pulled in transitively by `App` from
+`@modelcontextprotocol/ext-apps` — not by Preact, which the spec chose for its
+small size but which accounts for only ~4 KB of the panel. With `splitting:
+false` this sits in the single bundle every `fibx` invocation loads and `npx
+fibx` downloads — the startup-path cost commit `b7ee51d` was written to
+protect. **Checking whether the lighter
+`@modelcontextprotocol/ext-apps/app-bridge` entry point (43 KB) suffices is a
+precondition for Tasks 5-8, not an afterthought** — it needs answering before
+any more panel UI work, not after.
 
 **Deferred, deliberately, with reasons in the ledger:** the cap message omits
 the native symbol; `BigInt(tx.value)` throws a raw `SyntaxError` on malformed
