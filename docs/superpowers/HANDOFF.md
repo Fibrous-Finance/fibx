@@ -130,24 +130,36 @@ Anthropic's own docs show it working, so it is unverified rather than known
 broken. Task 1 was built specifically to answer this cheaply before the
 expensive UI work.
 
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`, inside
-the outermost braces (the file currently has no `mcpServers` key):
+**Already wired on this machine (2026-09-01):** `claude_desktop_config.json` carries
+an `mcpServers.fibx-dev` entry pointing at the worktree's `dist/index.js`, and a
+`.bak` of the file from before the edit sits beside it. A stdio probe confirmed
+the built server advertises `resources`, lists 17 tools, and serves the panel
+under `ui://fibx/wallet-panel.html` with `_meta.ui.resourceUri` on
+`get_auth_status` — so a blank result in Claude Desktop is the host, not us.
+If the entry is ever missing, this is what goes inside the outermost braces:
 
 ```json
 "mcpServers": { "fibx-dev": { "command": "node", "args": ["/Users/ahmetenesdur/workspace/fibx/.claude/worktrees/mcp-apps-panel/dist/index.js", "mcp-start"] } }
 ```
 
-Quit Claude Desktop fully — not just the window — reopen it, and in a new chat
-ask it to check your wallet status with fibx.
+Quit Claude Desktop fully — not just the window — reopen it, confirm `fibx-dev`
+shows in the tools menu, and in a new chat ask it to check your wallet status
+with fibx.
+
+The panel now reports its own handshake, so there are four readings, not two:
 
 - **A panel appears** with the heading "FibX Wallet" and the JSON
   `get_auth_status` returned → the gate passed. Tasks 5 to 8 go ahead, and
   **they must be re-specified at full resolution first** — the plan says so
   itself, because their markup was deliberately left unwritten while rendering
   was unproven.
+- **A panel, but it says "connect failed: …"** → it rendered; the `ui/initialize`
+  handshake failed. Not #671 — send the text along, it is diagnosable.
+- **A panel stuck on "waiting for the host…"** → it rendered; the host never
+  answered the handshake.
 - **Only plain text appears** → issue #671 applies here too. Cancel Tasks 5 to
-  8, finish Tasks 3 and 4 anyway, and merge. Those tools close a real gap
-  regardless of any UI.
+  8 and merge what is there. The four tools close a real gap regardless of any
+  UI.
 
 The panel will look crude either way. Task 1's only job was to prove the
 pipeline.
