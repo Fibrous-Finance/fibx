@@ -13,9 +13,9 @@ lives here.
 
 **The gate passed on 2026-09-01.** Claude Desktop rendered the panel inline for
 a local stdio server — `ext-apps` issue #671 does not apply here. Tasks 5-8 are
-unblocked, and **the next piece of work is re-specifying them at full
-resolution** before any of them is dispatched; the plan left their markup
-unwritten on purpose while rendering was unproven.
+unblocked. **They have since been re-specified at full resolution** — every
+interface read from source — and are being executed in order, Task 5 first;
+the ledger and `git log --oneline main..HEAD` say how far that has got.
 
 One thing is still **blocked on a human**: `npm publish` of 0.10.0, built,
 tested, pushed — not released. And it now carries a hotfix worth shipping:
@@ -115,7 +115,7 @@ infrastructure, which is the one property this product is built to avoid.
 | 2 — `get_policy` tool                                   | complete (`ceca59f`), reviewed clean                                                                |
 | 3 — `set_policy_rule`, `clear_policy_rule`              | complete (`52d3fd4`..`081e7e7`), reviewed clean after one fix round                                 |
 | 4 — `logout` tool                                       | complete (`04f36f5`), reviewed clean                                                                |
-| 5-8 — the panel's real UI                               | **unblocked** — re-specify at full resolution first, then dispatch                                  |
+| 5-8 — the panel's real UI                               | re-specified in full (2026-09-01); executing in order, Task 5 first                                 |
 | 9 — manual verification                                 | not started                                                                                         |
 
 Test count moved 229 → 255. **Tasks 1-4 are complete, and the whole-branch review passed after one fix round** (`e081e0f`..`7b7efcf`). The branch is merge-ready at `7b7efcf`. Whether it grows further is what the gate decides; until then the plan is not finished, so the SDD workspace stays.

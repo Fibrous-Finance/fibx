@@ -826,34 +826,37 @@ git add -A && git commit -m "feat: add an MCP logout tool to match the CLI"
 
 ---
 
-> **A note on Tasks 5 to 8.** They are specified at a lower resolution than
-> Tasks 1 to 4 — the pure logic and the tool wiring carry real code, but the
-> markup does not. That is deliberate: every one of them is contingent on Task
-> 1's gate, and writing speculative JSX for a panel that may not render is
-> waste. **After Task 1's gate passes, re-specify Tasks 5 to 8 at full
-> resolution before dispatching them.** Do not treat the prose here as a
-> licence to improvise the parts that carry logic.
+> **Re-specified at full resolution on 2026-09-01, after Task 1's gate passed.**
+> Every interface below was read from the code or the installed `ext-apps`
+> typings, not guessed: `app.openLink({ url })` resolves `{ isError?: boolean }`
+> and never throws on a host refusal; `get_connect_status` returns
+> `{ status, address?, error? }` and `"unknown"` for a pairing the server has
+> forgotten; `connect_wallet` returns `{ uri, qrDataUri, pairingId }`;
+> `get_balance` returns `{ wallet, chain, balances: Record<symbol, string> }`;
+> `get_policy` returns `{ state: "active" | "absent" | "unreadable", rules?, path, message? }`;
+> `clear_policy_rule` takes `{ rule }` or `{ all: true }`, never both. Design
+> tokens in `fibrous-interface/ds-bundle/_ds_bundle.css` are RGB triplets
+> (`--bg-primary: 247 248 248`), used as `rgb(var(--bg-primary))`.
 
 ### Task 5: The panel, disconnected — QR, status and connect
 
-**Only start this if Task 1's gate passed.**
-
 **Files:**
 
-- Create: `ui/src/panel.tsx`, `ui/src/status.ts`, `ui/src/status.test.ts`, `ui/src/tokens.css`
-- Modify: `ui/src/main.tsx`
+- Create: `ui/src/status.ts`, `ui/src/status.test.ts`, `ui/src/tokens.css`, `ui/src/panel.tsx`, `ui/src/rpc.ts`
+- Modify: `ui/src/main.tsx`, `src/mcp/ui.test.ts`
 
 **Interfaces:**
 
-- Consumes: `connect_wallet` (returns `{ uri, qr, pairingId }` — confirm the exact field names against `handleConnectWallet` in `src/mcp/handlers/auth.ts:117`) and `get_connect_status` (`{ pairingId }` → pending / connected / failed / unknown)
+- Consumes: `connect_wallet` → `{ uri, qrDataUri, pairingId }`; `get_connect_status({ pairingId })` → `{ status: "pending" | "connected" | "failed" | "unknown", address?, error? }`; `get_auth_status` result (the tool the panel is bound to).
+- Produces: `nextPoll`, `parseToolJson`, `shortAddress` from `status.ts`; `callJson` from `rpc.ts`; `<Panel>` from `panel.tsx` with a `Disconnected` view. Tasks 6–8 add to these files and must not rename them.
 
-- [ ] **Step 1: Write the failing test for the pure part**
+- [ ] **Step 1: Write the failing tests for the pure helpers**
 
-`ui/src/status.test.ts`. The polling logic is where the bugs live, so it goes in a pure function that a test can drive without a DOM.
+`ui/src/status.test.ts`:
 
 ```typescript
 import { describe, expect, it } from "vitest";
-import { nextPoll } from "./status.js";
+import { nextPoll, parseToolJson, shortAddress } from "./status.js";
 
 describe("nextPoll", () => {
 	it("keeps polling while the pairing is pending", () => {
@@ -868,8 +871,8 @@ describe("nextPoll", () => {
 		expect(nextPoll({ status: "failed" }, 3).action).toBe("stop");
 	});
 
-	// A pairing the server no longer knows about is not going to become
-	// connected by asking again.
+	// A pairing the server no longer knows about will not become connected by
+	// being asked again.
 	it("stops on unknown", () => {
 		expect(nextPoll({ status: "unknown" }, 3).action).toBe("stop");
 	});
@@ -879,19 +882,51 @@ describe("nextPoll", () => {
 		expect(nextPoll({ status: "pending" }, 120).action).toBe("expired");
 	});
 });
+
+describe("parseToolJson", () => {
+	// Every fibx tool answers with one text content block holding JSON; this is
+	// the one place that shape is decoded, so a host that adds blocks or a tool
+	// that answers with prose fails here, loudly, instead of as `undefined`
+	// deep inside a render.
+	it("decodes the first text block", () => {
+		const out = parseToolJson<{ ok: boolean }>({
+			content: [{ type: "text", text: '{"ok":true}' }],
+		});
+		expect(out).toEqual({ ok: true });
+	});
+
+	it("throws on a result with no text block", () => {
+		expect(() => parseToolJson({ content: [] })).toThrow(/no text/i);
+	});
+
+	it("throws on a text block that is not JSON", () => {
+		expect(() => parseToolJson({ content: [{ type: "text", text: "nope" }] })).toThrow();
+	});
+});
+
+describe("shortAddress", () => {
+	it("keeps the first six and last four characters", () => {
+		expect(shortAddress("0x036395BBb9a85B8E285a1323e46650738d543d44")).toBe("0x0363…3d44");
+	});
+});
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [ ] **Step 2: Run to verify they fail**
 
 Run: `pnpm exec vitest run ui/src/status.test.ts`
-Expected: FAIL — `./status.js` does not exist. If vitest does not pick up `ui/`, add it to the `include` in `vitest.config.ts` (or create that config) rather than moving the file.
+Expected: FAIL — `./status.js` does not exist. `vitest.config.ts` already includes `ui/**/*.test.ts` (fix round of the whole-branch review); if it does not pick the file up, widen the glob there rather than moving the file.
 
-- [ ] **Step 3: Write the helper**
+- [ ] **Step 3: Write the helpers**
 
 `ui/src/status.ts`:
 
 ```typescript
-export type ConnectStatus = { status: "pending" | "connected" | "failed" | "unknown" };
+export type ConnectStatus = {
+	status: "pending" | "connected" | "failed" | "unknown";
+	address?: string;
+	error?: string;
+};
+
 export type PollDecision =
 	| { action: "poll"; attempt: number }
 	| { action: "stop" }
@@ -910,64 +945,491 @@ export function nextPoll(result: ConnectStatus, attempt: number): PollDecision {
 	if (attempt >= MAX_POLL_ATTEMPTS) return { action: "expired" };
 	return { action: "poll", attempt: attempt + 1 };
 }
+
+type ToolResultLike = { content?: Array<{ type: string; text?: string }> };
+
+/**
+ * Every fibx tool answers with a single text block holding JSON. Decode it in
+ * one place, and fail loudly when the shape is not that — a silent `undefined`
+ * would surface as a blank panel with nothing to grep for.
+ */
+export function parseToolJson<T>(result: ToolResultLike): T {
+	const text = result.content?.find((c) => c.type === "text")?.text;
+	if (text === undefined) throw new Error("Tool result carried no text block");
+	return JSON.parse(text) as T;
+}
+
+export function shortAddress(address: string): string {
+	return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
 ```
 
 - [ ] **Step 4: Run the tests**
 
 Run: `pnpm exec vitest run ui/src/status.test.ts`
-Expected: PASS, 5 tests.
+Expected: PASS, 9 tests.
 
-- [ ] **Step 5: Extract the design tokens**
+- [ ] **Step 5: Write the tool-call wrapper**
 
-Copy the CSS custom properties (the `--*` declarations, both light and dark) from `/Users/ahmetenesdur/workspace/fibrous-interface/ds-bundle/_ds_bundle.css` into `ui/src/tokens.css`, along with hand-written rules for only the classes the panel uses. Do not copy the whole 369 KB file — the panel needs a few dozen declarations, and every byte is inlined into the server bundle and refetched on each render.
+`ui/src/rpc.ts`. One place turns a tool call into typed JSON and turns `isError` into a thrown `Error` carrying the tool's own message — the panel never branches on an error _code_ for policy tools (their validation errors arrive as `UNKNOWN_ERROR` with the right message; see `HANDOFF.md`).
 
-- [ ] **Step 6: Write the disconnected panel**
+```typescript
+import type { App } from "@modelcontextprotocol/ext-apps";
+import { parseToolJson } from "./status.js";
 
-`ui/src/panel.tsx`, rendering: the QR image returned by `connect_wallet`, the `wc:` URI as selectable text with a copy button, a status line driven by `nextPoll`, and a retry when it expires. Import `tokens.css` from `main.tsx`.
-
-The connect flow. Field names are read from `handleConnectWallet` in `src/mcp/handlers/auth.ts:117`, which returns `{ uri, qrDataUri, pairingId }` — note `qrDataUri`, not `qr`:
-
-```tsx
-async function connect(
-	setPairing: (p: { uri: string; qrDataUri: string }) => void,
-	setStatus: (s: string) => void
-) {
-	setStatus("opening a pairing…");
-
-	const started = await app.callServerTool({ name: "connect_wallet", arguments: {} });
-	const { uri, qrDataUri, pairingId } = JSON.parse(
-		started.content?.find((c) => c.type === "text")?.text ?? "{}"
-	);
-	setPairing({ uri, qrDataUri });
-	setStatus("waiting for the wallet…");
-
-	// connect_wallet returns as soon as the pairing exists; approval happens
-	// on someone's phone, so the result arrives through polling rather than
-	// through that call.
-	let attempt = 0;
-	for (;;) {
-		await new Promise((resolve) => setTimeout(resolve, 1000));
-		const polled = await app.callServerTool({
-			name: "get_connect_status",
-			arguments: { pairingId },
-		});
-		const result = JSON.parse(polled.content?.find((c) => c.type === "text")?.text ?? "{}");
-
-		const decision = nextPoll(result, attempt);
-		if (decision.action === "stop") return setStatus(result.status);
-		if (decision.action === "expired") return setStatus("expired");
-		attempt = decision.attempt;
+/**
+ * Call a server tool and decode its JSON. A tool-level failure comes back as
+ * `isError: true` with the reason in the text block; surface that reason as
+ * the thrown message so every caller shows the same words the CLI would.
+ */
+export async function callJson<T>(
+	app: App,
+	name: string,
+	args: Record<string, unknown> = {}
+): Promise<T> {
+	const result = await app.callServerTool({ name, arguments: args });
+	if (result.isError) {
+		let message = "Tool call failed";
+		try {
+			const body = parseToolJson<{ error?: string; message?: string }>(result);
+			message = body.error ?? body.message ?? message;
+		} catch {
+			const text = result.content?.find((c) => c.type === "text")?.text;
+			if (text) message = text;
+		}
+		throw new Error(message);
 	}
+	return parseToolJson<T>(result);
 }
 ```
 
-- [ ] **Step 7: Build and verify**
+- [ ] **Step 6: Write the design tokens**
 
-```bash
-pnpm build && pnpm test && ./node_modules/.bin/tsc --noEmit
+`ui/src/tokens.css`. Values are lifted from `fibrous-interface/ds-bundle/_ds_bundle.css` — the light and dark triplets for the handful of tokens the panel uses, plus the two families. **Do not copy the 369 KB file**; every byte is inlined into the server bundle. The `dark` class on the root mirrors the design system's own convention; the panel sets it from `prefers-color-scheme` in `main.tsx`.
+
+```css
+:root {
+	--bg-primary: 247 248 248;
+	--bg-secondary: 255 255 255;
+	--bg-tertiary: 237 238 241;
+	--text-primary: 20 22 25;
+	--text-secondary: 74 90 94;
+	--text-muted: 125 127 130;
+	--brand-primary: 17 178 186;
+	--brand-hover: 15 160 167;
+	--status-success: 59 193 113;
+	--status-warning: 255 184 0;
+	--status-error: 255 100 124;
+	--surface-stroke: 142 149 162;
+	--font-display: "Urbanist", ui-sans-serif, system-ui, sans-serif;
+	--font-rubik: "Rubik", ui-monospace, monospace;
+}
+
+:root.dark {
+	--bg-primary: 27 31 44;
+	--bg-secondary: 39 45 62;
+	--bg-tertiary: 21 25 36;
+	--text-primary: 255 255 255;
+	--text-secondary: 163 179 181;
+	--text-muted: 125 127 130;
+	--surface-stroke: 68 83 113;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	padding: 16px;
+	background: rgb(var(--bg-primary));
+	color: rgb(var(--text-primary));
+	font-family: var(--font-display);
+	font-size: 15px;
+	line-height: 1.5;
+}
+
+h1 {
+	font-size: 1.15rem;
+	font-weight: 700;
+	margin: 0 0 12px;
+}
+
+.card {
+	background: rgb(var(--bg-secondary));
+	border: 1px solid rgb(var(--surface-stroke) / 0.35);
+	border-radius: 10px;
+	padding: 14px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+
+.muted {
+	color: rgb(var(--text-muted));
+	font-size: 0.9rem;
+}
+
+.mono {
+	font-family: var(--font-rubik);
+	font-variant-numeric: tabular-nums;
+	font-size: 0.9rem;
+	word-break: break-all;
+}
+
+button {
+	font: inherit;
+	border: 0;
+	border-radius: 8px;
+	padding: 8px 14px;
+	cursor: pointer;
+	background: rgb(var(--brand-primary));
+	color: #fff;
+}
+
+button:hover {
+	background: rgb(var(--brand-hover));
+}
+
+button.ghost {
+	background: rgb(var(--bg-tertiary));
+	color: rgb(var(--text-primary));
+}
+
+button:disabled {
+	opacity: 0.55;
+	cursor: default;
+}
+
+.pill {
+	font-family: var(--font-rubik);
+	font-size: 0.72rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	padding: 3px 9px;
+	border-radius: 999px;
+	background: rgb(var(--bg-tertiary));
+	color: rgb(var(--text-secondary));
+}
+
+.pill.ok {
+	background: rgb(var(--status-success) / 0.15);
+	color: rgb(var(--status-success));
+}
+
+.pill.warn {
+	background: rgb(var(--status-warning) / 0.15);
+	color: rgb(var(--status-warning));
+}
+
+.pill.err {
+	background: rgb(var(--status-error) / 0.15);
+	color: rgb(var(--status-error));
+}
+
+.qr {
+	width: 220px;
+	height: 220px;
+	border-radius: 8px;
+	background: #fff;
+	padding: 8px;
+	align-self: center;
+}
+
+textarea.uri {
+	width: 100%;
+	min-height: 64px;
+	resize: vertical;
+	font-family: var(--font-rubik);
+	font-size: 0.78rem;
+	background: rgb(var(--bg-tertiary));
+	color: rgb(var(--text-primary));
+	border: 1px solid rgb(var(--surface-stroke) / 0.35);
+	border-radius: 8px;
+	padding: 8px;
+}
+
+table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+td,
+th {
+	text-align: left;
+	padding: 6px 4px;
+	border-bottom: 1px solid rgb(var(--surface-stroke) / 0.2);
+}
+
+th {
+	color: rgb(var(--text-muted));
+	font-weight: 500;
+	font-size: 0.8rem;
+}
+
+.error {
+	color: rgb(var(--status-error));
+	font-size: 0.9rem;
+}
 ```
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 7: Write the disconnected panel**
+
+`ui/src/panel.tsx`. This file grows through Tasks 6–8; the state shape below is the one they extend.
+
+```tsx
+import { useEffect, useState } from "preact/hooks";
+import type { App } from "@modelcontextprotocol/ext-apps";
+import { callJson } from "./rpc.js";
+import { nextPoll, type ConnectStatus } from "./status.js";
+
+export type AuthStatus = {
+	authenticated: boolean;
+	walletAddress: string | null;
+	sessionType: "walletconnect" | "privy" | "private-key" | null;
+	chain: string;
+	requiresApprovalPerTransaction: boolean;
+	fibrousStatus: string;
+};
+
+type Pairing = { uri: string; qrDataUri: string; pairingId: string };
+type ConnectPhase =
+	| { kind: "idle" }
+	| { kind: "opening" }
+	| { kind: "waiting"; pairing: Pairing }
+	| { kind: "expired"; pairing: Pairing }
+	| { kind: "failed"; message: string };
+
+export function Panel({ app, initial }: { app: App; initial: AuthStatus | null }) {
+	const [auth, setAuth] = useState<AuthStatus | null>(initial);
+	const [error, setError] = useState<string | null>(null);
+
+	useEffect(() => setAuth(initial), [initial]);
+
+	async function refreshAuth() {
+		try {
+			setAuth(await callJson<AuthStatus>(app, "get_auth_status", {}));
+			setError(null);
+		} catch (e) {
+			setError(e instanceof Error ? e.message : String(e));
+		}
+	}
+
+	if (!auth) {
+		return (
+			<div data-fibx-panel>
+				<h1>FibX Wallet</h1>
+				<p class="muted">waiting for the host…</p>
+			</div>
+		);
+	}
+
+	return (
+		<div data-fibx-panel>
+			<h1>FibX Wallet</h1>
+			{error && <p class="error">{error}</p>}
+			{auth.authenticated ? (
+				<Connected app={app} auth={auth} onChange={refreshAuth} />
+			) : (
+				<Disconnected app={app} onConnected={refreshAuth} />
+			)}
+		</div>
+	);
+}
+
+/** Placeholder until Task 7; keeps Task 5 compiling on its own. */
+function Connected({ auth }: { app: App; auth: AuthStatus; onChange: () => Promise<void> }) {
+	return (
+		<div class="card">
+			<div class="row">
+				<span class="pill ok">connected</span>
+				<span class="mono">{auth.walletAddress}</span>
+			</div>
+		</div>
+	);
+}
+
+export function Disconnected({ app, onConnected }: { app: App; onConnected: () => Promise<void> }) {
+	const [phase, setPhase] = useState<ConnectPhase>({ kind: "idle" });
+
+	async function connect() {
+		setPhase({ kind: "opening" });
+		let pairing: Pairing;
+		try {
+			pairing = await callJson<Pairing>(app, "connect_wallet", {});
+		} catch (e) {
+			setPhase({ kind: "failed", message: e instanceof Error ? e.message : String(e) });
+			return;
+		}
+		setPhase({ kind: "waiting", pairing });
+
+		// connect_wallet returns as soon as the pairing exists; approval happens
+		// on someone's phone, so the answer arrives by polling, not by that call.
+		let attempt = 0;
+		for (;;) {
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+			let result: ConnectStatus;
+			try {
+				result = await callJson<ConnectStatus>(app, "get_connect_status", {
+					pairingId: pairing.pairingId,
+				});
+			} catch (e) {
+				setPhase({ kind: "failed", message: e instanceof Error ? e.message : String(e) });
+				return;
+			}
+			const decision = nextPoll(result, attempt);
+			if (decision.action === "expired") {
+				setPhase({ kind: "expired", pairing });
+				return;
+			}
+			if (decision.action === "stop") {
+				if (result.status === "connected") {
+					await onConnected();
+					setPhase({ kind: "idle" });
+				} else {
+					setPhase({
+						kind: "failed",
+						message: result.error ?? `pairing ${result.status}`,
+					});
+				}
+				return;
+			}
+			attempt = decision.attempt;
+		}
+	}
+
+	async function copyUri(uri: string) {
+		try {
+			await navigator.clipboard.writeText(uri);
+		} catch {
+			// The sandbox may refuse the clipboard; the textarea is selectable
+			// on purpose so the URI is never unreachable.
+		}
+	}
+
+	if (phase.kind === "idle" || phase.kind === "opening" || phase.kind === "failed") {
+		return (
+			<div class="card">
+				<p class="muted">No wallet is connected. Pair your own wallet to sign from it.</p>
+				{phase.kind === "failed" && <p class="error">{phase.message}</p>}
+				<button onClick={connect} disabled={phase.kind === "opening"}>
+					{phase.kind === "opening" ? "Opening a pairing…" : "Connect a wallet"}
+				</button>
+			</div>
+		);
+	}
+
+	const { pairing } = phase;
+	return (
+		<div class="card">
+			<div class="row">
+				<span class={`pill ${phase.kind === "expired" ? "warn" : ""}`}>
+					{phase.kind === "expired" ? "expired" : "waiting for the wallet"}
+				</span>
+			</div>
+			<img class="qr" src={pairing.qrDataUri} alt="WalletConnect pairing QR" />
+			<textarea
+				class="uri"
+				readOnly
+				value={pairing.uri}
+				onFocus={(e) => e.currentTarget.select()}
+			/>
+			<div class="row">
+				<button class="ghost" onClick={() => copyUri(pairing.uri)}>
+					Copy link
+				</button>
+				{phase.kind === "expired" && <button onClick={connect}>Try again</button>}
+			</div>
+		</div>
+	);
+}
+```
+
+- [ ] **Step 8: Wire main.tsx to the panel**
+
+Replace `ui/src/main.tsx` with:
+
+```tsx
+import { render } from "preact";
+import { useEffect, useState } from "preact/hooks";
+import { App } from "@modelcontextprotocol/ext-apps";
+import { Panel, type AuthStatus } from "./panel.js";
+import { parseToolJson } from "./status.js";
+import "./tokens.css";
+
+const app = new App({ name: "FibX Wallet", version: "1.0.0" });
+
+if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
+	document.documentElement.classList.add("dark");
+}
+
+function Root() {
+	const [initial, setInitial] = useState<AuthStatus | null>(null);
+	const [connectError, setConnectError] = useState<string | null>(null);
+
+	useEffect(() => {
+		app.addEventListener("toolresult", (result) => {
+			try {
+				setInitial(parseToolJson<AuthStatus>(result));
+			} catch (e) {
+				setConnectError(e instanceof Error ? e.message : String(e));
+			}
+		});
+
+		// connect() rejects when the ui/initialize handshake fails. Keep that
+		// visible: the gate that proved this pipeline relied on being able to
+		// tell "never rendered" from "rendered, handshake failed".
+		app.connect().catch((e: unknown) => setConnectError(`connect failed: ${String(e)}`));
+
+		return () => {
+			app.close().catch(() => {});
+		};
+	}, []);
+
+	if (connectError) {
+		return (
+			<div data-fibx-panel>
+				<h1>FibX Wallet</h1>
+				<p class="error">{connectError}</p>
+			</div>
+		);
+	}
+	return <Panel app={app} initial={initial} />;
+}
+
+render(<Root />, document.getElementById("root")!);
+```
+
+- [ ] **Step 9: Add a size guard**
+
+The whole-branch review measured the panel at 339 KB, almost all of it the SDK's schema layer pulled in by `App`. Nothing on this branch can shrink that without replacing `App`, which the handshake needs. What this step buys is that growth is noticed: add to `src/mcp/ui.test.ts`
+
+```typescript
+// The panel is inlined into the bundle every fibx invocation loads. The
+// SDK layer sets the floor (~330 KB); the ceiling below leaves ~60 KB for
+// the panel's own code and fails the suite before an accidental import
+// doubles it.
+it("stays under the size budget", () => {
+	expect(walletPanelHtml.length).toBeLessThan(400_000);
+});
+```
+
+- [ ] **Step 10: Verify**
+
+```bash
+pnpm build && pnpm test && ./node_modules/.bin/tsc --noEmit && pnpm typecheck:ui && ./node_modules/.bin/eslint src/ && ./node_modules/.bin/prettier --check src/ ui/
+```
+
+Expected: all clean; the build reports the panel's byte size — record it in the commit message.
+
+- [ ] **Step 11: Commit**
 
 ```bash
 git add -A && git commit -m "feat: pair a wallet from inside the panel"
@@ -977,20 +1439,95 @@ git add -A && git commit -m "feat: pair a wallet from inside the panel"
 
 ### Task 6: Wallet shortcuts
 
-**Files:** Modify `ui/src/panel.tsx`
+**Files:** Modify `ui/src/panel.tsx`; create `ui/src/wallets.ts`, `ui/src/wallets.test.ts`
 
-- [ ] **Step 1: Add the shortcuts**
+**Interfaces:**
 
-Three buttons — MetaMask, Rabby, Rainbow — that hand the `wc:` URI to the wallet via the host's link capability (`app.sendOpenLink` or the equivalent named in the ext-apps API docs; confirm the method name against `@modelcontextprotocol/ext-apps`'s `App` type rather than guessing).
+- Consumes: `app.openLink({ url })` → `Promise<{ isError?: boolean }>`. **It does not throw on refusal** — a blocked domain or a user cancel comes back as `isError: true`. There is no host-capability flag to check beforehand; the only way to know is to try.
 
-- [ ] **Step 2: Degrade when the host refuses**
+- [ ] **Step 1: Write the failing test**
 
-Hosts may disable the link capability. Feature-detect it; when it is unavailable, render the copyable URI alone and no shortcut buttons. A dead button is worse than an absent one.
+`ui/src/wallets.test.ts`:
 
-- [ ] **Step 3: Verify and commit**
+```typescript
+import { describe, expect, it } from "vitest";
+import { walletLinks } from "./wallets.js";
+
+const URI = "wc:abc@2?relay-protocol=irn&symKey=deadbeef";
+
+describe("walletLinks", () => {
+	// Each wallet consumes the URI through its own universal link; the encoding
+	// must survive the `@`, `?` and `=` inside a wc: URI or the wallet opens
+	// to nothing.
+	it("encodes the pairing URI once, per wallet", () => {
+		const links = walletLinks(URI);
+		const encoded = encodeURIComponent(URI);
+		expect(links.map((l) => l.name)).toEqual(["MetaMask", "Rabby", "Rainbow"]);
+		for (const l of links) expect(l.url).toContain(encoded);
+	});
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `pnpm exec vitest run ui/src/wallets.test.ts`
+Expected: FAIL — `./wallets.js` does not exist.
+
+- [ ] **Step 3: Write it**
+
+`ui/src/wallets.ts`:
+
+```typescript
+export type WalletLink = { name: string; url: string };
+
+/**
+ * Same-device pairing: hand the wc: URI to a wallet through its universal
+ * link instead of asking someone to scan their own screen. These are the
+ * wallets FibX's own README names; the copyable URI remains for every other.
+ */
+export function walletLinks(uri: string): WalletLink[] {
+	const u = encodeURIComponent(uri);
+	return [
+		{ name: "MetaMask", url: `https://metamask.app.link/wc?uri=${u}` },
+		{ name: "Rabby", url: `https://rabby.io/wc?uri=${u}` },
+		{ name: "Rainbow", url: `https://rnbwapp.com/wc?uri=${u}` },
+	];
+}
+```
+
+- [ ] **Step 4: Add the buttons, and hide them when the host says no**
+
+In `Disconnected` (`ui/src/panel.tsx`), add state `const [linksAllowed, setLinksAllowed] = useState(true);` and, in the waiting/expired card, above the copy row:
+
+```tsx
+{
+	linksAllowed && (
+		<div class="row">
+			{walletLinks(pairing.uri).map((l) => (
+				<button
+					class="ghost"
+					onClick={async () => {
+						const r = await app.openLink({ url: l.url });
+						// A refusal is a result, not an exception. Once the host
+						// says no, every shortcut would say no — drop them all
+						// and leave the copyable URI, which always works.
+						if (r.isError) setLinksAllowed(false);
+					}}
+				>
+					Open in {l.name}
+				</button>
+			))}
+		</div>
+	);
+}
+```
+
+Import `walletLinks` from `./wallets.js`.
+
+- [ ] **Step 5: Verify and commit**
 
 ```bash
-pnpm build && pnpm test && ./node_modules/.bin/tsc --noEmit
+pnpm build && pnpm test && ./node_modules/.bin/tsc --noEmit && pnpm typecheck:ui
 ```
 
 ```bash
@@ -1003,37 +1540,195 @@ git add -A && git commit -m "feat: hand the pairing URI straight to the wallet"
 
 **Files:** Modify `ui/src/panel.tsx`, `ui/src/status.ts`, `ui/src/status.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+**Interfaces:**
 
-Add to `ui/src/status.test.ts` a test for a pure `describeSession` helper that maps `get_auth_status`'s `sessionType` to what the reader needs to know:
+- Consumes: `get_balance({ chain })` → `{ wallet, chain, balances: Record<string, string> }`; `logout` → `{ ok, message }`.
+- Produces: `describeSession` from `status.ts`.
+
+- [ ] **Step 1: Write the failing tests**
+
+Append to `ui/src/status.test.ts`:
 
 ```typescript
+import { describeSession } from "./status.js";
+
 describe("describeSession", () => {
 	it("says a WalletConnect session approves on the phone", () => {
-		expect(describeSession("walletconnect").approvesPerTransaction).toBe(true);
+		const d = describeSession("walletconnect");
+		expect(d.approvesPerTransaction).toBe(true);
+		expect(d.policyIsOnlyBound).toBe(false);
 	});
 
-	it("says an imported key does not", () => {
-		expect(describeSession("private-key").approvesPerTransaction).toBe(false);
+	it("says a Privy session runs unattended behind a server policy", () => {
+		const d = describeSession("privy");
+		expect(d.approvesPerTransaction).toBe(false);
+		expect(d.policyIsOnlyBound).toBe(false);
 	});
 
-	// The path with no other bound: worth saying out loud, since it is the one
-	// where the signing policy is the only thing standing between an agent and
-	// the wallet.
-	it("flags the imported key as unbounded without a policy", () => {
-		expect(describeSession("private-key").policyIsOnlyBound).toBe(true);
+	// The path with no other bound. Worth saying out loud, since it is the one
+	// where the local policy is the only thing between an agent and the key.
+	it("flags the imported key as bounded by the local policy alone", () => {
+		const d = describeSession("private-key");
+		expect(d.approvesPerTransaction).toBe(false);
+		expect(d.policyIsOnlyBound).toBe(true);
 	});
 });
 ```
 
-- [ ] **Step 2: Implement it, then render the connected state**
+- [ ] **Step 2: Run to verify they fail**
 
-The address, the session type in plain words, the active chain, a balance summary from `get_balance`, and an "end session" button calling `logout`.
+Run: `pnpm exec vitest run ui/src/status.test.ts`
+Expected: FAIL — `describeSession` is not exported.
 
-- [ ] **Step 3: Verify and commit**
+- [ ] **Step 3: Write it**
+
+Append to `ui/src/status.ts`:
+
+```typescript
+export type SessionKind = "walletconnect" | "privy" | "private-key";
+
+export function describeSession(kind: SessionKind): {
+	label: string;
+	approvesPerTransaction: boolean;
+	policyIsOnlyBound: boolean;
+} {
+	switch (kind) {
+		case "walletconnect":
+			return {
+				label: "Your own wallet, over WalletConnect",
+				approvesPerTransaction: true,
+				policyIsOnlyBound: false,
+			};
+		case "privy":
+			return {
+				label: "A Privy wallet",
+				approvesPerTransaction: false,
+				policyIsOnlyBound: false,
+			};
+		case "private-key":
+			return {
+				label: "A private key on this machine",
+				approvesPerTransaction: false,
+				policyIsOnlyBound: true,
+			};
+	}
+}
+```
+
+- [ ] **Step 4: Run the tests**
+
+Run: `pnpm exec vitest run ui/src/status.test.ts`
+Expected: PASS, 12 tests.
+
+- [ ] **Step 5: Replace the Connected placeholder**
+
+In `ui/src/panel.tsx`, replace the placeholder `Connected` with:
+
+```tsx
+type Balances = { wallet: string; chain: string; balances: Record<string, string> };
+
+function Connected({
+	app,
+	auth,
+	onChange,
+}: {
+	app: App;
+	auth: AuthStatus;
+	onChange: () => Promise<void>;
+}) {
+	const [balances, setBalances] = useState<Balances | null>(null);
+	const [busy, setBusy] = useState<string | null>(null);
+	const [error, setError] = useState<string | null>(null);
+	const session = describeSession(auth.sessionType ?? "walletconnect");
+
+	useEffect(() => {
+		let cancelled = false;
+		callJson<Balances>(app, "get_balance", { chain: auth.chain })
+			.then((b) => !cancelled && setBalances(b))
+			.catch((e) => !cancelled && setError(e instanceof Error ? e.message : String(e)));
+		return () => {
+			cancelled = true;
+		};
+	}, [auth.walletAddress, auth.chain]);
+
+	async function endSession() {
+		setBusy("Ending the session…");
+		try {
+			await callJson(app, "logout", {});
+			await onChange();
+		} catch (e) {
+			setError(e instanceof Error ? e.message : String(e));
+		} finally {
+			setBusy(null);
+		}
+	}
+
+	return (
+		<>
+			<div class="card">
+				<div class="row">
+					<span class="pill ok">connected</span>
+					<span class="pill">{auth.chain}</span>
+					{session.approvesPerTransaction && (
+						<span class="pill">approves on your phone</span>
+					)}
+					{session.policyIsOnlyBound && (
+						<span class="pill warn">bounded by policy only</span>
+					)}
+				</div>
+				<div class="mono" title={auth.walletAddress ?? ""}>
+					{auth.walletAddress ? shortAddress(auth.walletAddress) : "—"}
+				</div>
+				<p class="muted">{session.label}</p>
+				{error && <p class="error">{error}</p>}
+				<div class="row">
+					<button class="ghost" onClick={endSession} disabled={busy !== null}>
+						{busy ?? "End session"}
+					</button>
+				</div>
+			</div>
+
+			<div class="card">
+				<h1>Balances</h1>
+				{balances ? (
+					<table>
+						<thead>
+							<tr>
+								<th>Asset</th>
+								<th>Amount</th>
+							</tr>
+						</thead>
+						<tbody>
+							{Object.entries(balances.balances).map(([symbol, amount]) => (
+								<tr key={symbol}>
+									<td>{symbol}</td>
+									<td class="mono">{amount}</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				) : (
+					<p class="muted">loading…</p>
+				)}
+			</div>
+
+			<PolicyCard app={app} sessionKind={auth.sessionType ?? "walletconnect"} />
+		</>
+	);
+}
+
+/** Placeholder until Task 8; keeps Task 7 compiling on its own. */
+function PolicyCard(_: { app: App; sessionKind: SessionKind }) {
+	return null;
+}
+```
+
+Import `describeSession`, `shortAddress`, `type SessionKind` from `./status.js`.
+
+- [ ] **Step 6: Verify and commit**
 
 ```bash
-pnpm build && pnpm test && ./node_modules/.bin/tsc --noEmit
+pnpm build && pnpm test && ./node_modules/.bin/tsc --noEmit && pnpm typecheck:ui
 ```
 
 ```bash
@@ -1044,24 +1739,284 @@ git add -A && git commit -m "feat: show what is signing, in the panel"
 
 ### Task 8: Policy display and editing
 
-**Files:** Modify `ui/src/panel.tsx`
+**Files:** Modify `ui/src/panel.tsx`, `ui/src/status.ts`, `ui/src/status.test.ts`
 
-- [ ] **Step 1: Render the rules**
+**Interfaces:**
 
-Call `get_policy` and render its three states distinctly: active with its rules, absent with a prompt to set one, unreadable with the file path and what to do. Never render "unreadable" as "no policy".
+- Consumes: `get_policy` → `{ state: "active" | "absent" | "unreadable"; rules?: Policy; path: string; message?: string }`; `set_policy_rule({ rule, value })`; `clear_policy_rule({ rule })` or `clear_policy_rule({ all: true })` — never both. Both writers are `readOnlyHint: false`, so the host prompts before running them; the panel must show that a confirmation is pending rather than looking frozen, and must refresh from `get_policy` afterwards rather than assuming its own write landed.
+- Produces: `policyRows` from `status.ts`.
 
-- [ ] **Step 2: Add editing**
+- [ ] **Step 1: Write the failing test**
 
-Per rule: an edit control and a remove control, calling `set_policy_rule` and `clear_policy_rule`. Since both are `readOnlyHint: false`, the host will prompt before each — the panel must show that a confirmation is pending rather than appearing frozen, and must refresh from `get_policy` after the call rather than assuming its own write succeeded.
+Append to `ui/src/status.test.ts`:
 
-- [ ] **Step 3: Say what the cap does not cover**
+```typescript
+import { policyRows } from "./status.js";
 
-Next to `maxValue`, in the panel, state that it bounds native value only and that token transfers are bounded by `allowedDestinations`. This is the claim the README got wrong once; it should not be reintroduced silently in a UI.
+describe("policyRows", () => {
+	// The panel edits rules by the same names `fibx policy set` takes, so the
+	// flattening has to produce exactly those names — one grammar, two surfaces.
+	it("flattens a policy into the CLI's rule names", () => {
+		const rows = policyRows({
+			maxValue: { base: "0.05", monad: "1" },
+			allowedChains: ["base", "monad"],
+			allowedDestinations: { base: ["0xabc"] },
+			expiry: "2026-12-31",
+		});
+		expect(rows).toEqual([
+			{ rule: "expiry", value: "2026-12-31" },
+			{ rule: "allowedChains", value: "base,monad" },
+			{ rule: "base.maxValue", value: "0.05" },
+			{ rule: "monad.maxValue", value: "1" },
+			{ rule: "base.allowedDestinations", value: "0xabc" },
+		]);
+	});
 
-- [ ] **Step 4: Verify and commit**
+	it("returns nothing for an empty policy", () => {
+		expect(policyRows({})).toEqual([]);
+	});
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `pnpm exec vitest run ui/src/status.test.ts`
+Expected: FAIL — `policyRows` is not exported.
+
+- [ ] **Step 3: Write it**
+
+Append to `ui/src/status.ts`:
+
+```typescript
+export type Policy = {
+	maxValue?: Record<string, string>;
+	allowedChains?: string[];
+	allowedDestinations?: Record<string, string[]>;
+	expiry?: string;
+};
+
+export type PolicyRow = { rule: string; value: string };
+
+/**
+ * One row per rule, named exactly as `fibx policy set` names them, so the edit
+ * form can send the row back through set_policy_rule unchanged.
+ */
+export function policyRows(policy: Policy): PolicyRow[] {
+	const rows: PolicyRow[] = [];
+	if (policy.expiry) rows.push({ rule: "expiry", value: policy.expiry });
+	if (policy.allowedChains)
+		rows.push({ rule: "allowedChains", value: policy.allowedChains.join(",") });
+	for (const [chain, v] of Object.entries(policy.maxValue ?? {})) {
+		rows.push({ rule: `${chain}.maxValue`, value: v });
+	}
+	for (const [chain, list] of Object.entries(policy.allowedDestinations ?? {})) {
+		rows.push({ rule: `${chain}.allowedDestinations`, value: list.join(",") });
+	}
+	return rows;
+}
+```
+
+- [ ] **Step 4: Run the tests**
+
+Run: `pnpm exec vitest run ui/src/status.test.ts`
+Expected: PASS, 14 tests.
+
+- [ ] **Step 5: Replace the PolicyCard placeholder**
+
+In `ui/src/panel.tsx`:
+
+```tsx
+type PolicyState =
+	| { state: "active"; rules: Policy; path: string }
+	| { state: "absent"; path: string; message: string }
+	| { state: "unreadable"; path: string; message: string };
+
+function PolicyCard({ app, sessionKind }: { app: App; sessionKind: SessionKind }) {
+	const [policy, setPolicy] = useState<PolicyState | null>(null);
+	const [pending, setPending] = useState<string | null>(null);
+	const [error, setError] = useState<string | null>(null);
+	const [draft, setDraft] = useState<{ rule: string; value: string }>({
+		rule: "base.maxValue",
+		value: "",
+	});
+
+	async function load() {
+		try {
+			setPolicy(await callJson<PolicyState>(app, "get_policy", {}));
+			setError(null);
+		} catch (e) {
+			setError(e instanceof Error ? e.message : String(e));
+		}
+	}
+
+	useEffect(() => {
+		void load();
+	}, []);
+
+	// Every write goes through the host's approval prompt. While that prompt
+	// is up the call has not returned, so say so — a frozen button reads as a
+	// bug. And never trust our own write: reload from get_policy afterwards.
+	async function write(label: string, name: string, args: Record<string, unknown>) {
+		setPending(label);
+		setError(null);
+		try {
+			await callJson(app, name, args);
+			await load();
+		} catch (e) {
+			// Validation failures arrive with the right message and an
+			// uninformative code — render the message, never branch on the code.
+			setError(e instanceof Error ? e.message : String(e));
+		} finally {
+			setPending(null);
+		}
+	}
+
+	if (!policy)
+		return (
+			<div class="card">
+				<h1>Signing policy</h1>
+				<p class="muted">loading…</p>
+			</div>
+		);
+
+	return (
+		<div class="card">
+			<div class="row">
+				<h1 style="margin:0">Signing policy</h1>
+				{policy.state === "active" && <span class="pill ok">active</span>}
+				{policy.state === "absent" && (
+					<span class={`pill ${sessionKind === "private-key" ? "warn" : ""}`}>
+						none set
+					</span>
+				)}
+				{policy.state === "unreadable" && <span class="pill err">unreadable</span>}
+			</div>
+
+			{policy.state === "unreadable" && (
+				<p class="error">
+					{policy.message} <span class="mono">{policy.path}</span>
+				</p>
+			)}
+			{policy.state === "absent" && (
+				<p class="muted">
+					{policy.message}
+					{sessionKind === "private-key" &&
+						" On an imported key this is the only bound there is."}
+				</p>
+			)}
+
+			{policy.state === "active" && (
+				<table>
+					<tbody>
+						{policyRows(policy.rules).map((row) => (
+							<tr key={row.rule}>
+								<td class="mono">{row.rule}</td>
+								<td class="mono">{row.value}</td>
+								<td>
+									<button
+										class="ghost"
+										disabled={pending !== null}
+										onClick={() =>
+											write(`Removing ${row.rule}…`, "clear_policy_rule", {
+												rule: row.rule,
+											})
+										}
+									>
+										Remove
+									</button>
+								</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+			)}
+
+			{policy.state !== "unreadable" && (
+				<form
+					class="row"
+					onSubmit={(e) => {
+						e.preventDefault();
+						if (!draft.value.trim()) return;
+						void write(`Setting ${draft.rule}…`, "set_policy_rule", {
+							rule: draft.rule,
+							value: draft.value.trim(),
+						});
+					}}
+				>
+					<input
+						class="mono"
+						value={draft.rule}
+						onInput={(e) => setDraft({ ...draft, rule: e.currentTarget.value })}
+						placeholder="base.maxValue"
+						aria-label="Rule"
+					/>
+					<input
+						class="mono"
+						value={draft.value}
+						onInput={(e) => setDraft({ ...draft, value: e.currentTarget.value })}
+						placeholder="0.05"
+						aria-label="Value"
+					/>
+					<button type="submit" disabled={pending !== null}>
+						{pending ?? "Set"}
+					</button>
+				</form>
+			)}
+
+			<p class="muted">
+				maxValue caps the native value of one transaction. It does not bound token amounts —
+				an ERC-20 transfer carries value 0 — so use allowedDestinations to bound where
+				tokens may go.
+			</p>
+
+			{policy.state !== "absent" && (
+				<div class="row">
+					<button
+						class="ghost"
+						disabled={pending !== null}
+						onClick={() => {
+							// The host will prompt again; this local confirm keeps a
+							// stray click from ever reaching that prompt.
+							if (
+								confirm(
+									"Remove the whole signing policy? Nothing will limit signing afterwards."
+								)
+							) {
+								void write("Removing the policy…", "clear_policy_rule", {
+									all: true,
+								});
+							}
+						}}
+					>
+						Remove whole policy
+					</button>
+				</div>
+			)}
+			{error && <p class="error">{error}</p>}
+		</div>
+	);
+}
+```
+
+Import `policyRows`, `type Policy` from `./status.js`. Add to `tokens.css`:
+
+```css
+input.mono {
+	font: inherit;
+	font-family: var(--font-rubik);
+	background: rgb(var(--bg-tertiary));
+	color: rgb(var(--text-primary));
+	border: 1px solid rgb(var(--surface-stroke) / 0.35);
+	border-radius: 8px;
+	padding: 7px 9px;
+	min-width: 9rem;
+}
+```
+
+- [ ] **Step 6: Verify and commit**
 
 ```bash
-pnpm build && pnpm test && ./node_modules/.bin/tsc --noEmit
+pnpm build && pnpm test && ./node_modules/.bin/tsc --noEmit && pnpm typecheck:ui && ./node_modules/.bin/eslint src/ && ./node_modules/.bin/prettier --check src/ ui/
 ```
 
 ```bash
