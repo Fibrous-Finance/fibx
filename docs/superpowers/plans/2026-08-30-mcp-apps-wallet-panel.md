@@ -973,14 +973,31 @@ Expected: PASS, 9 tests.
 
 `ui/src/rpc.ts`. One place turns a tool call into typed JSON and turns `isError` into a thrown `Error` carrying the tool's own message — the panel never branches on an error _code_ for policy tools (their validation errors arrive as `UNKNOWN_ERROR` with the right message; see `HANDOFF.md`).
 
+This listing was brought in line with the shipped file after the fix round: fix round `aa7fafb` added the `{ success: false }` body handling below, because that is the shape FibX's `withErrorHandling` (`src/mcp/tools/error-handling.ts`) actually returns for most tool failures, and the plan's original listing only handled `isError`.
+
 ```typescript
 import type { App } from "@modelcontextprotocol/ext-apps";
 import { parseToolJson } from "./status.js";
 
+type FailureBody = { success?: boolean; error?: string; message?: string; rawMessage?: string };
+
 /**
- * Call a server tool and decode its JSON. A tool-level failure comes back as
- * `isError: true` with the reason in the text block; surface that reason as
- * the thrown message so every caller shows the same words the CLI would.
+ * Call a server tool and decode its JSON.
+ *
+ * This server's tools report failure two different ways, and both have to be
+ * caught here or a caller sees a broken success value instead of an error:
+ *
+ * - `isError: true` — the SDK sets this only when a handler throws past its
+ *   own catch, which in practice is essentially just zod input-validation.
+ * - a normal (non-error) result whose JSON body is `{ success: false, error,
+ *   code, rawMessage }` — `withErrorHandling` (src/mcp/tools/error-handling.ts)
+ *   catches every thrown error and returns this shape with no `isError` at
+ *   all. This is how most tool failures actually arrive (relay unreachable,
+ *   bad project id, a policy refusal, …).
+ *
+ * A body with no `success` field at all is a normal success — most tools
+ * never set it, so `success` is only ever checked for `=== false`, never
+ * required to be `true`.
  */
 export async function callJson<T>(
 	app: App,
@@ -999,7 +1016,11 @@ export async function callJson<T>(
 		}
 		throw new Error(message);
 	}
-	return parseToolJson<T>(result);
+	const body = parseToolJson<FailureBody>(result);
+	if (body.success === false) {
+		throw new Error(body.error ?? body.message ?? body.rawMessage ?? "Tool call failed");
+	}
+	return body as T;
 }
 ```
 
