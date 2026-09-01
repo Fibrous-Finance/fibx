@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { App } from "@modelcontextprotocol/ext-apps";
 import { callJson } from "./rpc.js";
-import { nextPoll, type ConnectStatus } from "./status.js";
+import {
+	describeSession,
+	nextPoll,
+	shortAddress,
+	type ConnectStatus,
+	type SessionKind,
+} from "./status.js";
 import { walletLinks } from "./wallets.js";
 
 export type AuthStatus = {
@@ -67,16 +73,101 @@ export function Panel({ app, initial }: { app: App; initial: AuthStatus | null }
 	);
 }
 
-/** Placeholder until Task 7; keeps Task 5 compiling on its own. */
-function Connected({ auth }: { app: App; auth: AuthStatus; onChange: () => Promise<void> }) {
+type Balances = { wallet: string; chain: string; balances: Record<string, string> };
+
+function Connected({
+	app,
+	auth,
+	onChange,
+}: {
+	app: App;
+	auth: AuthStatus;
+	onChange: () => Promise<void>;
+}) {
+	const [balances, setBalances] = useState<Balances | null>(null);
+	const [busy, setBusy] = useState<string | null>(null);
+	const [error, setError] = useState<string | null>(null);
+	const session = describeSession(auth.sessionType ?? "walletconnect");
+
+	useEffect(() => {
+		let cancelled = false;
+		callJson<Balances>(app, "get_balance", { chain: auth.chain })
+			.then((b) => !cancelled && setBalances(b))
+			.catch((e) => !cancelled && setError(e instanceof Error ? e.message : String(e)));
+		return () => {
+			cancelled = true;
+		};
+	}, [auth.walletAddress, auth.chain]);
+
+	async function endSession() {
+		setBusy("Ending the session…");
+		try {
+			await callJson(app, "logout", {});
+			await onChange();
+		} catch (e) {
+			setError(e instanceof Error ? e.message : String(e));
+		} finally {
+			setBusy(null);
+		}
+	}
+
 	return (
-		<div class="card">
-			<div class="row">
-				<span class="pill ok">connected</span>
-				<span class="mono">{auth.walletAddress}</span>
+		<>
+			<div class="card">
+				<div class="row">
+					<span class="pill ok">connected</span>
+					<span class="pill">{auth.chain}</span>
+					{session.approvesPerTransaction && (
+						<span class="pill">approves on your phone</span>
+					)}
+					{session.policyIsOnlyBound && (
+						<span class="pill warn">bounded by policy only</span>
+					)}
+				</div>
+				<div class="mono" title={auth.walletAddress ?? ""}>
+					{auth.walletAddress ? shortAddress(auth.walletAddress) : "—"}
+				</div>
+				<p class="muted">{session.label}</p>
+				{error && <p class="error">{error}</p>}
+				<div class="row">
+					<button class="ghost" onClick={endSession} disabled={busy !== null}>
+						{busy ?? "End session"}
+					</button>
+				</div>
 			</div>
-		</div>
+
+			<div class="card">
+				<h1>Balances</h1>
+				{balances ? (
+					<table>
+						<thead>
+							<tr>
+								<th>Asset</th>
+								<th>Amount</th>
+							</tr>
+						</thead>
+						<tbody>
+							{Object.entries(balances.balances).map(([symbol, amount]) => (
+								<tr key={symbol}>
+									<td>{symbol}</td>
+									<td class="mono">{amount}</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				) : (
+					<p class="muted">loading…</p>
+				)}
+			</div>
+
+			<PolicyCard app={app} sessionKind={auth.sessionType ?? "walletconnect"} />
+		</>
 	);
+}
+
+/** Placeholder until Task 8; keeps Task 7 compiling on its own. */
+function PolicyCard(_: { app: App; sessionKind: SessionKind }) {
+	return null;
 }
 
 export function Disconnected({ app, onConnected }: { app: App; onConnected: () => Promise<void> }) {

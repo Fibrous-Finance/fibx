@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextPoll, parseToolJson, shortAddress } from "./status.js";
+import { describeSession, nextPoll, parseToolJson, shortAddress } from "./status.js";
 
 describe("nextPoll", () => {
 	it("keeps polling while the pairing is pending", () => {
@@ -50,5 +50,27 @@ describe("parseToolJson", () => {
 describe("shortAddress", () => {
 	it("keeps the first six and last four characters", () => {
 		expect(shortAddress("0x036395BBb9a85B8E285a1323e46650738d543d44")).toBe("0x0363…3d44");
+	});
+});
+
+describe("describeSession", () => {
+	it("says a WalletConnect session approves on the phone", () => {
+		const d = describeSession("walletconnect");
+		expect(d.approvesPerTransaction).toBe(true);
+		expect(d.policyIsOnlyBound).toBe(false);
+	});
+
+	it("says a Privy session runs unattended behind a server policy", () => {
+		const d = describeSession("privy");
+		expect(d.approvesPerTransaction).toBe(false);
+		expect(d.policyIsOnlyBound).toBe(false);
+	});
+
+	// The path with no other bound. Worth saying out loud, since it is the one
+	// where the local policy is the only thing between an agent and the key.
+	it("flags the imported key as bounded by the local policy alone", () => {
+		const d = describeSession("private-key");
+		expect(d.approvesPerTransaction).toBe(false);
+		expect(d.policyIsOnlyBound).toBe(true);
 	});
 });

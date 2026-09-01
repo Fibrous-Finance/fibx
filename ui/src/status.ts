@@ -39,3 +39,32 @@ export function parseToolJson<T>(result: ToolResultLike): T {
 export function shortAddress(address: string): string {
 	return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
+
+export type SessionKind = "walletconnect" | "privy" | "private-key";
+
+export function describeSession(kind: SessionKind): {
+	label: string;
+	approvesPerTransaction: boolean;
+	policyIsOnlyBound: boolean;
+} {
+	switch (kind) {
+		case "walletconnect":
+			return {
+				label: "Your own wallet, over WalletConnect",
+				approvesPerTransaction: true,
+				policyIsOnlyBound: false,
+			};
+		case "privy":
+			return {
+				label: "A Privy wallet",
+				approvesPerTransaction: false,
+				policyIsOnlyBound: false,
+			};
+		case "private-key":
+			return {
+				label: "A private key on this machine",
+				approvesPerTransaction: false,
+				policyIsOnlyBound: true,
+			};
+	}
+}
