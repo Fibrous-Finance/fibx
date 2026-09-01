@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { App } from "@modelcontextprotocol/ext-apps";
 import { callJson } from "./rpc.js";
 import { nextPoll, type ConnectStatus } from "./status.js";
@@ -23,12 +23,21 @@ type ConnectPhase =
 export function Panel({ app, initial }: { app: App; initial: AuthStatus | null }) {
 	const [auth, setAuth] = useState<AuthStatus | null>(initial);
 	const [error, setError] = useState<string | null>(null);
+	// Once the panel has fetched auth for itself, a late host push (a stale
+	// get_auth_status result arriving after the panel already refetched, e.g.
+	// right after onConnected) must not overwrite what the panel knows. Only
+	// the very first render is seeded from the host's push.
+	const hasFetchedOwnAuth = useRef(false);
 
-	useEffect(() => setAuth(initial), [initial]);
+	useEffect(() => {
+		if (!hasFetchedOwnAuth.current) setAuth(initial);
+	}, [initial]);
 
 	async function refreshAuth() {
 		try {
-			setAuth(await callJson<AuthStatus>(app, "get_auth_status", {}));
+			const result = await callJson<AuthStatus>(app, "get_auth_status", {});
+			hasFetchedOwnAuth.current = true;
+			setAuth(result);
 			setError(null);
 		} catch (e) {
 			setError(e instanceof Error ? e.message : String(e));
@@ -71,6 +80,18 @@ function Connected({ auth }: { app: App; auth: AuthStatus; onChange: () => Promi
 
 export function Disconnected({ app, onConnected }: { app: App; onConnected: () => Promise<void> }) {
 	const [phase, setPhase] = useState<ConnectPhase>({ kind: "idle" });
+	// The poll loop below can outlive this component — the panel switches to
+	// Connected, or the host tears the iframe down — and without this flag it
+	// keeps calling get_connect_status and setting state on an unmounted
+	// component for up to MAX_POLL_ATTEMPTS. Checked after every await, before
+	// the next tool call or state set.
+	const alive = useRef(true);
+	useEffect(() => {
+		alive.current = true;
+		return () => {
+			alive.current = false;
+		};
+	}, []);
 
 	async function connect() {
 		setPhase({ kind: "opening" });
@@ -78,9 +99,11 @@ export function Disconnected({ app, onConnected }: { app: App; onConnected: () =
 		try {
 			pairing = await callJson<Pairing>(app, "connect_wallet", {});
 		} catch (e) {
+			if (!alive.current) return;
 			setPhase({ kind: "failed", message: e instanceof Error ? e.message : String(e) });
 			return;
 		}
+		if (!alive.current) return;
 		setPhase({ kind: "waiting", pairing });
 
 		// connect_wallet returns as soon as the pairing exists; approval happens
@@ -88,15 +111,18 @@ export function Disconnected({ app, onConnected }: { app: App; onConnected: () =
 		let attempt = 0;
 		for (;;) {
 			await new Promise((resolve) => setTimeout(resolve, 1000));
+			if (!alive.current) return;
 			let result: ConnectStatus;
 			try {
 				result = await callJson<ConnectStatus>(app, "get_connect_status", {
 					pairingId: pairing.pairingId,
 				});
 			} catch (e) {
+				if (!alive.current) return;
 				setPhase({ kind: "failed", message: e instanceof Error ? e.message : String(e) });
 				return;
 			}
+			if (!alive.current) return;
 			const decision = nextPoll(result, attempt);
 			if (decision.action === "expired") {
 				setPhase({ kind: "expired", pairing });
@@ -105,6 +131,7 @@ export function Disconnected({ app, onConnected }: { app: App; onConnected: () =
 			if (decision.action === "stop") {
 				if (result.status === "connected") {
 					await onConnected();
+					if (!alive.current) return;
 					setPhase({ kind: "idle" });
 				} else {
 					setPhase({
