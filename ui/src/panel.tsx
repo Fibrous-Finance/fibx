@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import type { App } from "@modelcontextprotocol/ext-apps";
 import { callJson } from "./rpc.js";
 import { nextPoll, type ConnectStatus } from "./status.js";
+import { walletLinks } from "./wallets.js";
 
 export type AuthStatus = {
 	authenticated: boolean;
@@ -80,6 +81,7 @@ function Connected({ auth }: { app: App; auth: AuthStatus; onChange: () => Promi
 
 export function Disconnected({ app, onConnected }: { app: App; onConnected: () => Promise<void> }) {
 	const [phase, setPhase] = useState<ConnectPhase>({ kind: "idle" });
+	const [linksAllowed, setLinksAllowed] = useState(true);
 	// The poll loop below can outlive this component — the panel switches to
 	// Connected, or the host tears the iframe down — and without this flag it
 	// keeps calling get_connect_status and setting state on an unmounted
@@ -181,6 +183,27 @@ export function Disconnected({ app, onConnected }: { app: App; onConnected: () =
 				value={pairing.uri}
 				onFocus={(e) => e.currentTarget.select()}
 			/>
+			{linksAllowed && (
+				<div class="row">
+					{walletLinks(pairing.uri).map((l) => (
+						<button
+							class="ghost"
+							onClick={async () => {
+								const r = await app.openLink({ url: l.url });
+								// A refusal is a result, not an exception. Once the host
+								// says no, every shortcut would say no — drop them all
+								// and leave the copyable URI, which always works.
+								if (r.isError) {
+									if (!alive.current) return;
+									setLinksAllowed(false);
+								}
+							}}
+						>
+							Open in {l.name}
+						</button>
+					))}
+				</div>
+			)}
 			<div class="row">
 				<button class="ghost" onClick={() => copyUri(pairing.uri)}>
 					Copy link
