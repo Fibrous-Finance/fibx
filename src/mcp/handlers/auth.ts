@@ -120,6 +120,12 @@ export async function handleConnectWallet(): Promise<{
 	qrDataUri: string;
 	pairingId: string;
 }> {
+	// Before the new pairing, not after: teardown destroys the whole pairing
+	// store, so running it once this call's own pairing exists would take the
+	// new keys with it. Pairing again otherwise leaves the previous session
+	// live in the user's wallet — mirrors src/commands/auth/connect.ts.
+	await releaseWalletConnectSession();
+
 	const { uri, approval } = await createPairing();
 	const pairingId = randomUUID();
 	pairings.set(pairingId, { status: "pending" });

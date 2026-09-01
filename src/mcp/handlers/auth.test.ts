@@ -40,6 +40,23 @@ describe("connect_wallet", () => {
 		expect(result.qrDataUri.startsWith("data:image/png;base64,")).toBe(true);
 		expect(typeof result.pairingId).toBe("string");
 	});
+
+	// Every CLI path that replaces a session releases the previous one first —
+	// connect.ts, import.ts, verify.ts, logout.ts. Pairing again without it
+	// leaves the old session live in the user's wallet.
+	it("releases the previous session before opening a new pairing", async () => {
+		mocks.createPairing.mockResolvedValue({
+			uri: "wc:abc@2",
+			approval: () => new Promise(() => {}),
+		});
+
+		await handleConnectWallet();
+
+		expect(mocks.releaseWalletConnectSession).toHaveBeenCalledTimes(1);
+		expect(mocks.releaseWalletConnectSession.mock.invocationCallOrder[0]).toBeLessThan(
+			mocks.createPairing.mock.invocationCallOrder[0]
+		);
+	});
 });
 
 describe("get_connect_status", () => {
