@@ -32,6 +32,7 @@ type ConnectPhase =
 export function Panel({ app, initial }: { app: App; initial: AuthStatus | null }) {
 	const [auth, setAuth] = useState<AuthStatus | null>(initial);
 	const [error, setError] = useState<string | null>(null);
+	const [refreshing, setRefreshing] = useState(false);
 	// Once the panel has fetched auth for itself, a late host push (a stale
 	// get_auth_status result arriving after the panel already refetched, e.g.
 	// right after onConnected) must not overwrite what the panel knows. Only
@@ -42,7 +43,15 @@ export function Panel({ app, initial }: { app: App; initial: AuthStatus | null }
 		if (!hasFetchedOwnAuth.current) setAuth(initial);
 	}, [initial]);
 
+	// An error from an earlier failed refetch must not sit above a fresh,
+	// unrelated message once the view has swapped (e.g. Disconnected just
+	// connected, or Connected's own state changed).
+	useEffect(() => {
+		setError(null);
+	}, [auth?.authenticated, auth?.walletAddress]);
+
 	async function refreshAuth() {
+		setRefreshing(true);
 		try {
 			const result = await callJson<AuthStatus>(app, "get_auth_status", {});
 			hasFetchedOwnAuth.current = true;
@@ -50,6 +59,8 @@ export function Panel({ app, initial }: { app: App; initial: AuthStatus | null }
 			setError(null);
 		} catch (e) {
 			setError(e instanceof Error ? e.message : String(e));
+		} finally {
+			setRefreshing(false);
 		}
 	}
 
@@ -64,7 +75,12 @@ export function Panel({ app, initial }: { app: App; initial: AuthStatus | null }
 
 	return (
 		<div data-fibx-panel>
-			<h1>FibX Wallet</h1>
+			<div class="row">
+				<h1>FibX Wallet</h1>
+				<button class="ghost" onClick={refreshAuth} disabled={refreshing}>
+					{refreshing ? "Refreshing…" : "Refresh"}
+				</button>
+			</div>
 			{error && <p class="error">{error}</p>}
 			{auth.authenticated ? (
 				<Connected app={app} auth={auth} onChange={refreshAuth} />
@@ -94,7 +110,11 @@ function Connected({
 	useEffect(() => {
 		let cancelled = false;
 		callJson<Balances>(app, "get_balance", { chain: auth.chain })
-			.then((b) => !cancelled && setBalances(b))
+			.then((b) => {
+				if (cancelled) return;
+				setBalances(b);
+				setError(null);
+			})
 			.catch((e) => !cancelled && setError(e instanceof Error ? e.message : String(e)));
 		return () => {
 			cancelled = true;
