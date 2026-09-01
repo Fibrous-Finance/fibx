@@ -115,7 +115,7 @@ infrastructure, which is the one property this product is built to avoid.
 | 2 — `get_policy` tool                                   | complete (`ceca59f`), reviewed clean                                                                |
 | 3 — `set_policy_rule`, `clear_policy_rule`              | complete (`52d3fd4`..`081e7e7`), reviewed clean after one fix round                                 |
 | 4 — `logout` tool                                       | complete (`04f36f5`), reviewed clean                                                                |
-| 5-8 — the panel's real UI                               | re-specified in full (2026-09-01); executing in order, Task 5 first                                 |
+| 5-8 — the panel's real UI                               | 5 complete (`aa7fafb`, one fix round); 6 in review (`182781c`); 7 and 8 next, briefs ready          |
 | 9 — manual verification                                 | not started                                                                                         |
 
 Test count moved 229 → 255. **Tasks 1-4 are complete, and the whole-branch review passed after one fix round** (`e081e0f`..`7b7efcf`). The branch is merge-ready at `7b7efcf`. Whether it grows further is what the gate decides; until then the plan is not finished, so the SDD workspace stays.
@@ -311,6 +311,20 @@ protect. **Checking whether the lighter
 `@modelcontextprotocol/ext-apps/app-bridge` entry point (43 KB) suffices is a
 precondition for Tasks 5-8, not an afterthought** — it needs answering before
 any more panel UI work, not after.
+
+**The panel treats a failed handshake as fatal for the session.** `Root` in
+`ui/src/main.tsx` shows `connect failed: …` and never retries; there is no
+reconnect flow. Deliberate for now — the message is what made the gate
+diagnosable — but a "try again" that re-runs `app.connect()` is a small,
+worthwhile follow-up once the panel is otherwise complete.
+
+**Two error contracts meet in the panel, and `callJson` must honour both.** The
+MCP SDK sets `isError: true` only when a handler throws past its own catch —
+in practice zod input validation. FibX's `withErrorHandling` catches every
+other error and returns a _normal_ result whose body is
+`{ success: false, error, code, rawMessage }`. `ui/src/rpc.ts` throws on
+either; a client that checks only `isError` decodes a failed `connect_wallet`
+as a pairing with undefined fields. `ui/src/rpc.test.ts` pins both shapes.
 
 **The annotation test reads a private SDK field.** `src/mcp/tools/annotations.test.ts`
 asserts against `McpServer._registeredTools`, which SDK 1.27.1 declares `private`
