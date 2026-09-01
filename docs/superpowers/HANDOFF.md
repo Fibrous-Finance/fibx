@@ -1,6 +1,6 @@
 # Handoff — where the work stands
 
-**Last updated:** 2026-08-30
+**Last updated:** 2026-09-01
 
 This file exists so a new session can pick the work up without the previous
 conversation. It is committed on purpose: the SDD ledger under `.superpowers/`
@@ -11,13 +11,17 @@ lives here.
 
 ## Read this first
 
-Two things are **blocked on a human** and nothing downstream can move without
-them. Both are described in full under "Waiting on you" below.
+**The gate passed on 2026-09-01.** Claude Desktop rendered the panel inline for
+a local stdio server — `ext-apps` issue #671 does not apply here. Tasks 5-8 are
+unblocked, and **the next piece of work is re-specifying them at full
+resolution** before any of them is dispatched; the plan left their markup
+unwritten on purpose while rendering was unproven.
 
-1. A manual gate in Claude Desktop that decides whether four planned tasks
-   happen at all.
-2. `npm publish` of 0.10.0, which is built, tested, tagged in git and pushed —
-   but not released.
+One thing is still **blocked on a human**: `npm publish` of 0.10.0, built,
+tested, pushed — not released. And it now carries a hotfix worth shipping:
+`get_portfolio` was dying on the withdrawn Citrea chain in the published 0.9.0
+(found by the very Claude Desktop session that ran the gate). Details under
+"Waiting on you".
 
 A status page covering the same ground, in a form that is easier to hand to
 someone else: https://claude.ai/code/artifact/3f864c62-98bf-4579-b7d9-f4ba65a7ea7f
@@ -105,14 +109,14 @@ infrastructure, which is the one property this product is built to avoid.
 
 **On the branch (`worktree-mcp-apps-panel`):**
 
-| Task                                                    | State                                                                        |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| 1 — build pipeline, panel renders as a `ui://` resource | code complete (`bedbe04`), reviewed clean; **its manual gate is unanswered** |
-| 2 — `get_policy` tool                                   | complete (`ceca59f`), reviewed clean                                         |
-| 3 — `set_policy_rule`, `clear_policy_rule`              | complete (`52d3fd4`..`081e7e7`), reviewed clean after one fix round          |
-| 4 — `logout` tool                                       | complete (`04f36f5`), reviewed clean                                         |
-| 5-8 — the panel's real UI                               | not started, contingent on the gate                                          |
-| 9 — manual verification                                 | not started                                                                  |
+| Task                                                    | State                                                                                               |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| 1 — build pipeline, panel renders as a `ui://` resource | complete (`bedbe04`), reviewed clean; **gate PASSED 2026-09-01** — panel rendered in Claude Desktop |
+| 2 — `get_policy` tool                                   | complete (`ceca59f`), reviewed clean                                                                |
+| 3 — `set_policy_rule`, `clear_policy_rule`              | complete (`52d3fd4`..`081e7e7`), reviewed clean after one fix round                                 |
+| 4 — `logout` tool                                       | complete (`04f36f5`), reviewed clean                                                                |
+| 5-8 — the panel's real UI                               | **unblocked** — re-specify at full resolution first, then dispatch                                  |
+| 9 — manual verification                                 | not started                                                                                         |
 
 Test count moved 229 → 255. **Tasks 1-4 are complete, and the whole-branch review passed after one fix round** (`e081e0f`..`7b7efcf`). The branch is merge-ready at `7b7efcf`. Whether it grows further is what the gate decides; until then the plan is not finished, so the SDD workspace stays.
 
@@ -122,7 +126,11 @@ Test count moved 229 → 255. **Tasks 1-4 are complete, and the whole-branch rev
 
 ## Waiting on you
 
-### 1. The gate — does the panel actually render?
+### 1. The gate — answered: yes, it renders
+
+Result, 2026-09-01: "Widget from fibx-dev get_auth_status" appeared inline in
+Claude Desktop with the FibX Wallet heading and the real JSON. Kept below is
+how to re-run it, since Tasks 5-8 will need the same loop.
 
 `ext-apps` issue #671 reports MCP Apps UI never appearing in Claude Desktop.
 It is one reporter on an older protocol revision through a proxy, and
@@ -310,6 +318,14 @@ and exposes no public lookup for. It is the only test that pins `readOnlyHint` /
 `destructiveHint`, and it will break loudly on an SDK bump that renames the field —
 which is the failure mode we want. Replace it then with a `tools/list` round-trip
 over an in-memory transport, not before.
+
+**`config_action` still accepts a withdrawn chain.** `src/mcp/handlers/auth.ts`
+and `src/commands/config/index.ts` check `SUPPORTED_CHAINS[chain]` for
+existence, so `set-rpc citrea …` is accepted and the "Supported:" text lists
+Citrea. Same class as the portfolio crash — a consumer reading the structural
+table as the offered list — but harmless (it stores an RPC URL nobody will
+use) and not fixed here. Switch those checks to `isOffered()` when next in
+those files.
 
 **Deferred, deliberately, with reasons in the ledger:** the cap message omits
 the native symbol; `BigInt(tx.value)` throws a raw `SyntaxError` on malformed
