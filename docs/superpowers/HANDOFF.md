@@ -109,14 +109,14 @@ infrastructure, which is the one property this product is built to avoid.
 
 **On the branch (`worktree-mcp-apps-panel`):**
 
-| Task                                                    | State                                                                                                  |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| 1 — build pipeline, panel renders as a `ui://` resource | complete (`bedbe04`), reviewed clean; **gate PASSED 2026-09-01** — panel rendered in Claude Desktop    |
-| 2 — `get_policy` tool                                   | complete (`ceca59f`), reviewed clean                                                                   |
-| 3 — `set_policy_rule`, `clear_policy_rule`              | complete (`52d3fd4`..`081e7e7`), reviewed clean after one fix round                                    |
-| 4 — `logout` tool                                       | complete (`04f36f5`), reviewed clean                                                                   |
-| 5-8 — the panel's real UI                               | 5 (`aa7fafb`) and 6 (`182781c`) complete, reviewed clean; 7 in review (`ec0156c`); 8 next, brief ready |
-| 9 — manual verification                                 | not started                                                                                            |
+| Task                                                    | State                                                                                                                                                                    |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1 — build pipeline, panel renders as a `ui://` resource | complete (`bedbe04`), reviewed clean; **gate PASSED 2026-09-01** — panel rendered in Claude Desktop                                                                      |
+| 2 — `get_policy` tool                                   | complete (`ceca59f`), reviewed clean                                                                                                                                     |
+| 3 — `set_policy_rule`, `clear_policy_rule`              | complete (`52d3fd4`..`081e7e7`), reviewed clean after one fix round                                                                                                      |
+| 4 — `logout` tool                                       | complete (`04f36f5`), reviewed clean                                                                                                                                     |
+| 5-8 — the panel's real UI                               | 5 (`aa7fafb`), 6 (`182781c`), 7 (`ec0156c`) complete, reviewed clean; 8 code at `1802499`, in review — then a second whole-branch review of `7b7efcf..HEAD`, then Task 9 |
+| 9 — manual verification                                 | not started                                                                                                                                                              |
 
 Test count moved 229 → 255. **Tasks 1-4 are complete, and the whole-branch review passed after one fix round** (`e081e0f`..`7b7efcf`). The branch is merge-ready at `7b7efcf`. Whether it grows further is what the gate decides; until then the plan is not finished, so the SDD workspace stays.
 
