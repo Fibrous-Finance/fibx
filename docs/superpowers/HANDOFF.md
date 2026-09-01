@@ -114,7 +114,9 @@ infrastructure, which is the one property this product is built to avoid.
 | 5-8 — the panel's real UI                               | not started, contingent on the gate                                          |
 | 9 — manual verification                                 | not started                                                                  |
 
-Test count moved 229 → 246. **Tasks 1-4 are all complete and reviewed.** The branch is at a clean stopping point: whether it grows further is what the gate decides.
+Test count moved 229 → 255. **Tasks 1-4 are complete, and the whole-branch review passed after one fix round** (`e081e0f`..`7b7efcf`). The branch is merge-ready at `7b7efcf`. Whether it grows further is what the gate decides; until then the plan is not finished, so the SDD workspace stays.
+
+**Merging is deliberately not done.** It is a shared-branch side effect and waits for you. When you want it: `git checkout main && git merge --no-ff worktree-mcp-apps-panel` from the main checkout. The gate instructions below point at the worktree's `dist/`, and keep working either way.
 
 ---
 
@@ -289,6 +291,13 @@ protect. **Checking whether the lighter
 `@modelcontextprotocol/ext-apps/app-bridge` entry point (43 KB) suffices is a
 precondition for Tasks 5-8, not an afterthought** — it needs answering before
 any more panel UI work, not after.
+
+**The annotation test reads a private SDK field.** `src/mcp/tools/annotations.test.ts`
+asserts against `McpServer._registeredTools`, which SDK 1.27.1 declares `private`
+and exposes no public lookup for. It is the only test that pins `readOnlyHint` /
+`destructiveHint`, and it will break loudly on an SDK bump that renames the field —
+which is the failure mode we want. Replace it then with a `tools/list` round-trip
+over an in-memory transport, not before.
 
 **Deferred, deliberately, with reasons in the ledger:** the cap message omits
 the native symbol; `BigInt(tx.value)` throws a raw `SyntaxError` on malformed
