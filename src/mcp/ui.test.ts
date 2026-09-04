@@ -4,9 +4,22 @@ import {
 	registerWalletPanel,
 	WALLET_PANEL_URI,
 	walletPanelHtml,
+	registerSwapCard,
 	SWAP_CARD_URI,
 	swapCardHtml,
 } from "./ui.js";
+
+type ResourceRegistry = Record<
+	string,
+	{
+		metadata?: Record<string, unknown>;
+		readCallback: () => Promise<{ contents: Array<{ text: string }> }>;
+	}
+>;
+
+function registeredResources(server: McpServer): ResourceRegistry {
+	return (server as unknown as { _registeredResources: ResourceRegistry })._registeredResources;
+}
 
 describe("the wallet panel resource", () => {
 	it("uses the ui:// scheme the host looks for", () => {
@@ -26,7 +39,8 @@ describe("the wallet panel resource", () => {
 	// The panel is inlined into the bundle every fibx invocation loads. The
 	// SDK layer sets the floor (~330 KB); the ceiling below leaves ~60 KB for
 	// the panel's own code and fails the suite before an accidental import
-	// doubles it.
+	// doubles it. There is now one built document, not a pair — see
+	// src/mcp/ui.ts — so this is the only size guard left.
 	it("stays under the size budget", () => {
 		expect(walletPanelHtml.length).toBeLessThan(400_000);
 	});
@@ -38,32 +52,52 @@ describe("the wallet panel resource", () => {
 		const server = new McpServer({ name: "t", version: "0" });
 		registerWalletPanel(server);
 
-		const registered = (
-			server as unknown as {
-				_registeredResources: Record<string, { metadata?: Record<string, unknown> }>;
-			}
-		)._registeredResources[WALLET_PANEL_URI];
-
-		expect(registered?.metadata?._meta).toEqual({
+		expect(registeredResources(server)[WALLET_PANEL_URI]?.metadata?._meta).toEqual({
 			ui: { permissions: { clipboardWrite: {} } },
 		});
 	});
+});
 
-	it("registers the swap card under the ui:// scheme the host looks for", () => {
+describe("the swap card resource", () => {
+	it("uses the ui:// scheme the host looks for", () => {
 		expect(SWAP_CARD_URI.startsWith("ui://")).toBe(true);
 	});
 
-	// The panel's own inlining test, for the second document. It proves the
-	// vitest html-as-text loader inlined a built file rather than a path.
-	it("carries the built swap card, inlined", () => {
+	// walletPanelHtml and swapCardHtml are two names for the same built
+	// document (src/mcp/ui.ts) — this proves the runtime switch in
+	// ui/src/main.tsx compiled its swap-card branch into that document rather
+	// than the marker only existing in a file nothing built.
+	it("carries the swap card's marker, inlined", () => {
 		expect(swapCardHtml).toContain("data-fibx-swap-card");
 		expect(swapCardHtml).not.toMatch(/<script[^>]+src=/);
 	});
 
-	// Both documents are inlined into the server bundle that every fibx
-	// invocation loads and npx downloads. The SDK's schema layer sets the floor;
-	// the ceiling is what stops an accidental import from doubling it.
-	it("keeps both inlined documents inside the budget", () => {
-		expect(walletPanelHtml.length + swapCardHtml.length).toBeLessThan(800_000);
+	// Registration is what a host actually calls, so prove the resource
+	// resolves to that same marker through registerSwapCard rather than only
+	// through the exported constant.
+	it("resolves to a document containing the swap card's marker", async () => {
+		const server = new McpServer({ name: "t", version: "0" });
+		registerSwapCard(server);
+
+		const result = await registeredResources(server)[SWAP_CARD_URI]?.readCallback();
+		expect(result?.contents[0]?.text).toContain("data-fibx-swap-card");
+	});
+
+	// The entire reason two ui:// URIs still exist even though both resolve
+	// to the same document: the panel copies to the clipboard and needs the
+	// permission declared; the card copies nothing and opens nothing; and
+	// must not carry a capability it has no business holding.
+	it("carries different _meta from the panel — no permissions at all", () => {
+		const server = new McpServer({ name: "t", version: "0" });
+		registerWalletPanel(server);
+		registerSwapCard(server);
+
+		const resources = registeredResources(server);
+		const panelMeta = resources[WALLET_PANEL_URI]?.metadata?._meta;
+		const cardMeta = resources[SWAP_CARD_URI]?.metadata?._meta;
+
+		expect(panelMeta).toEqual({ ui: { permissions: { clipboardWrite: {} } } });
+		expect(cardMeta).toBeUndefined();
+		expect(cardMeta).not.toEqual(panelMeta);
 	});
 });
