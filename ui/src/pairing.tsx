@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { App } from "@modelcontextprotocol/ext-apps";
+import { explainError, type Explained } from "./errors.js";
 import { callJson } from "./rpc.js";
 import { nextPoll, type ConnectStatus } from "./status.js";
 import type { Pairing as PairingInfo } from "./types.js";
@@ -9,7 +10,7 @@ type ConnectPhase =
 	| { kind: "opening" }
 	| { kind: "waiting"; pairing: PairingInfo }
 	| { kind: "expired"; pairing: PairingInfo }
-	| { kind: "failed"; message: string };
+	| { kind: "failed"; explained: Explained };
 
 /**
  * Copy to the clipboard with a fallback chain, not a single call: the modern
@@ -78,7 +79,7 @@ export function Pairing({
 			pairing = await callJson<PairingInfo>(app, "connect_wallet", {});
 		} catch (e) {
 			if (!alive.current) return;
-			setPhase({ kind: "failed", message: e instanceof Error ? e.message : String(e) });
+			setPhase({ kind: "failed", explained: explainError(e, {}) });
 			return;
 		}
 		if (!alive.current) return;
@@ -97,7 +98,7 @@ export function Pairing({
 				});
 			} catch (e) {
 				if (!alive.current) return;
-				setPhase({ kind: "failed", message: e instanceof Error ? e.message : String(e) });
+				setPhase({ kind: "failed", explained: explainError(e, {}) });
 				return;
 			}
 			if (!alive.current) return;
@@ -114,7 +115,10 @@ export function Pairing({
 				} else {
 					setPhase({
 						kind: "failed",
-						message: result.error ?? `pairing ${result.status}`,
+						explained: explainError(
+							new Error(result.error ?? `pairing ${result.status}`),
+							{}
+						),
 					});
 				}
 				return;
@@ -133,7 +137,18 @@ export function Pairing({
 		return (
 			<div class="card">
 				<p class="muted">No wallet is connected. Pair your own wallet to sign from it.</p>
-				{phase.kind === "failed" && <p class="error">{phase.message}</p>}
+				{phase.kind === "failed" && (
+					<>
+						<p class="error">{phase.explained.title}</p>
+						{phase.explained.detail && <p class="muted">{phase.explained.detail}</p>}
+						{phase.explained.raw && (
+							<details>
+								<summary>details</summary>
+								<pre class="mono">{phase.explained.raw}</pre>
+							</details>
+						)}
+					</>
+				)}
 				<div class="row">
 					<button
 						data-action="connect"

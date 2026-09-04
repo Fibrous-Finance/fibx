@@ -80,6 +80,21 @@ describe("Pairing", () => {
 		m.unmount();
 	});
 
+	// The finding this closes: a raw provider message must never reach the
+	// user. explainError maps it to a plain-language title, and the raw text
+	// (when kept at all) goes behind a disclosure, never in the headline.
+	it("explains a wallet rejection instead of showing the raw error", async () => {
+		const app = fakeApp({
+			connect_wallet: new Error("UserRejectedRequestError: User rejected the request"),
+		});
+		const m = mount(<Pairing app={app} onConnected={async () => {}} onCancel={() => {}} />);
+		m.click("button[data-action=connect]");
+		await m.flush();
+		expect(m.text()).toContain("Rejected in your wallet");
+		expect(m.text()).not.toContain("UserRejectedRequestError");
+		m.unmount();
+	});
+
 	it("calls onConnected once the pairing reports connected", async () => {
 		vi.useFakeTimers();
 		const onConnected = vi.fn(async () => {});
