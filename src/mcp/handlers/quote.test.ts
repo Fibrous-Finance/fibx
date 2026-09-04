@@ -27,21 +27,20 @@ function parse(result: { content: { type: string; text: string }[] }) {
 const ETH = { symbol: "ETH", address: "0xEeee", decimals: 18 };
 const USDC = { symbol: "USDC", address: "0x8335", decimals: 6 };
 
-beforeEach(() => {
-	vi.clearAllMocks();
-	mocks.getChainConfig.mockReturnValue({
-		name: "base",
-		nativeTokenAddress: "0x0000000000000000000000000000000000000000",
-		wrappedNativeAddress: "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-	});
-	mocks.resolveToken.mockImplementation(async (s: string) => (s === "ETH" ? ETH : USDC));
-	mocks.getProtocolNames.mockResolvedValue(new Map([[1, "Uniswap V3"]]));
-	// RouteToken is { name, address, decimals, price } — it carries no `symbol`.
-	// Symbols come from resolveToken; only the prices are read off the route.
-	mocks.getRouteAndCallData.mockResolvedValue({
+// RouteToken is { name, address, decimals, price } — it carries no `symbol`.
+// Symbols come from resolveToken; only the prices are read off the route, and
+// a token can come back from the router without a usable one, which is what
+// the two absent-price tests below vary.
+function routeFixture(inputPrice?: number, outputPrice?: number) {
+	return {
 		route: {
-			inputToken: { name: "Ether", address: ETH.address, decimals: 18, price: 4000 },
-			outputToken: { name: "USD Coin", address: USDC.address, decimals: 6, price: 1 },
+			inputToken: { name: "Ether", address: ETH.address, decimals: 18, price: inputPrice },
+			outputToken: {
+				name: "USD Coin",
+				address: USDC.address,
+				decimals: 6,
+				price: outputPrice,
+			},
 			inputAmount: "1000000000000000000",
 			outputAmount: "3960000000",
 		},
@@ -53,7 +52,23 @@ beforeEach(() => {
 			],
 		},
 		router_address: "0xrouter",
+	};
+}
+
+function quoteOf(result: { content: { type: string; text: string }[] }) {
+	return parse(result).quote as never as Record<string, number | null>;
+}
+
+beforeEach(() => {
+	vi.clearAllMocks();
+	mocks.getChainConfig.mockReturnValue({
+		name: "base",
+		nativeTokenAddress: "0x0000000000000000000000000000000000000000",
+		wrappedNativeAddress: "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
 	});
+	mocks.resolveToken.mockImplementation(async (s: string) => (s === "ETH" ? ETH : USDC));
+	mocks.getProtocolNames.mockResolvedValue(new Map([[1, "Uniswap V3"]]));
+	mocks.getRouteAndCallData.mockResolvedValue(routeFixture(4000, 1));
 });
 
 describe("get_quote's structured half", () => {
@@ -143,5 +158,51 @@ describe("get_quote's structured half", () => {
 
 		expect(q.route).toHaveLength(2);
 		expect(q.route[0].displayName).toBeUndefined();
+	});
+});
+
+// A price used to be coerced with `?? 0`, and the zero was the bug. A card
+// draws these three numbers with severity colouring, so a fabricated one is
+// worse than none: an absent value has to arrive absent.
+describe("get_quote when the route carries no price for a token", () => {
+	// Missing input price → usdIn 0 → the impact derivation's zero branch → a
+	// green "0.00%" pill on the one number that exists to make a user stop,
+	// sitting under a "$0.00" that contradicts a real amount above it.
+	it("reports an absent input price as null, not as zero", async () => {
+		mocks.getRouteAndCallData.mockResolvedValue(routeFixture(undefined, 1));
+
+		const q = quoteOf(
+			await handleGetQuote({
+				amount: "1",
+				from_token: "ETH",
+				to_token: "USDC",
+				chain: "base",
+				slippage: 0.5,
+			})
+		);
+
+		expect(q.usdIn).toBeNull();
+		expect(q.usdOut).toBeCloseTo(3960, 6);
+		expect(q.priceImpact).toBeNull();
+	});
+
+	// The mirror case was worse still: usdOut 0 derives a 100% loss, painting
+	// a red alarm across a perfectly ordinary swap.
+	it("reports an absent output price as null, not as a total loss", async () => {
+		mocks.getRouteAndCallData.mockResolvedValue(routeFixture(4000, undefined));
+
+		const q = quoteOf(
+			await handleGetQuote({
+				amount: "1",
+				from_token: "ETH",
+				to_token: "USDC",
+				chain: "base",
+				slippage: 0.5,
+			})
+		);
+
+		expect(q.usdIn).toBeCloseTo(4000, 6);
+		expect(q.usdOut).toBeNull();
+		expect(q.priceImpact).toBeNull();
 	});
 });

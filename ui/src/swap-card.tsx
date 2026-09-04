@@ -4,7 +4,9 @@ import { callJson } from "./rpc.js";
 import { shortAddress } from "./status.js";
 import {
 	buildSwapArgs,
+	checkSlippage,
 	formatImpact,
+	formatUsd,
 	hasRoute,
 	nextTxPoll,
 	routeLabel,
@@ -48,10 +50,31 @@ type Phase =
 	| { kind: "broadcast"; txHash: string; explorer?: string }
 	| { kind: "confirmed"; txHash: string; explorer?: string; blockNumber: string }
 	| { kind: "reverted"; txHash: string; explorer?: string }
+	// A hash exists and never resolved — polling ran out before a receipt
+	// arrived. Deliberately NOT `failed`: nothing is known to have gone wrong
+	// and the transaction may still land. It carries the hash so the explorer
+	// block below keeps rendering, and it is terminal, because re-broadcasting
+	// something that may already be in flight would duplicate the swap.
+	| { kind: "unknown"; txHash: string; explorer?: string }
+	// Nothing was broadcast: the call threw before any hash existed. Retrying
+	// here IS safe, and telling the two apart is the entire reason `unknown`
+	// is a separate phase rather than another `failed` message.
 	| { kind: "failed"; message: string };
 
 function draftFor(result: QuoteResult | null): string {
 	return result && hasRoute(result) ? String(result.quote.slippage) : "";
+}
+
+/** A USD value, or an explicit dash where the route carried no price. */
+function UsdValue({ value }: { value: number | null }) {
+	return (
+		<span
+			class="muted"
+			title={value === null ? "No price for this token — USD value unknown." : undefined}
+		>
+			{formatUsd(value)}
+		</span>
+	);
 }
 
 export function SwapCard({ app, initial }: { app: App; initial: QuoteResult | null }) {
@@ -97,9 +120,12 @@ export function SwapCard({ app, initial }: { app: App; initial: QuoteResult | nu
 
 	async function requote(rawSlippage: string) {
 		if (!current || !hasRoute(current)) return;
-		const slippage = Number(rawSlippage);
-		if (!Number.isFinite(slippage) || slippage <= 0) {
-			setRequoteError("Slippage must be a positive number.");
+		// Refuses rather than clamps, and refuses above MAX_SLIPPAGE_PERCENT:
+		// slippage is the floor on what the user receives, and swap_tokens
+		// derives the on-chain min_received from this same number.
+		const checked = checkSlippage(rawSlippage);
+		if (!checked.ok) {
+			setRequoteError(checked.message);
 			return;
 		}
 		setRequoting(true);
@@ -110,11 +136,12 @@ export function SwapCard({ app, initial }: { app: App; initial: QuoteResult | nu
 				from_token: current.quote.fromToken,
 				to_token: current.quote.toToken,
 				chain: current.quote.chain,
-				slippage,
+				slippage: checked.slippage,
 			});
 			if (!alive.current) return;
 			setCurrent(result);
-			// A new quote invalidates whatever the old simulate/swap flow found.
+			// A new quote invalidates whatever the old simulate/swap flow found,
+			// which also re-locks Swap until the new terms have been simulated.
 			setPhase({ kind: "idle" });
 		} catch (e) {
 			if (!alive.current) return;
@@ -153,6 +180,8 @@ export function SwapCard({ app, initial }: { app: App; initial: QuoteResult | nu
 			);
 		} catch (e) {
 			if (!alive.current) return;
+			// Nothing left this machine — no hash came back — so `failed` is the
+			// right phase here, and Swap may stay clickable.
 			setPhase({ kind: "failed", message: e instanceof Error ? e.message : String(e) });
 			return;
 		}
@@ -200,11 +229,11 @@ export function SwapCard({ app, initial }: { app: App; initial: QuoteResult | nu
 			if (!alive.current) return;
 			const decision = nextTxPoll(status, attempt);
 			if (decision.action === "expired") {
-				setPhase({
-					kind: "failed",
-					message:
-						"Gave up waiting for confirmation. The transaction may still land — check the explorer.",
-				});
+				// A hash was broadcast and never resolved. Keep the hash — it is
+				// the user's only handle on the transaction — and lock the card,
+				// because there is no safe retry for something that may still be
+				// in flight.
+				setPhase({ kind: "unknown", txHash: broadcast.txHash, explorer });
 				return;
 			}
 			if (decision.action === "stop") {
@@ -234,8 +263,28 @@ export function SwapCard({ app, initial }: { app: App; initial: QuoteResult | nu
 	}
 
 	const routed = hasRoute(current);
+	// null when a token price was missing: no number, and — the point — no
+	// severity colour either, because a colour on an absent value is a claim
+	// the card cannot back.
 	const impact = routed ? formatImpact(current.quote.priceImpact) : null;
+	const impactUnknown = routed && impact === null;
 	const impactClass = impact?.severity === "bad" ? "err" : (impact?.severity ?? "");
+
+	// Terminal. The phase stays put because every control that could leave it
+	// — Refresh, Simulate, Swap — is disabled below; without that, a re-quote
+	// or a second simulate would silently re-arm Swap on a transaction that
+	// may already be in flight.
+	const unresolved = phase.kind === "unknown";
+
+	// Swap is gated on a simulate that succeeded for exactly these terms. The
+	// "this needs an approval first, so two transactions" disclosure lives
+	// only in the simulate result — nothing in a quote knows about allowances
+	// — so without the gate a user can commit to that pair having never been
+	// told there is one. A slippage typed but not re-quoted means the terms on
+	// screen are not the terms that were simulated, so it invalidates the gate
+	// too; compared numerically, because "0.50" and 0.5 are the same slippage.
+	const slippageMatchesQuote = !routed || Number(slippageDraft) === current.quote.slippage;
+	const swapReady = phase.kind === "simulated" && slippageMatchesQuote;
 
 	return (
 		<div data-fibx-swap-card class="card">
@@ -248,7 +297,7 @@ export function SwapCard({ app, initial }: { app: App; initial: QuoteResult | nu
 						? `${current.quote.inputAmount} ${current.quote.fromToken}`
 						: current.input}
 				</span>
-				{routed && <span class="muted">${current.quote.usdIn.toFixed(2)}</span>}
+				{routed && <UsdValue value={current.quote.usdIn} />}
 			</div>
 
 			<div class="amount-row">
@@ -258,12 +307,20 @@ export function SwapCard({ app, initial }: { app: App; initial: QuoteResult | nu
 						? `${current.quote.outputAmount} ${current.quote.toToken}`
 						: current.output}
 				</span>
-				{routed && <span class="muted">${current.quote.usdOut.toFixed(2)}</span>}
+				{routed && <UsdValue value={current.quote.usdOut} />}
 			</div>
 
 			<div class="row">
 				<span class="mono muted">{current.rate}</span>
 				{impact && <span class={`pill ${impactClass}`}>{impact.text}</span>}
+				{impactUnknown && (
+					<span
+						class="muted"
+						title="A token price was missing from the route, so price impact could not be derived."
+					>
+						price impact unknown
+					</span>
+				)}
 			</div>
 
 			{/* A 1:1 wrap/unwrap has no route, no hops and no price impact — the
@@ -289,36 +346,50 @@ export function SwapCard({ app, initial }: { app: App; initial: QuoteResult | nu
 						void requote(slippageDraft);
 					}}
 				>
-					<span class="label">Min received</span>
-					<span class="mono">
-						{current.quote.minReceived} {current.quote.toToken}
+					{/* An estimate, not the floor that will execute: swap_tokens
+					    re-routes server-side and derives its own min_received when
+					    it runs, from a route that may be minutes newer than this
+					    one. */}
+					<span class="label">Min received (est.)</span>
+					<span
+						class="mono"
+						title="Estimated from this quote. swap_tokens re-routes when it runs and derives its own on-chain floor."
+					>
+						≈ {current.quote.minReceived} {current.quote.toToken}
 					</span>
 					<input
 						class="mono"
 						value={slippageDraft}
 						onInput={(e) => setSlippageDraft(e.currentTarget.value)}
-						disabled={busy}
+						disabled={busy || unresolved}
 						aria-label="Slippage percent"
 					/>
-					<button
-						type="submit"
-						class="ghost"
-						disabled={busy || slippageDraft === String(current.quote.slippage)}
-					>
-						{requoting ? "Updating…" : "Update"}
+					{/* Unconditional. This used to be disabled unless the slippage
+					    differed, which left changing the slippage as the only way
+					    to refresh a quote that goes stale on its own. */}
+					<button type="submit" class="ghost" disabled={busy || unresolved}>
+						{requoting ? "Refreshing…" : "Refresh quote"}
 					</button>
 				</form>
 			)}
 			{requoteError && <p class="error">{requoteError}</p>}
 
 			<div class="row">
-				<button class="ghost" onClick={simulate} disabled={busy}>
+				<button class="ghost" onClick={simulate} disabled={busy || unresolved}>
 					{phase.kind === "simulating" ? "Simulating…" : "Simulate"}
 				</button>
-				<button onClick={swap} disabled={busy}>
+				<button onClick={swap} disabled={busy || unresolved || !swapReady}>
 					{phase.kind === "swapping" ? "Swapping…" : "Swap"}
 				</button>
 			</div>
+
+			{!busy && !unresolved && !swapReady && (
+				<p class="muted">
+					{routed && !slippageMatchesQuote
+						? "That slippage is not this quote's — refresh, then simulate, before swapping."
+						: "Simulate first. Swap unlocks only after a simulation succeeds for these exact terms — that is also where a needed ERC-20 approval, and the second wallet confirmation it costs, is disclosed."}
+				</p>
+			)}
 
 			{phase.kind === "simulated" &&
 				(phase.result.requiresApproval ? (
@@ -336,9 +407,13 @@ export function SwapCard({ app, initial }: { app: App; initial: QuoteResult | nu
 					</p>
 				))}
 
+			{/* `unknown` belongs in this group rather than with the errors below:
+			    it is the one phase whose message sends the user to the explorer,
+			    so the hash and the link have to still be on screen. */}
 			{(phase.kind === "broadcast" ||
 				phase.kind === "confirmed" ||
-				phase.kind === "reverted") && (
+				phase.kind === "reverted" ||
+				phase.kind === "unknown") && (
 				<div class="row">
 					<span
 						class={`pill ${
@@ -353,7 +428,9 @@ export function SwapCard({ app, initial }: { app: App; initial: QuoteResult | nu
 							? "waiting for confirmation"
 							: phase.kind === "confirmed"
 								? "confirmed"
-								: "reverted"}
+								: phase.kind === "reverted"
+									? "reverted"
+									: "unresolved"}
 					</span>
 					<span class="mono" title={phase.txHash}>
 						{shortAddress(phase.txHash)}
@@ -364,6 +441,15 @@ export function SwapCard({ app, initial }: { app: App; initial: QuoteResult | nu
 						</button>
 					)}
 				</div>
+			)}
+
+			{unresolved && (
+				<p class="muted">
+					Stopped waiting for a receipt. This is not a failure — the swap was broadcast
+					and may still confirm; the hash and explorer link above are how to find out.
+					Swapping is disabled from here, because a transaction that may already be in
+					flight has no safe retry.
+				</p>
 			)}
 
 			{phase.kind === "failed" && <p class="error">{phase.message}</p>}

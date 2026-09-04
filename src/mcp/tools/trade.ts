@@ -7,6 +7,26 @@ import { withErrorHandling } from "./error-handling.js";
 import { ChainEnum } from "./schemas.js";
 import { SWAP_CARD_URI } from "../ui.js";
 
+/**
+ * Slippage is the floor on what a user receives: `swap_tokens` derives the
+ * on-chain `min_received` from this number. It is bounded here, in the schema
+ * itself, and not only in the swap card, because the model calls these tools
+ * directly and never passes through the card — and the local signing policy
+ * cannot catch a bad value either, since `maxValue` bounds native value only
+ * and an ERC-20 swap reaches the router with `value: 0n`.
+ *
+ * This is the outer wall, deliberately wider than the card's own 5% refusal
+ * (ui/src/quote.ts): an unbounded 50 collapses the floor to nothing, while a
+ * large-but-deliberate slippage on an illiquid pair is still a thing a caller
+ * may legitimately ask for.
+ */
+const SlippagePercent = z
+	.number()
+	.min(0.01)
+	.max(50)
+	.default(0.5)
+	.describe("Slippage tolerance percentage (0.01-50, default: 0.5)");
+
 export function registerTradeTools(server: McpServer): number {
 	// get_quote is read-only (readOnlyHint: true below), so binding it to a
 	// UI resource is safe — the card can only ever appear, never act, until a
@@ -25,10 +45,7 @@ export function registerTradeTools(server: McpServer): number {
 				from_token: z.string().describe("Source token symbol (e.g. 'ETH', 'USDC', 'MON')"),
 				to_token: z.string().describe("Destination token symbol"),
 				chain: ChainEnum.default("base").describe("Target blockchain network"),
-				slippage: z
-					.number()
-					.default(0.5)
-					.describe("Slippage tolerance percentage (default: 0.5)"),
+				slippage: SlippagePercent,
 			},
 			annotations: {
 				title: "Price Quote",
@@ -53,10 +70,7 @@ export function registerTradeTools(server: McpServer): number {
 				from_token: z.string().describe("Source token symbol (e.g. 'ETH', 'USDC', 'MON')"),
 				to_token: z.string().describe("Destination token symbol"),
 				chain: ChainEnum.default("base").describe("Target blockchain network"),
-				slippage: z
-					.number()
-					.default(0.5)
-					.describe("Slippage tolerance percentage (default: 0.5)"),
+				slippage: SlippagePercent,
 				simulate: z
 					.boolean()
 					.optional()

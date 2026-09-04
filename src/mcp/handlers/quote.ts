@@ -10,6 +10,26 @@ import { jsonResult } from "./utils.js";
 // Dummy destination for route queries — does not affect route calculation
 const QUOTE_DESTINATION = "0x0000000000000000000000000000000000000001";
 
+/**
+ * A token's USD value, or null when the route carried no usable price for it.
+ *
+ * This used to be `price ?? 0`, and the zero was the bug: a missing input
+ * price produced "$0.00" beneath a real amount and sent price impact down its
+ * zero branch, which a card then drew as a green "0.00%" — a fabricated
+ * safety signal on the one number that exists to make a user stop. A missing
+ * output price was worse, yielding 100% and an alarm on an ordinary swap.
+ *
+ * Zero and non-finite count as missing rather than as prices: a token
+ * genuinely worth nothing cannot be told apart here from one the router
+ * simply had no price for, and guessing in that direction is what produced
+ * the fabrication.
+ */
+function usdValue(amount: string, price: number | null | undefined): number | null {
+	if (typeof price !== "number" || !Number.isFinite(price) || price <= 0) return null;
+	const value = parseFloat(amount) * price;
+	return Number.isFinite(value) ? value : null;
+}
+
 export async function handleGetQuote({
 	amount,
 	from_token: fromToken,
@@ -95,13 +115,17 @@ export async function handleGetQuote({
 		tokenOut.decimals
 	);
 
-	// Both USD prices come back with the route. Price impact is the value lost
-	// between them — our derivation, not a number Fibrous returns, and computed
-	// from spot prices rather than the pool's marginal price, so it is an
-	// estimate.
-	const usdIn = parseFloat(amount) * (routeData.route.inputToken.price ?? 0);
-	const usdOut = parseFloat(outputAmount) * (routeData.route.outputToken.price ?? 0);
-	const priceImpact = usdIn > 0 ? ((usdIn - usdOut) / usdIn) * 100 : 0;
+	// Both USD prices come back with the route, though a token can arrive
+	// without a usable one. Price impact is the value lost between them — our
+	// derivation, not a number Fibrous returns, and computed from spot prices
+	// rather than the pool's marginal price, so it is an estimate. It needs
+	// both sides: with either missing there is nothing to derive, and null —
+	// which a card must render as an explicit unknown, never as a coloured
+	// number — is the only honest answer.
+	const usdIn = usdValue(amount, routeData.route.inputToken.price);
+	const usdOut = usdValue(outputAmount, routeData.route.outputToken.price);
+	const priceImpact =
+		usdIn !== null && usdOut !== null && usdIn > 0 ? ((usdIn - usdOut) / usdIn) * 100 : null;
 
 	const route = routeData.calldata.swap_parameters.map((sp) => {
 		const protocol = Number(sp.protocol_id);

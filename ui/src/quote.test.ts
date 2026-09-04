@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
 	buildSwapArgs,
+	checkSlippage,
 	formatImpact,
+	formatUsd,
 	hasRoute,
+	MAX_SLIPPAGE_PERCENT,
 	nextTxPoll,
 	routeLabel,
 	splitAmountSymbol,
@@ -18,17 +21,78 @@ describe("formatImpact", () => {
 	// Past a point the number stops being trivia and becomes the reason not to
 	// swap, so it has to look different.
 	it("warns past one percent", () => {
-		expect(formatImpact(1.4).severity).toBe("warn");
+		expect(formatImpact(1.4)?.severity).toBe("warn");
 	});
 
 	it("alarms past five", () => {
-		expect(formatImpact(7.2).severity).toBe("bad");
+		expect(formatImpact(7.2)?.severity).toBe("bad");
 	});
 
 	// A route can price better than spot; showing "-0.10%" as a loss would be
 	// backwards.
 	it("keeps a negative impact negative", () => {
-		expect(formatImpact(-0.1).text).toBe("-0.10%");
+		expect(formatImpact(-0.1)?.text).toBe("-0.10%");
+	});
+
+	// get_quote sends null when either token's price was missing. Returning a
+	// severity here would put a colour — green at 0, red at 100 — on a number
+	// nothing supports, which is the failure this replaced. There is no
+	// number, so there is no pill.
+	it("has nothing to say about an absent impact", () => {
+		expect(formatImpact(null)).toBeNull();
+		expect(formatImpact(undefined)).toBeNull();
+	});
+});
+
+describe("formatUsd", () => {
+	it("formats a value it can stand behind", () => {
+		expect(formatUsd(4000)).toBe("$4000.00");
+	});
+
+	// "$0.00" beneath a real amount is a number the card cannot justify. The
+	// dash says what is true instead.
+	it("renders an absent value as an explicit dash", () => {
+		expect(formatUsd(null)).toBe("—");
+		expect(formatUsd(undefined)).toBe("—");
+	});
+});
+
+// Slippage is the floor on what the user receives — swap_tokens derives the
+// on-chain min_received from it — and the local signing policy cannot catch a
+// bad one, because maxValue bounds native value only and an ERC-20 swap
+// reaches the router with value: 0n.
+describe("checkSlippage", () => {
+	it("accepts an ordinary slippage", () => {
+		expect(checkSlippage("0.5")).toEqual({ ok: true, slippage: 0.5 });
+	});
+
+	it("accepts the limit itself", () => {
+		expect(checkSlippage(String(MAX_SLIPPAGE_PERCENT))).toEqual({
+			ok: true,
+			slippage: MAX_SLIPPAGE_PERCENT,
+		});
+	});
+
+	// The fat-finger this exists for: a "5" that became a "50" would collapse
+	// the floor to almost nothing, and nothing downstream would notice.
+	it("refuses a fat-fingered 50", () => {
+		const result = checkSlippage("50");
+		expect(result.ok).toBe(false);
+	});
+
+	// Refuse, do not clamp: silently rewriting the number would leave the user
+	// believing the swap runs on terms it does not. So the message has to name
+	// the limit.
+	it("says what the limit is rather than quietly clamping", () => {
+		const result = checkSlippage("50");
+		expect(result.ok === false && result.message).toContain(String(MAX_SLIPPAGE_PERCENT));
+	});
+
+	it("still refuses a non-number and a non-positive number", () => {
+		expect(checkSlippage("abc").ok).toBe(false);
+		expect(checkSlippage("").ok).toBe(false);
+		expect(checkSlippage("0").ok).toBe(false);
+		expect(checkSlippage("-1").ok).toBe(false);
 	});
 });
 

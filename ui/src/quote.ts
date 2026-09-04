@@ -9,9 +9,14 @@ export type Quote = {
 	outputAmount: string;
 	minReceived: string;
 	slippage: number;
-	usdIn: number;
-	usdOut: number;
-	priceImpact: number;
+	// Null where the route carried no usable price for that token. A missing
+	// price used to arrive here as 0, which the card drew as "$0.00" beneath a
+	// real amount and — through price impact's zero branch — as a green
+	// "0.00%" pill, a fabricated safety signal on the one number that exists to
+	// make a user stop. Absent is now absent.
+	usdIn: number | null;
+	usdOut: number | null;
+	priceImpact: number | null;
 	route: Hop[];
 	routerAddress: string;
 	chain: string;
@@ -23,10 +28,62 @@ export type Severity = "ok" | "warn" | "bad";
  * Price impact is an estimate derived from spot prices, so the thresholds are
  * about attention rather than precision: past one percent it is worth reading,
  * past five it is worth stopping for.
+ *
+ * Returns null when there is no impact to describe — `get_quote` sends null
+ * whenever either side's price was missing. A caller must render that as an
+ * explicit unknown and NOT as a severity, because a colour on an absent
+ * number is a claim the card cannot back.
  */
-export function formatImpact(impact: number): { text: string; severity: Severity } {
+export function formatImpact(
+	impact: number | null | undefined
+): { text: string; severity: Severity } | null {
+	if (typeof impact !== "number" || !Number.isFinite(impact)) return null;
 	const severity: Severity = impact >= 5 ? "bad" : impact >= 1 ? "warn" : "ok";
 	return { text: `${impact.toFixed(2)}%`, severity };
+}
+
+/**
+ * A USD value the card can stand behind, or an explicit dash. Rendering an
+ * absent price as "$0.00" puts a number under a real amount that nothing
+ * supports; a dash says what is actually true.
+ */
+export function formatUsd(value: number | null | undefined): string {
+	if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+	return `$${value.toFixed(2)}`;
+}
+
+/**
+ * The highest slippage the card will send. Slippage is the floor on what the
+ * user receives: `swap_tokens` derives the on-chain `min_received` from this
+ * same number, and the local signing policy cannot catch a bad one — its
+ * `maxValue` bounds native value only, so an ERC-20 swap reaches the router
+ * with `value: 0n` and the cap never sees the amount. A fat-fingered "5"
+ * becoming "50" would collapse the floor with nothing in the way.
+ *
+ * The tool schema carries its own, wider bound (src/mcp/tools/trade.ts). This
+ * is not a substitute for that one: the model calls the schema directly,
+ * never passing through this card.
+ */
+export const MAX_SLIPPAGE_PERCENT = 5;
+
+export type SlippageCheck = { ok: true; slippage: number } | { ok: false; message: string };
+
+/**
+ * Refuse rather than clamp. Silently rewriting the number the user typed
+ * would leave them believing the swap runs on terms it does not.
+ */
+export function checkSlippage(raw: string): SlippageCheck {
+	const slippage = Number(raw);
+	if (!Number.isFinite(slippage) || slippage <= 0) {
+		return { ok: false, message: "Slippage must be a positive number." };
+	}
+	if (slippage > MAX_SLIPPAGE_PERCENT) {
+		return {
+			ok: false,
+			message: `Slippage above ${MAX_SLIPPAGE_PERCENT}% is refused — it is the floor on what you receive, and the swap would send it on-chain. Enter ${MAX_SLIPPAGE_PERCENT} or less.`,
+		};
+	}
+	return { ok: true, slippage };
 }
 
 export function routeLabel(hop: Hop): string {
