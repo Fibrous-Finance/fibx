@@ -215,3 +215,30 @@ input.mono {
 	padding: 7px 9px;
 	min-width: 9rem;
 }
+
+.picker {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	max-height: 360px;
+}
+
+.token-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	overflow-y: auto;
+}
+
+.token-row {
+	width: 100%;
+	display: flex;
+	justify-content: space-between;
+	background: transparent;
+	color: rgb(var(--text-primary));
+	text-align: left;
+}
+
+.token-row:hover {
+	background: rgb(var(--bg-tertiary));
+}

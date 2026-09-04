@@ -52,6 +52,7 @@
 		"eslint": "^9.39.4",
 		"eslint-config-prettier": "^10.1.8",
 		"globals": "^17.4.0",
+		"happy-dom": "20.14.0",
 		"inquirer": "^13.3.2",
 		"ora": "^9.3.0",
 		"preact": "^10.29.8",
