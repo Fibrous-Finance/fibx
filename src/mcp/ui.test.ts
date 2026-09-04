@@ -41,8 +41,15 @@ describe("the wallet panel resource", () => {
 	// the panel's own code and fails the suite before an accidental import
 	// doubles it. There is now one built document, not a pair — see
 	// src/mcp/ui.ts — so this is the only size guard left.
+	//
+	// Measured in BYTES, not in `String.length`'s UTF-16 code units: the
+	// constraint is download weight on every `npx fibx`, and the document's
+	// copy is prose with em dashes, arrows and Turkish text in it, so the two
+	// figures differ by tens of kilobytes — 343,478 chars against 361,521
+	// bytes when this was written. The char count was silently reporting
+	// 56 KB of headroom against a budget that really has 38 KB.
 	it("stays under the size budget", () => {
-		expect(walletPanelHtml.length).toBeLessThan(400_000);
+		expect(Buffer.byteLength(walletPanelHtml, "utf8")).toBeLessThan(400_000);
 	});
 
 	// The clipboard is the one capability this panel asks for. A host builds

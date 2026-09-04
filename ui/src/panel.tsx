@@ -359,8 +359,12 @@ function PolicyCard({ app, sessionKind }: { app: App; sessionKind: SessionKind }
 							<span class="muted">
 								Remove the whole policy? Nothing will limit signing afterwards.
 							</span>
+							{/* `danger` here, and not on Keep: on the imported-key
+							    signing path the local policy is the only bound on
+							    what can be signed, so the button that destroys it
+							    must not look like the one that backs out. */}
 							<button
-								class="ghost"
+								class="ghost danger"
 								disabled={pending !== null}
 								onClick={() => {
 									setConfirmingWipe(false);
