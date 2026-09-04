@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { registerWalletPanel, WALLET_PANEL_URI, walletPanelHtml } from "./ui.js";
+import {
+	registerWalletPanel,
+	WALLET_PANEL_URI,
+	walletPanelHtml,
+	SWAP_CARD_URI,
+	swapCardHtml,
+} from "./ui.js";
 
 describe("the wallet panel resource", () => {
 	it("uses the ui:// scheme the host looks for", () => {
@@ -41,5 +47,23 @@ describe("the wallet panel resource", () => {
 		expect(registered?.metadata?._meta).toEqual({
 			ui: { permissions: { clipboardWrite: {} } },
 		});
+	});
+
+	it("registers the swap card under the ui:// scheme the host looks for", () => {
+		expect(SWAP_CARD_URI.startsWith("ui://")).toBe(true);
+	});
+
+	// The panel's own inlining test, for the second document. It proves the
+	// vitest html-as-text loader inlined a built file rather than a path.
+	it("carries the built swap card, inlined", () => {
+		expect(swapCardHtml).toContain("data-fibx-swap-card");
+		expect(swapCardHtml).not.toMatch(/<script[^>]+src=/);
+	});
+
+	// Both documents are inlined into the server bundle that every fibx
+	// invocation loads and npx downloads. The SDK's schema layer sets the floor;
+	// the ceiling is what stops an accidental import from doubling it.
+	it("keeps both inlined documents inside the budget", () => {
+		expect(walletPanelHtml.length + swapCardHtml.length).toBeLessThan(800_000);
 	});
 });

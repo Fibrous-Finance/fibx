@@ -1,6 +1,7 @@
 import { registerAppResource, RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/server";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import panelHtml from "../../ui/dist/index.html";
+import swapCardHtmlRaw from "../../ui/dist/swap-card.html";
 
 export const WALLET_PANEL_URI = "ui://fibx/wallet-panel.html";
 
@@ -25,6 +26,24 @@ export function registerWalletPanel(server: McpServer): void {
 			contents: [
 				{ uri: WALLET_PANEL_URI, mimeType: RESOURCE_MIME_TYPE, text: walletPanelHtml },
 			],
+		})
+	);
+}
+
+export const SWAP_CARD_URI = "ui://fibx/swap-card.html";
+
+/** The built swap card, as the host will receive it. Exported for tests. */
+export const swapCardHtml: string = swapCardHtmlRaw;
+
+export function registerSwapCard(server: McpServer): void {
+	registerAppResource(
+		server,
+		SWAP_CARD_URI,
+		SWAP_CARD_URI,
+		// No permissions: the card copies nothing and opens nothing.
+		{ mimeType: RESOURCE_MIME_TYPE },
+		async () => ({
+			contents: [{ uri: SWAP_CARD_URI, mimeType: RESOURCE_MIME_TYPE, text: swapCardHtml }],
 		})
 	);
 }
