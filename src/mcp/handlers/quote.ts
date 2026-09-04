@@ -1,6 +1,7 @@
 import { getChainConfig } from "../../services/chain/constants.js";
 import { resolveToken } from "../../services/fibrous/tokens.js";
 import { getRouteAndCallData } from "../../services/fibrous/route.js";
+import { getProtocolNames } from "../../services/fibrous/protocols.js";
 import { DEFAULT_SLIPPAGE } from "../../lib/config.js";
 import { validateAmount } from "../../lib/validation.js";
 import { parseAmount, formatAmount } from "../../lib/parseAmount.js";
@@ -68,16 +69,19 @@ export async function handleGetQuote({
 	}
 
 	// Standard swap — fetch route from Fibrous
-	const routeData = await getRouteAndCallData(
-		{
-			amount: amountBaseUnits.toString(),
-			tokenInAddress: tokenIn.address,
-			tokenOutAddress: tokenOut.address,
-			slippage: slippage ?? DEFAULT_SLIPPAGE,
-			destination: QUOTE_DESTINATION,
-		},
-		chainConfig
-	);
+	const [routeData, protocolNames] = await Promise.all([
+		getRouteAndCallData(
+			{
+				amount: amountBaseUnits.toString(),
+				tokenInAddress: tokenIn.address,
+				tokenOutAddress: tokenOut.address,
+				slippage: slippage ?? DEFAULT_SLIPPAGE,
+				destination: QUOTE_DESTINATION,
+			},
+			chainConfig
+		),
+		getProtocolNames(chainConfig),
+	]);
 
 	const outputAmount = formatAmount(BigInt(routeData.route.outputAmount), tokenOut.decimals);
 
@@ -86,6 +90,27 @@ export async function handleGetQuote({
 	const outputNum = parseFloat(outputAmount);
 	const rate = inputNum > 0 ? (outputNum / inputNum).toFixed(4) : "N/A";
 
+	const minReceived = formatAmount(
+		BigInt(routeData.calldata.route.min_received),
+		tokenOut.decimals
+	);
+
+	// Both USD prices come back with the route. Price impact is the value lost
+	// between them — our derivation, not a number Fibrous returns, and computed
+	// from spot prices rather than the pool's marginal price, so it is an
+	// estimate.
+	const usdIn = parseFloat(amount) * (routeData.route.inputToken.price ?? 0);
+	const usdOut = parseFloat(outputAmount) * (routeData.route.outputToken.price ?? 0);
+	const priceImpact = usdIn > 0 ? ((usdIn - usdOut) / usdIn) * 100 : 0;
+
+	const route = routeData.calldata.swap_parameters.map((sp) => {
+		const protocol = Number(sp.protocol_id);
+		const displayName = protocolNames.get(protocol);
+		return displayName
+			? { protocol, displayName, pool: sp.pool_address }
+			: { protocol, pool: sp.pool_address };
+	});
+
 	return jsonResult({
 		input: `${amount} ${tokenIn.symbol}`,
 		output: `~${outputAmount} ${tokenOut.symbol}`,
@@ -93,5 +118,21 @@ export async function handleGetQuote({
 		slippage: `${slippage ?? DEFAULT_SLIPPAGE}%`,
 		router: routeData.router_address,
 		chain: chainConfig.name,
+		// Everything a card needs to draw the route, nested so no existing
+		// field moves and no text-only caller notices.
+		quote: {
+			fromToken: tokenIn.symbol,
+			toToken: tokenOut.symbol,
+			inputAmount: amount,
+			outputAmount,
+			minReceived,
+			slippage: slippage ?? DEFAULT_SLIPPAGE,
+			usdIn,
+			usdOut,
+			priceImpact,
+			route,
+			routerAddress: routeData.router_address,
+			chain: chainConfig.name,
+		},
 	});
 }

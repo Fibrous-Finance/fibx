@@ -11,7 +11,7 @@ export function registerTradeTools(server: McpServer): number {
 		{
 			title: "Get Swap Quote",
 			description:
-				"Get a price quote for a token swap without authentication. Shows expected output amount, exchange rate, and route info. No wallet or session required — use this to check prices before committing to a swap. Supported chains: Base, HyperEVM, Monad.",
+				"Get a price quote for a token swap without authentication. Shows expected output amount, exchange rate, and route info. No wallet or session required — use this to check prices before committing to a swap. Supported chains: Base, HyperEVM, Monad. Returns both a readable summary and a `quote` object carrying the route's hops, the exact output, the slippage floor and a derived price impact — computed from the tokens' spot prices, not reported by the router, so treat it as an estimate.",
 			inputSchema: {
 				amount: z.string().describe("Amount to quote (e.g. '0.1', '100')"),
 				from_token: z.string().describe("Source token symbol (e.g. 'ETH', 'USDC', 'MON')"),
