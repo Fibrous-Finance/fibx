@@ -56,13 +56,35 @@ type Phase =
 	// block below keeps rendering, and it is terminal, because re-broadcasting
 	// something that may already be in flight would duplicate the swap.
 	| { kind: "unknown"; txHash: string; explorer?: string }
-	// Nothing was broadcast: the call threw before any hash existed. Retrying
-	// here IS safe, and telling the two apart is the entire reason `unknown`
-	// is a separate phase rather than another `failed` message.
-	| { kind: "failed"; message: string };
+	// No swap hash came back: the call threw before one existed. Retrying the
+	// swap IS safe, and telling that apart from `unknown` is the entire reason
+	// `unknown` is a separate phase rather than another `failed` message.
+	// `afterSwapAttempt` marks the case where an approval transaction may
+	// nonetheless already be on chain — see the catch in `swap()`.
+	| { kind: "failed"; message: string; afterSwapAttempt?: boolean };
 
 function draftFor(result: QuoteResult | null): string {
 	return result && hasRoute(result) ? String(result.quote.slippage) : "";
+}
+
+/**
+ * Tell the model what just happened on this card.
+ *
+ * MCP Apps does not push UI state to the model on its own — without this, the
+ * model's next reply can contradict what the card is showing, which is exactly
+ * what happened during the wallet panel's manual verification. On the money
+ * path that contradiction is worse than a wrong pill: chat prose is the channel
+ * the user reads, so a broadcast announced as a completed swap and never
+ * retracted has the model asserting a trade that reverted. Every terminal
+ * branch of `swap()` therefore sends its own update, and the broadcast one
+ * claims nothing but a hash.
+ *
+ * Fire-and-forget on purpose. Informing the model is not part of the swap, and
+ * a host that refuses the call must not break the card, so nothing is awaited
+ * and no state is set from it.
+ */
+function tellModel(app: App, text: string): void {
+	void app.updateModelContext({ content: [{ type: "text", text }] }).catch(() => {});
 }
 
 /** A USD value, or an explicit dash where the route carried no price. */
@@ -180,29 +202,34 @@ export function SwapCard({ app, initial }: { app: App; initial: QuoteResult | nu
 			);
 		} catch (e) {
 			if (!alive.current) return;
-			// Nothing left this machine — no hash came back — so `failed` is the
-			// right phase here, and Swap may stay clickable.
-			setPhase({ kind: "failed", message: e instanceof Error ? e.message : String(e) });
+			// No hash came back, so the *swap* was not broadcast and Swap may
+			// stay clickable. That is not the same as "nothing left this
+			// machine": handleSwapTokens (src/mcp/handlers/trade.ts) broadcasts
+			// an ERC-20 approve, waits for its receipt and waits for the
+			// allowance before it sends the swap, so a throw after that first
+			// sendTransaction — a policy refusal on the swap leg, a wallet
+			// rejection, a relay timeout — arrives here with an approval already
+			// on chain, gas already spent and a standing allowance to the
+			// router. The copy below says so; the phase cannot tell the two
+			// apart, because the handler returns no hash for a leg that
+			// succeeded before a later one threw.
+			setPhase({
+				kind: "failed",
+				message: e instanceof Error ? e.message : String(e),
+				afterSwapAttempt: true,
+			});
 			return;
 		}
 		if (!alive.current) return;
 		setPhase({ kind: "broadcast", txHash: broadcast.txHash, explorer: broadcast.explorer });
 		setExplorerLinkOk(true);
 
-		// MCP Apps does not push UI state to the model on its own — without
-		// this, the model's next reply can contradict what the card is
-		// showing, which is exactly what happened during the wallet panel's
-		// manual verification.
-		void app
-			.updateModelContext({
-				content: [
-					{
-						type: "text",
-						text: `Swapped ${broadcast.amountIn} ${broadcast.tokenIn} for ${broadcast.amountOut} ${broadcast.tokenOut} on ${broadcast.chain} — tx ${broadcast.txHash}`,
-					},
-				],
-			})
-			.catch(() => {});
+		// A hash, and nothing more. The swap has not settled, so this says so —
+		// every branch of the poll below sends its own update to replace it.
+		tellModel(
+			app,
+			`Swap broadcast on ${broadcast.chain} and awaiting confirmation — tx ${broadcast.txHash}, offering ${broadcast.amountIn} ${broadcast.tokenIn} for an expected ${broadcast.amountOut} ${broadcast.tokenOut}. Nothing has settled yet; do not report this swap as done.`
+		);
 
 		let attempt = 0;
 		for (;;) {
@@ -234,13 +261,34 @@ export function SwapCard({ app, initial }: { app: App; initial: QuoteResult | nu
 				// because there is no safe retry for something that may still be
 				// in flight.
 				setPhase({ kind: "unknown", txHash: broadcast.txHash, explorer });
+				tellModel(
+					app,
+					`Swap tx ${broadcast.txHash} on ${broadcast.chain} was broadcast, but no receipt arrived before the card stopped polling — its outcome is unknown. It may still confirm, and it may still revert. Do not state whether the ${broadcast.amountIn} ${broadcast.tokenIn} was swapped; check that hash on the explorer or with get_tx_status first.`
+				);
 				return;
 			}
 			if (decision.action === "stop") {
-				setPhase(
-					status === "confirmed"
-						? { kind: "confirmed", txHash: broadcast.txHash, explorer, blockNumber }
-						: { kind: "reverted", txHash: broadcast.txHash, explorer }
+				if (status === "confirmed") {
+					setPhase({
+						kind: "confirmed",
+						txHash: broadcast.txHash,
+						explorer,
+						blockNumber,
+					});
+					// `amountOut` is what the handler quoted at broadcast, not what
+					// the receipt settled at — within the slippage floor those can
+					// differ, so it is named as the quote rather than asserted as
+					// the balance.
+					tellModel(
+						app,
+						`Swap confirmed on ${broadcast.chain} in block ${blockNumber} — ${broadcast.amountIn} ${broadcast.tokenIn} swapped for ${broadcast.amountOut} ${broadcast.tokenOut} as quoted at broadcast, tx ${broadcast.txHash}. Read the balance rather than this figure if the exact received amount matters.`
+					);
+					return;
+				}
+				setPhase({ kind: "reverted", txHash: broadcast.txHash, explorer });
+				tellModel(
+					app,
+					`Swap tx ${broadcast.txHash} on ${broadcast.chain} REVERTED — no tokens changed hands. The ${broadcast.amountIn} ${broadcast.tokenIn} was not swapped and is still held; only gas was spent. Do not say the swap succeeded.`
 				);
 				return;
 			}
@@ -258,6 +306,23 @@ export function SwapCard({ app, initial }: { app: App; initial: QuoteResult | nu
 			<div data-fibx-swap-card class="card">
 				<h1>Swap</h1>
 				<p class="muted">waiting for the host…</p>
+			</div>
+		);
+	}
+
+	// Defence in depth behind main.tsx's `success: false` check. Every
+	// get_quote result carries these two, so their absence means this payload
+	// is not a quote — and a card with blank amount rows over a live Simulate
+	// button is worse than no card, because Simulate would call swap_tokens
+	// with whatever buildSwapArgs could scrape out of it.
+	if (!current.input || !current.rate) {
+		return (
+			<div data-fibx-swap-card class="card">
+				<h1>Swap</h1>
+				<p class="error">
+					This quote came back without the amounts to show, so there is nothing here to
+					simulate or swap. Ask for the quote again.
+				</p>
 			</div>
 		);
 	}
@@ -452,7 +517,23 @@ export function SwapCard({ app, initial }: { app: App; initial: QuoteResult | nu
 				</p>
 			)}
 
-			{phase.kind === "failed" && <p class="error">{phase.message}</p>}
+			{phase.kind === "failed" && (
+				<>
+					<p class="error">{phase.message}</p>
+					{/* Only after a swap attempt, never after a simulate: a
+					    simulate broadcasts nothing, while a swap on a token that
+					    needs an allowance sends the approval first and waits for
+					    it, so a failure on the swap leg leaves that approval
+					    standing. */}
+					{phase.afterSwapAttempt && (
+						<p class="muted">
+							If this swap needed an ERC-20 approval first, that approval may already
+							have been sent, cost gas and left a standing allowance to the router.
+							Check your wallet before retrying.
+						</p>
+					)}
+				</>
+			)}
 		</div>
 	);
 }

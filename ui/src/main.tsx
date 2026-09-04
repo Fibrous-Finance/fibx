@@ -50,10 +50,47 @@ function surfaceFromPayload(payload: unknown): Surface {
 		: "panel";
 }
 
+/**
+ * The failure message a tool result carries, or null if it carries none.
+ *
+ * `withErrorHandling` (src/mcp/tools/error-handling.ts) returns a failure as an
+ * ordinary tool result whose body is `{ success: false, error, code,
+ * rawMessage }` — it does NOT set `isError`, so the host still renders the
+ * resource bound to the tool. Without this check, a `get_quote` that could not
+ * resolve a token drew a swap card with blank amounts and a live Simulate
+ * button, or — where the host does not populate `toolInfo`, leaving
+ * `surfaceFromPayload` with no `input`/`output`/`rate`/`chain` to match — the
+ * wallet panel's "No wallet is connected" under the swap card's URI, to a user
+ * whose wallet is connected and who only asked for a price.
+ */
+function toolError(payload: unknown): string | null {
+	if (payload === null || typeof payload !== "object") return null;
+	const body = payload as { success?: unknown; error?: unknown };
+	if (body.success !== false) return null;
+	return typeof body.error === "string" && body.error !== ""
+		? body.error
+		: "That tool call failed, and returned no message explaining why.";
+}
+
+/**
+ * The one error surface both branches share. It carries `data-fibx-panel` so
+ * a host inspecting the document sees the same marker either way — the
+ * distinction that matters here is that nothing actionable is drawn.
+ */
+function ErrorView({ message }: { message: string }) {
+	return (
+		<div data-fibx-panel>
+			<h1>FibX</h1>
+			<p class="error">{message}</p>
+		</div>
+	);
+}
+
 function Root() {
 	const [surface, setSurface] = useState<Surface | null>(null);
 	const [initial, setInitial] = useState<Record<string, unknown> | null>(null);
 	const [connectError, setConnectError] = useState<string | null>(null);
+	const [toolFailure, setToolFailure] = useState<string | null>(null);
 
 	useEffect(() => {
 		// toolInfo (checked in both places below) is only populated once
@@ -64,6 +101,11 @@ function Root() {
 		app.addEventListener("toolresult", (result) => {
 			try {
 				const parsed = parseToolJson<Record<string, unknown>>(result);
+				// Before any surface is chosen: a failed tool result has no
+				// surface to render, only a message.
+				const failure = toolError(parsed);
+				setToolFailure(failure);
+				if (failure !== null) return;
 				const fromHost = surfaceFromToolName(app.getHostContext()?.toolInfo?.tool?.name);
 				setSurface(fromHost ?? surfaceFromPayload(parsed));
 				setInitial(parsed);
@@ -90,14 +132,12 @@ function Root() {
 		};
 	}, []);
 
-	if (connectError) {
-		return (
-			<div data-fibx-panel>
-				<h1>FibX Wallet</h1>
-				<p class="error">{connectError}</p>
-			</div>
-		);
-	}
+	if (connectError) return <ErrorView message={connectError} />;
+
+	// A tool that failed outranks whichever surface was chosen for it: the
+	// panel and the card both draw controls, and there is nothing here to act
+	// on.
+	if (toolFailure) return <ErrorView message={toolFailure} />;
 
 	// Each surface owns its own interpretation of the same untyped payload —
 	// the panel expects an AuthStatus-shaped push (get_auth_status, connect_
