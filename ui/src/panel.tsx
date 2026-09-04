@@ -57,6 +57,23 @@ export function Panel({ app, initial }: { app: App; initial: AuthStatus | null }
 			hasFetchedOwnAuth.current = true;
 			setAuth(result);
 			setError(null);
+
+			// MCP Apps does not push UI state to the model on its own — without
+			// this, the model's next reply can contradict what the panel is
+			// showing, which is exactly what happened during the wallet panel's
+			// manual verification.
+			void app
+				.updateModelContext({
+					content: [
+						{
+							type: "text",
+							text: result.authenticated
+								? `Wallet connected: ${result.walletAddress} on ${result.chain}`
+								: "No wallet connected.",
+						},
+					],
+				})
+				.catch(() => {});
 		} catch (e) {
 			setError(e instanceof Error ? e.message : String(e));
 		} finally {
