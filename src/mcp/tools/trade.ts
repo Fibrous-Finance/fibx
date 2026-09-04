@@ -6,26 +6,28 @@ import { handleGetQuote } from "../handlers/quote.js";
 import { withErrorHandling } from "./error-handling.js";
 import { ChainEnum } from "./schemas.js";
 import { SWAP_CARD_URI } from "../ui.js";
+import { DEFAULT_SLIPPAGE } from "../../lib/config.js";
+import {
+	MAX_SLIPPAGE_PERCENT,
+	MIN_SLIPPAGE_PERCENT,
+	slippageSchema,
+} from "../../lib/validation.js";
 
 /**
- * Slippage is the floor on what a user receives: `swap_tokens` derives the
- * on-chain `min_received` from this number. It is bounded here, in the schema
- * itself, and not only in the swap card, because the model calls these tools
- * directly and never passes through the card — and the local signing policy
- * cannot catch a bad value either, since `maxValue` bounds native value only
- * and an ERC-20 swap reaches the router with `value: 0n`.
+ * Slippage is bounded here because the model calls these tools directly and
+ * never passes through the swap card. The bound itself lives in
+ * `src/lib/validation.ts` and is shared with the CLI's `--slippage` flag,
+ * which passes through neither the schema nor the card — see the comment
+ * there for why nothing downstream can catch a bad value.
  *
- * This is the outer wall, deliberately wider than the card's own 5% refusal
- * (ui/src/quote.ts): an unbounded 50 collapses the floor to nothing, while a
- * large-but-deliberate slippage on an illiquid pair is still a thing a caller
- * may legitimately ask for.
+ * This schema adds only the tool-facing parts: the default and the
+ * description a model reads.
  */
-const SlippagePercent = z
-	.number()
-	.min(0.01)
-	.max(50)
-	.default(0.5)
-	.describe("Slippage tolerance percentage (0.01-50, default: 0.5)");
+const SlippagePercent = slippageSchema
+	.default(DEFAULT_SLIPPAGE)
+	.describe(
+		`Slippage tolerance percentage (${MIN_SLIPPAGE_PERCENT}-${MAX_SLIPPAGE_PERCENT}, default: ${DEFAULT_SLIPPAGE})`
+	);
 
 export function registerTradeTools(server: McpServer): number {
 	// get_quote is read-only (readOnlyHint: true below), so binding it to a

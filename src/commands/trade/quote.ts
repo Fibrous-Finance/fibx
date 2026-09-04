@@ -2,7 +2,7 @@ import { getChainConfig } from "../../services/chain/constants.js";
 import { resolveToken } from "../../services/fibrous/tokens.js";
 import { getRouteAndCallData } from "../../services/fibrous/route.js";
 import { DEFAULT_SLIPPAGE } from "../../lib/config.js";
-import { validateAmount } from "../../lib/validation.js";
+import { validateAmount, validateSlippage } from "../../lib/validation.js";
 import { parseAmount, formatAmount } from "../../lib/parseAmount.js";
 import {
 	createSpinner,
@@ -31,6 +31,10 @@ export async function quoteCommand(
 
 	try {
 		validateAmount(amount);
+		// The same bound the MCP tool schema enforces (src/lib/validation.ts).
+		// `--slippage` reaches here as a bare parseFloat from src/index.ts, so
+		// without this the CLI walks straight past every other wall.
+		const slippage = validateSlippage(opts.slippage ?? DEFAULT_SLIPPAGE);
 
 		if (from.toLowerCase() === to.toLowerCase()) {
 			throw new Error("Source and destination tokens cannot be the same.");
@@ -97,7 +101,7 @@ export async function quoteCommand(
 				amount: amountBaseUnits.toString(),
 				tokenInAddress: tokenIn.address,
 				tokenOutAddress: tokenOut.address,
-				slippage: opts.slippage ?? DEFAULT_SLIPPAGE,
+				slippage,
 				destination: QUOTE_DESTINATION,
 			},
 			chain
@@ -116,7 +120,7 @@ export async function quoteCommand(
 				input: `${amount} ${tokenIn.symbol}`,
 				output: `~${outputAmount} ${tokenOut.symbol}`,
 				rate: `1 ${tokenIn.symbol} ≈ ${rate} ${tokenOut.symbol}`,
-				slippage: `${opts.slippage ?? DEFAULT_SLIPPAGE}%`,
+				slippage: `${slippage}%`,
 				router: routeData.router_address,
 				chain: chain.name,
 			},

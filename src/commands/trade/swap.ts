@@ -13,7 +13,7 @@ import {
 import { resolveToken } from "../../services/fibrous/tokens.js";
 import { getRouteAndCallData, encodeSwapCalldata } from "../../services/fibrous/route.js";
 import { DEFAULT_SLIPPAGE } from "../../lib/config.js";
-import { validateAmount } from "../../lib/validation.js";
+import { validateAmount, validateSlippage } from "../../lib/validation.js";
 import { parseAmount, formatAmount } from "../../lib/parseAmount.js";
 import {
 	createSpinner,
@@ -39,6 +39,10 @@ export async function tradeCommand(
 
 	try {
 		validateAmount(amount);
+		// The same bound the MCP tool schema enforces (src/lib/validation.ts).
+		// `--slippage` reaches here as a bare parseFloat from src/index.ts, so
+		// without this the CLI walks straight past every other wall.
+		const slippage = validateSlippage(opts.slippage ?? DEFAULT_SLIPPAGE);
 
 		const globalOpts = opts as unknown as GlobalOptions;
 		const chainName = globalOpts.chain || "base";
@@ -175,7 +179,7 @@ export async function tradeCommand(
 				amount: amountBaseUnits.toString(),
 				tokenInAddress: tokenIn.address,
 				tokenOutAddress: tokenOut.address,
-				slippage: opts.slippage ?? DEFAULT_SLIPPAGE,
+				slippage,
 				destination: wallet,
 			},
 			chain
@@ -190,7 +194,7 @@ export async function tradeCommand(
 			console.log(
 				`\n  Route: ${amount} ${tokenIn.symbol} → ~${outputAmount} ${tokenOut.symbol}`
 			);
-			console.log(`  Slippage: ${opts.slippage ?? DEFAULT_SLIPPAGE}%\n`);
+			console.log(`  Slippage: ${slippage}%\n`);
 		}
 
 		let requiresApproval = false;
