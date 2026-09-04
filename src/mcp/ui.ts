@@ -12,7 +12,15 @@ export function registerWalletPanel(server: McpServer): void {
 		server,
 		WALLET_PANEL_URI,
 		WALLET_PANEL_URI,
-		{ mimeType: RESOURCE_MIME_TYPE },
+		{
+			mimeType: RESOURCE_MIME_TYPE,
+			// Hosts gate browser capabilities behind a declared permission and
+			// build the iframe's `allow` attribute from it. Without this the
+			// clipboard call rejects and a Copy button does nothing at all.
+			// Declaring is necessary and not sufficient — the app still feature-
+			// detects, because a host may refuse.
+			_meta: { ui: { permissions: { clipboardWrite: {} } } },
+		},
 		async () => ({
 			contents: [
 				{ uri: WALLET_PANEL_URI, mimeType: RESOURCE_MIME_TYPE, text: walletPanelHtml },

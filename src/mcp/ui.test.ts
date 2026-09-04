@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { WALLET_PANEL_URI, walletPanelHtml } from "./ui.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { registerWalletPanel, WALLET_PANEL_URI, walletPanelHtml } from "./ui.js";
 
 describe("the wallet panel resource", () => {
 	it("uses the ui:// scheme the host looks for", () => {
@@ -22,5 +23,23 @@ describe("the wallet panel resource", () => {
 	// doubles it.
 	it("stays under the size budget", () => {
 		expect(walletPanelHtml.length).toBeLessThan(400_000);
+	});
+
+	// The clipboard is the one capability this panel asks for. A host builds
+	// the iframe's allow attribute from this declaration; without it, Copy is
+	// a button that silently does nothing.
+	it("asks the host for clipboard write", () => {
+		const server = new McpServer({ name: "t", version: "0" });
+		registerWalletPanel(server);
+
+		const registered = (
+			server as unknown as {
+				_registeredResources: Record<string, { metadata?: Record<string, unknown> }>;
+			}
+		)._registeredResources[WALLET_PANEL_URI];
+
+		expect(registered?.metadata?._meta).toEqual({
+			ui: { permissions: { clipboardWrite: {} } },
+		});
 	});
 });

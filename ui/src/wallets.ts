@@ -1,15 +1,13 @@
-export type WalletLink = { name: string; url: string };
-
 /**
- * Same-device pairing: hand the wc: URI to a wallet through its universal
- * link instead of asking someone to scan their own screen. These are the
- * wallets FibX's own README names; the copyable URI remains for every other.
+ * Same-device pairing. The three brand universal links this replaces were
+ * mobile-only: `openLink` opens the host's default browser rather than an app,
+ * so on a desktop they landed on a "open this in your app" page and reported
+ * success — a dead end with no error to react to.
+ *
+ * A bare `wc:` URI is what desktop wallets register as a protocol handler. If
+ * the host refuses a non-http scheme it answers `isError`, which the caller
+ * uses to hide the button rather than leave it dead.
  */
-export function walletLinks(uri: string): WalletLink[] {
-	const u = encodeURIComponent(uri);
-	return [
-		{ name: "MetaMask", url: `https://metamask.app.link/wc?uri=${u}` },
-		{ name: "Rabby", url: `https://rabby.io/wc?uri=${u}` },
-		{ name: "Rainbow", url: `https://rnbwapp.com/wc?uri=${u}` },
-	];
+export function walletLink(uri: string): string {
+	return uri;
 }

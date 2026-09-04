@@ -10,7 +10,7 @@ import {
 	type Policy,
 	type SessionKind,
 } from "./status.js";
-import { walletLinks } from "./wallets.js";
+import { walletLink } from "./wallets.js";
 
 export type AuthStatus = {
 	authenticated: boolean;
@@ -381,6 +381,10 @@ function PolicyCard({ app, sessionKind }: { app: App; sessionKind: SessionKind }
 export function Disconnected({ app, onConnected }: { app: App; onConnected: () => Promise<void> }) {
 	const [phase, setPhase] = useState<ConnectPhase>({ kind: "idle" });
 	const [linksAllowed, setLinksAllowed] = useState(true);
+	const [copied, setCopied] = useState(false);
+	const [canCopy, setCanCopy] = useState(
+		() => typeof navigator !== "undefined" && Boolean(navigator.clipboard?.writeText)
+	);
 	// The poll loop below can outlive this component — the panel switches to
 	// Connected, or the host tears the iframe down — and without this flag it
 	// keeps calling get_connect_status and setting state on an unmounted
@@ -449,9 +453,13 @@ export function Disconnected({ app, onConnected }: { app: App; onConnected: () =
 	async function copyUri(uri: string) {
 		try {
 			await navigator.clipboard.writeText(uri);
+			if (!alive.current) return;
+			setCopied(true);
+			setTimeout(() => alive.current && setCopied(false), 1500);
 		} catch {
-			// The sandbox may refuse the clipboard; the textarea is selectable
-			// on purpose so the URI is never unreachable.
+			// The host refused despite the declaration. Retire the button
+			// rather than leave one that does nothing; the URI is selectable.
+			if (alive.current) setCanCopy(false);
 		}
 	}
 
@@ -483,30 +491,25 @@ export function Disconnected({ app, onConnected }: { app: App; onConnected: () =
 				onFocus={(e) => e.currentTarget.select()}
 			/>
 			{linksAllowed && (
-				<div class="row">
-					{walletLinks(pairing.uri).map((l) => (
-						<button
-							class="ghost"
-							onClick={async () => {
-								const r = await app.openLink({ url: l.url });
-								// A refusal is a result, not an exception. Once the host
-								// says no, every shortcut would say no — drop them all
-								// and leave the copyable URI, which always works.
-								if (r.isError) {
-									if (!alive.current) return;
-									setLinksAllowed(false);
-								}
-							}}
-						>
-							Open in {l.name}
-						</button>
-					))}
-				</div>
+				<button
+					class="ghost"
+					onClick={async () => {
+						const r = await app.openLink({ url: walletLink(pairing.uri) });
+						// A refusal is a result, not an exception. If the host
+						// will not dispatch a wc: URI, retire the button — the
+						// QR and the copyable URI both still work.
+						if (r.isError && alive.current) setLinksAllowed(false);
+					}}
+				>
+					Open in your wallet
+				</button>
 			)}
 			<div class="row">
-				<button class="ghost" onClick={() => copyUri(pairing.uri)}>
-					Copy link
-				</button>
+				{canCopy && (
+					<button class="ghost" onClick={() => copyUri(pairing.uri)}>
+						{copied ? "Copied" : "Copy link"}
+					</button>
+				)}
 				{phase.kind === "expired" && <button onClick={connect}>Try again</button>}
 			</div>
 		</div>
