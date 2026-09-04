@@ -54,4 +54,40 @@ describe("PolicySection", () => {
 		expect(m.text()).toContain("base.maxValue");
 		m.unmount();
 	});
+
+	it("expands when `open` becomes true on an already-mounted section", async () => {
+		const app = fakeApp({});
+		const m = mount(
+			<PolicySection app={app} initial={ACTIVE} sessionKind="walletconnect" open={false} />
+		);
+		expect(m.container.querySelector("form")).toBeNull();
+		m.rerender(
+			<PolicySection app={app} initial={ACTIVE} sessionKind="walletconnect" open={true} />
+		);
+		await m.flush();
+		expect(m.container.querySelector("form")).not.toBeNull();
+		m.unmount();
+	});
+
+	it("maps a POLICY_BLOCKED refusal to its title and rule-naming detail", async () => {
+		const app = fakeApp({
+			set_policy_rule: {
+				success: false,
+				error: "policy blocked",
+				code: "POLICY_BLOCKED",
+				details: { rule: "base.maxValue" },
+			},
+		});
+		const m = mount(
+			<PolicySection app={app} initial={ABSENT} sessionKind="walletconnect" open />
+		);
+		m.type("input[aria-label=Value]", "0.05");
+		await m.flush();
+		m.click("button[type=submit]");
+		await m.flush();
+		expect(m.text()).toContain("Blocked by your signing policy");
+		expect(m.text()).toContain("The rule base.maxValue refused it. Edit it below.");
+		expect(m.container.querySelector("details")).toBeNull();
+		m.unmount();
+	});
 });

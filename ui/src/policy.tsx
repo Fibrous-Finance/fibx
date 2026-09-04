@@ -1,7 +1,7 @@
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import type { App } from "@modelcontextprotocol/ext-apps";
 import { callJson } from "./rpc.js";
-import { explainError } from "./errors.js";
+import { explainError, type Explained } from "./errors.js";
 import { policyRows } from "./status.js";
 import type { PolicyState, SessionKind } from "./types.js";
 
@@ -30,9 +30,16 @@ export function PolicySection({
 	open?: boolean;
 }) {
 	const [isOpen, setIsOpen] = useState(open ?? false);
+	// `open` is only the initial value above — a later `open={true}` (the shell
+	// re-rendering this section after a POLICY_BLOCKED refusal on an already
+	// mounted section) would otherwise do nothing. This expands it; the user
+	// may still collapse it afterwards with the toggle.
+	useEffect(() => {
+		if (open) setIsOpen(true);
+	}, [open]);
 	const [policy, setPolicy] = useState<PolicyState>(initial);
 	const [pending, setPending] = useState<string | null>(null);
-	const [error, setError] = useState<string | null>(null);
+	const [error, setError] = useState<Explained | null>(null);
 	const [draft, setDraft] = useState<{ rule: string; value: string }>({
 		rule: "base.maxValue",
 		value: "",
@@ -48,7 +55,7 @@ export function PolicySection({
 			setPolicy(await callJson<PolicyState>(app, "get_policy", {}));
 			setError(null);
 		} catch (e) {
-			setError(explainError(e, {}).title);
+			setError(explainError(e, {}));
 		}
 	}
 
@@ -62,7 +69,7 @@ export function PolicySection({
 			await callJson(app, name, args);
 			await load();
 		} catch (e) {
-			setError(explainError(e, {}).title);
+			setError(explainError(e, {}));
 		} finally {
 			setPending(null);
 		}
@@ -220,7 +227,18 @@ export function PolicySection({
 							)}
 						</div>
 					)}
-					{error && <p class="error">{error}</p>}
+					{error && (
+						<>
+							<p class="error">{error.title}</p>
+							{error.detail && <p class="muted">{error.detail}</p>}
+							{error.raw && (
+								<details>
+									<summary>details</summary>
+									<pre class="mono">{error.raw}</pre>
+								</details>
+							)}
+						</>
+					)}
 				</>
 			)}
 		</div>

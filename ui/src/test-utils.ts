@@ -21,6 +21,9 @@ export function mount(vnode: ComponentChild) {
 		container,
 		q,
 		text: () => container.textContent ?? "",
+		rerender(next: ComponentChild) {
+			render(next, container);
+		},
 		click(selector: string) {
 			q<HTMLElement>(selector).click();
 		},
