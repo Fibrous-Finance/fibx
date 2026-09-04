@@ -364,7 +364,7 @@ function PolicyCard({ app, sessionKind }: { app: App; sessionKind: SessionKind }
 						</>
 					) : (
 						<button
-							class="ghost"
+							class="ghost danger"
 							disabled={pending !== null}
 							onClick={() => setConfirmingWipe(true)}
 						>
@@ -491,18 +491,20 @@ export function Disconnected({ app, onConnected }: { app: App; onConnected: () =
 				onFocus={(e) => e.currentTarget.select()}
 			/>
 			{linksAllowed && (
-				<button
-					class="ghost"
-					onClick={async () => {
-						const r = await app.openLink({ url: walletLink(pairing.uri) });
-						// A refusal is a result, not an exception. If the host
-						// will not dispatch a wc: URI, retire the button — the
-						// QR and the copyable URI both still work.
-						if (r.isError && alive.current) setLinksAllowed(false);
-					}}
-				>
-					Open in your wallet
-				</button>
+				<div class="row">
+					<button
+						class="ghost"
+						onClick={async () => {
+							const r = await app.openLink({ url: walletLink(pairing.uri) });
+							// A refusal is a result, not an exception. If the host
+							// will not dispatch a wc: URI, retire the button — the
+							// QR and the copyable URI both still work.
+							if (r.isError && alive.current) setLinksAllowed(false);
+						}}
+					>
+						Open in your wallet
+					</button>
+				</div>
 			)}
 			<div class="row">
 				{canCopy && (

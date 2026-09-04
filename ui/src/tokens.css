@@ -2,8 +2,8 @@
 	--bg-primary: 247 248 248;
 	--bg-secondary: 255 255 255;
 	--bg-tertiary: 237 238 241;
-	--text-primary: 20 22 25;
-	--text-secondary: 74 90 94;
+	--text-primary: 39 45 62;
+	--text-secondary: 142 149 162;
 	--text-muted: 125 127 130;
 	--brand-primary: 17 178 186;
 	--brand-hover: 15 160 167;
@@ -20,9 +20,9 @@
 	--bg-secondary: 39 45 62;
 	--bg-tertiary: 21 25 36;
 	--text-primary: 255 255 255;
-	--text-secondary: 163 179 181;
+	--text-secondary: 182 186 195;
 	--text-muted: 125 127 130;
-	--surface-stroke: 68 83 113;
+	--surface-stroke: 142 149 162;
 }
 
 * {
@@ -48,11 +48,15 @@ h1 {
 .card {
 	background: rgb(var(--bg-secondary));
 	border: 1px solid rgb(var(--surface-stroke) / 0.35);
-	border-radius: 10px;
-	padding: 14px;
+	border-radius: 12px;
+	padding: 16px;
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
+	gap: 12px;
+}
+
+.card + .card {
+	margin-top: 10px;
 }
 
 .row {
@@ -91,6 +95,15 @@ button:hover {
 button.ghost {
 	background: rgb(var(--bg-tertiary));
 	color: rgb(var(--text-primary));
+}
+
+button.danger {
+	background: rgb(var(--status-error) / 0.15);
+	color: rgb(var(--status-error));
+}
+
+button.danger:hover {
+	background: rgb(var(--status-error) / 0.25);
 }
 
 button:disabled {
@@ -156,6 +169,10 @@ th {
 	text-align: left;
 	padding: 6px 4px;
 	border-bottom: 1px solid rgb(var(--surface-stroke) / 0.2);
+}
+
+td {
+	font-variant-numeric: tabular-nums;
 }
 
 th {
