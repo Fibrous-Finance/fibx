@@ -46,4 +46,30 @@ describe("callJson", () => {
 			address: "0x1",
 		});
 	});
+
+	it("preserves the failure code and raw message on a ToolError", async () => {
+		const app = {
+			callServerTool: async () => ({
+				content: [
+					{
+						type: "text",
+						text: JSON.stringify({
+							success: false,
+							error: "Blocked by policy",
+							code: "POLICY_BLOCKED",
+							rawMessage: "raw",
+							details: { rule: "base.maxValue" },
+						}),
+					},
+				],
+			}),
+		} as never;
+		await expect(callJson(app, "swap_tokens")).rejects.toMatchObject({
+			name: "ToolError",
+			message: "Blocked by policy",
+			code: "POLICY_BLOCKED",
+			raw: "raw",
+			details: { rule: "base.maxValue" },
+		});
+	});
 });
