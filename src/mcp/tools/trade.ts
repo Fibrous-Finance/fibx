@@ -1,12 +1,20 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import { handleSwapTokens } from "../handlers/trade.js";
 import { handleGetQuote } from "../handlers/quote.js";
 import { withErrorHandling } from "./error-handling.js";
 import { ChainEnum } from "./schemas.js";
+import { SWAP_CARD_URI } from "../ui.js";
 
 export function registerTradeTools(server: McpServer): number {
-	server.registerTool(
+	// get_quote is read-only (readOnlyHint: true below), so binding it to a
+	// UI resource is safe — the card can only ever appear, never act, until a
+	// click inside it calls swap_tokens. registerAppTool is the SDK's
+	// convenience wrapper around server.registerTool; it only normalizes the
+	// `_meta.ui.resourceUri` field, so every annotation below is unchanged.
+	registerAppTool(
+		server,
 		"get_quote",
 		{
 			title: "Get Swap Quote",
@@ -29,6 +37,7 @@ export function registerTradeTools(server: McpServer): number {
 				idempotentHint: true,
 				openWorldHint: true,
 			},
+			_meta: { ui: { resourceUri: SWAP_CARD_URI } },
 		},
 		withErrorHandling(handleGetQuote)
 	);

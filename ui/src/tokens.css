@@ -111,6 +111,25 @@ button:disabled {
 	cursor: default;
 }
 
+.label {
+	font-family: var(--font-rubik);
+	font-size: 0.72rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: rgb(var(--text-muted));
+}
+
+.amount-row {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.amount {
+	font-size: 1.3rem;
+	font-weight: 600;
+}
+
 .pill {
 	font-family: var(--font-rubik);
 	font-size: 0.72rem;

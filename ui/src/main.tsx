@@ -2,7 +2,9 @@ import { render } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { App } from "@modelcontextprotocol/ext-apps";
 import { Panel, type AuthStatus } from "./panel.js";
+import { SwapCard } from "./swap-card.js";
 import { parseToolJson } from "./status.js";
+import type { QuoteResult } from "./quote.js";
 import "./tokens.css";
 
 const app = new App({ name: "FibX Wallet", version: "1.0.0" });
@@ -31,27 +33,26 @@ function surfaceFromToolName(name: string | undefined): Surface | undefined {
 }
 
 /**
- * Fallback for a host that does not populate toolInfo. A get_quote result
- * nests everything a card needs under a `quote` key (src/mcp/handlers/
- * quote.ts) — no other fibx tool result carries that key — so the payload's
- * own shape is enough to decide, with no host-API assumption at all.
+ * Fallback for a host that does not populate toolInfo. get_quote's every
+ * branch — a routed swap and the wrap/unwrap 1:1 conversions
+ * (src/mcp/handlers/quote.ts) — shares this envelope, and no other fibx tool
+ * result does: `quote` alone would under-cover wrap/unwrap, which return no
+ * route to nest one under. These four keys together are what every
+ * get_quote response carries, and only a get_quote response, so the
+ * payload's own shape is enough to decide with no host-API assumption at
+ * all. (Verified against every other handler's jsonResult call in this repo
+ * — none combines all four.)
  */
 function surfaceFromPayload(payload: unknown): Surface {
-	return payload !== null && typeof payload === "object" && "quote" in payload
+	if (payload === null || typeof payload !== "object") return "panel";
+	return "input" in payload && "output" in payload && "rate" in payload && "chain" in payload
 		? "swap-card"
 		: "panel";
 }
 
-// Task 6 replaces this stub with the real card; this task delivers the
-// switch that reaches it. data-fibx-swap-card must survive onto the card's
-// own root element — it is the marker src/mcp/ui.test.ts recognises.
-function SwapCard() {
-	return <div data-fibx-swap-card>FibX Swap</div>;
-}
-
 function Root() {
 	const [surface, setSurface] = useState<Surface | null>(null);
-	const [initial, setInitial] = useState<AuthStatus | null>(null);
+	const [initial, setInitial] = useState<Record<string, unknown> | null>(null);
 	const [connectError, setConnectError] = useState<string | null>(null);
 
 	useEffect(() => {
@@ -65,7 +66,7 @@ function Root() {
 				const parsed = parseToolJson<Record<string, unknown>>(result);
 				const fromHost = surfaceFromToolName(app.getHostContext()?.toolInfo?.tool?.name);
 				setSurface(fromHost ?? surfaceFromPayload(parsed));
-				setInitial(parsed as AuthStatus);
+				setInitial(parsed);
 			} catch (e) {
 				setConnectError(e instanceof Error ? e.message : String(e));
 			}
@@ -98,9 +99,15 @@ function Root() {
 		);
 	}
 
-	if (surface === "swap-card") return <SwapCard />;
+	// Each surface owns its own interpretation of the same untyped payload —
+	// the panel expects an AuthStatus-shaped push (get_auth_status, connect_
+	// wallet, …), the card expects a get_quote result. surfaceFromToolName /
+	// surfaceFromPayload above are what keep the two from ever crossing.
+	if (surface === "swap-card") {
+		return <SwapCard app={app} initial={initial as QuoteResult | null} />;
+	}
 
-	return <Panel app={app} initial={initial} />;
+	return <Panel app={app} initial={initial as AuthStatus | null} />;
 }
 
 render(<Root />, document.getElementById("root")!);
