@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+	getChainConfig: vi.fn(),
 	getRouteAndCallData: vi.fn(),
 	getProtocolNames: vi.fn(),
 	resolveToken: vi.fn(),
@@ -13,6 +14,9 @@ vi.mock("../../services/fibrous/protocols.js", () => ({
 	getProtocolNames: mocks.getProtocolNames,
 }));
 vi.mock("../../services/fibrous/tokens.js", () => ({ resolveToken: mocks.resolveToken }));
+vi.mock("../../services/chain/constants.js", () => ({
+	getChainConfig: mocks.getChainConfig,
+}));
 
 const { handleGetQuote } = await import("./quote.js");
 
@@ -25,6 +29,11 @@ const USDC = { symbol: "USDC", address: "0x8335", decimals: 6 };
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	mocks.getChainConfig.mockReturnValue({
+		name: "base",
+		nativeTokenAddress: "0x0000000000000000000000000000000000000000",
+		wrappedNativeAddress: "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+	});
 	mocks.resolveToken.mockImplementation(async (s: string) => (s === "ETH" ? ETH : USDC));
 	mocks.getProtocolNames.mockResolvedValue(new Map([[1, "Uniswap V3"]]));
 	// RouteToken is { name, address, decimals, price } — it carries no `symbol`.
