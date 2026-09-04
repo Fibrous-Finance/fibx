@@ -1,14 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerTradeTools } from "./trade.js";
-import { SWAP_CARD_URI } from "../ui.js";
 
 /**
- * registerAppTool (@modelcontextprotocol/ext-apps/server) is a thin wrapper
- * around server.registerTool that normalizes `_meta.ui.resourceUri` — it
- * still ends up in the same private `_registeredTools` registry
- * annotations.test.ts already reads, so this uses the identical accessor
- * rather than re-deriving anything from source.
+ * `_registeredTools` is the same private field annotations.test.ts already
+ * reads, so this uses the identical accessor rather than re-deriving anything
+ * from source.
  */
 type RegisteredTool = {
 	annotations?: Record<string, unknown>;
@@ -34,27 +31,26 @@ function parseArgs(server: McpServer, name: string, args: Record<string, unknown
 	return schema.safeParse({ amount: "1", from_token: "ETH", to_token: "USDC", ...args }).success;
 }
 
-describe("get_quote is bound to the swap card", () => {
+// get_quote used to be the swap card's bound tool; open_fibx (src/mcp/tools/
+// app.ts) is now the only tool bound to a ui:// resource, composing this same
+// handler into its snapshot. get_quote itself goes back to headless, same as
+// swap_tokens below.
+describe("get_quote is headless — open_fibx is the bound tool now", () => {
 	const server = new McpServer({ name: "fibx-test", version: "0.0.0" });
 	registerTradeTools(server);
 
-	// The card's whole safety argument rests on get_quote staying read-only —
-	// a card must never be able to move money merely by appearing.
+	// Still read-only and non-destructive: a model calling it directly, or
+	// open_fibx composing it into the snapshot, must never move money merely
+	// by asking for a price.
 	it("stays read-only and non-destructive", () => {
 		const tool = registeredTool(server, "get_quote");
 		expect(tool.annotations?.readOnlyHint).toBe(true);
 		expect(tool.annotations?.destructiveHint).toBe(false);
 	});
 
-	// registerAppTool also mirrors the URI onto the deprecated
-	// `ui/resourceUri` key for older hosts — asserting through `ui.resourceUri`
-	// only, rather than the whole `_meta` object, keeps this from breaking if
-	// that compatibility shim ever changes shape.
-	it("carries the swap card's resource URI", () => {
+	it("carries no ui.resourceUri", () => {
 		const tool = registeredTool(server, "get_quote");
-		expect((tool._meta as { ui?: { resourceUri?: string } })?.ui?.resourceUri).toBe(
-			SWAP_CARD_URI
-		);
+		expect(tool._meta).toBeUndefined();
 	});
 });
 

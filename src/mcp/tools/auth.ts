@@ -1,6 +1,5 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { registerAppTool } from "@modelcontextprotocol/ext-apps/server";
 import {
 	handleGetAuthStatus,
 	handleConfigAction,
@@ -11,11 +10,12 @@ import {
 import { withErrorHandling } from "./error-handling.js";
 import { ChainEnum } from "./schemas.js";
 import { jsonResult } from "../handlers/utils.js";
-import { WALLET_PANEL_URI } from "../ui.js";
 
 export function registerAuthAndConfigTools(server: McpServer): number {
-	registerAppTool(
-		server,
+	// Headless: no host renders this from a resource. open_fibx composes the
+	// same handler into the app's snapshot, so a host with UI shows auth
+	// status there instead of a standalone panel.
+	server.registerTool(
 		"get_auth_status",
 		{
 			title: "Check Auth & Fibrous Status",
@@ -32,7 +32,6 @@ export function registerAuthAndConfigTools(server: McpServer): number {
 				destructiveHint: false,
 				openWorldHint: true,
 			},
-			_meta: { ui: { resourceUri: WALLET_PANEL_URI } },
 		},
 		withErrorHandling(handleGetAuthStatus)
 	);

@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { registerTools, type ToolSummary } from "./tools/index.js";
-import { registerWalletPanel, registerSwapCard } from "./ui.js";
+import { registerApp } from "./ui.js";
 
 declare const FIBX_VERSION: string;
 
@@ -78,8 +78,7 @@ export async function startMcpServer(): Promise<void> {
 	);
 
 	const summary = registerTools(server);
-	registerWalletPanel(server);
-	registerSwapCard(server);
+	registerApp(server);
 
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
