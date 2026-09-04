@@ -21,7 +21,7 @@ function htmlAsText(): Plugin {
 
 export default defineConfig({
 	plugins: [htmlAsText()],
-	esbuild: { jsx: "automatic", jsxImportSource: "preact" },
+	oxc: { jsx: { runtime: "automatic", importSource: "preact" } },
 	test: {
 		include: ["src/**/*.test.ts", "ui/src/**/*.test.{ts,tsx}"],
 		environment: "node",
