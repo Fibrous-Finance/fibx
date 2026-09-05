@@ -32,7 +32,12 @@ describe("PolicySection", () => {
 	// button that destroys it must not look like the one that backs out.
 	it("puts danger on the button that performs the wipe, not on Keep", async () => {
 		const m = mount(
-			<PolicySection app={fakeApp({})} initial={ACTIVE} sessionKind="private-key" open />
+			<PolicySection
+				app={fakeApp({})}
+				initial={ACTIVE}
+				sessionKind="private-key"
+				openNonce={1}
+			/>
 		);
 		m.click("button[data-action=wipe]");
 		await m.flush();
@@ -44,7 +49,7 @@ describe("PolicySection", () => {
 	it("reloads from get_policy after a write, never trusting its own write", async () => {
 		const app = fakeApp({ set_policy_rule: { ok: true }, get_policy: ACTIVE });
 		const m = mount(
-			<PolicySection app={app} initial={ABSENT} sessionKind="walletconnect" open />
+			<PolicySection app={app} initial={ABSENT} sessionKind="walletconnect" openNonce={1} />
 		);
 		m.type("input[aria-label=Value]", "0.05");
 		await m.flush();
@@ -55,14 +60,25 @@ describe("PolicySection", () => {
 		m.unmount();
 	});
 
-	it("expands when `open` becomes true on an already-mounted section", async () => {
+	// A boolean latched: the second refusal re-rendered the same `true` and the
+	// effect never ran again, so a user who had collapsed the section saw
+	// nothing happen when the next swap was refused.
+	it("expands on every refusal, not just the first", async () => {
 		const app = fakeApp({});
 		const m = mount(
-			<PolicySection app={app} initial={ACTIVE} sessionKind="walletconnect" open={false} />
+			<PolicySection app={app} initial={ACTIVE} sessionKind="walletconnect" openNonce={0} />
 		);
 		expect(m.container.querySelector("form")).toBeNull();
 		m.rerender(
-			<PolicySection app={app} initial={ACTIVE} sessionKind="walletconnect" open={true} />
+			<PolicySection app={app} initial={ACTIVE} sessionKind="walletconnect" openNonce={1} />
+		);
+		await m.flush();
+		expect(m.container.querySelector("form")).not.toBeNull();
+		m.click("button[data-action=toggle-policy]");
+		await m.flush();
+		expect(m.container.querySelector("form")).toBeNull();
+		m.rerender(
+			<PolicySection app={app} initial={ACTIVE} sessionKind="walletconnect" openNonce={2} />
 		);
 		await m.flush();
 		expect(m.container.querySelector("form")).not.toBeNull();
@@ -79,7 +95,7 @@ describe("PolicySection", () => {
 			},
 		});
 		const m = mount(
-			<PolicySection app={app} initial={ABSENT} sessionKind="walletconnect" open />
+			<PolicySection app={app} initial={ABSENT} sessionKind="walletconnect" openNonce={1} />
 		);
 		m.type("input[aria-label=Value]", "0.05");
 		await m.flush();

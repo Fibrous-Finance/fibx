@@ -26,7 +26,14 @@ export function FibxApp({ app, snapshot }: { app: App; snapshot: Snapshot }) {
 	const [quote, setQuote] = useState(snapshot.quote);
 	const [quoteError, setQuoteError] = useState(snapshot.quoteError);
 	const [view, setView] = useState<View>({ kind: "form" });
-	const [policyOpen, setPolicyOpen] = useState(false);
+	// A count, not a flag: see PolicySection's `openNonce`. A second refusal
+	// after the user collapsed the section has to re-open it.
+	const [policyOpenNonce, setPolicyOpenNonce] = useState(0);
+	// Ending the session is a two-step. `logout` deletes session.json, and on
+	// the imported-key path that file *is* the encrypted key — so the address
+	// asks first, and is inert until it has.
+	const [confirmingEnd, setConfirmingEnd] = useState(false);
+	const [endingSession, setEndingSession] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
 	async function refresh() {
@@ -58,9 +65,13 @@ export function FibxApp({ app, snapshot }: { app: App; snapshot: Snapshot }) {
 		}
 	}
 
+	// Only the token pair is chain-specific. The amount and the slippage the
+	// user typed are theirs, and discarding them made a chain switch cost the
+	// whole form. The null quote is what the form re-quotes from.
 	function changeChain(next: string) {
+		const defaults = defaultTerms(next);
 		setChain(next);
-		setTerms(defaultTerms(next));
+		setTerms((cur) => ({ ...defaults, amount: cur.amount, slippage: cur.slippage }));
 		setQuote(null);
 		setQuoteError(null);
 		void refresh();
@@ -74,15 +85,23 @@ export function FibxApp({ app, snapshot }: { app: App; snapshot: Snapshot }) {
 	}
 
 	async function endSession() {
+		setEndingSession(true);
 		try {
 			await callJson(app, "logout", {});
 			await refresh();
 		} catch (e) {
 			setError(explainError(e, {}).title);
+		} finally {
+			setEndingSession(false);
+			setConfirmingEnd(false);
 		}
 	}
 
-	const session = describeSession(auth.sessionType ?? "walletconnect");
+	// Unreachable while `authenticated` implies a `sessionType`; if it ever did
+	// fire it would call an imported key a WalletConnect session and suppress
+	// the "bounded by policy only" warning that path depends on.
+	const sessionKind = auth.sessionType ?? "walletconnect";
+	const session = describeSession(sessionKind);
 
 	return (
 		<div data-fibx-app class="app">
@@ -106,10 +125,33 @@ export function FibxApp({ app, snapshot }: { app: App; snapshot: Snapshot }) {
 							class="ghost mono"
 							data-action="wallet"
 							title={auth.walletAddress}
-							onClick={endSession}
+							disabled={endingSession}
+							onClick={() => setConfirmingEnd(true)}
 						>
-							{shortAddress(auth.walletAddress)} · end
+							{shortAddress(auth.walletAddress)}
 						</button>
+						{confirmingEnd && (
+							<>
+								{/* `danger` on the one that destroys the session, and
+								    not on Keep — the same shape as the policy wipe. */}
+								<button
+									class="ghost danger"
+									data-action="end-session"
+									disabled={endingSession}
+									onClick={() => void endSession()}
+								>
+									End session
+								</button>
+								<button
+									class="ghost"
+									data-action="keep-session"
+									disabled={endingSession}
+									onClick={() => setConfirmingEnd(false)}
+								>
+									Keep
+								</button>
+							</>
+						)}
 						<span class="muted">{session.label}</span>
 						{session.approvesPerTransaction && (
 							<span class="pill">approves on your phone</span>
@@ -162,7 +204,7 @@ export function FibxApp({ app, snapshot }: { app: App; snapshot: Snapshot }) {
 					balances={balances}
 					connected={auth.authenticated}
 					onPickToken={(side) => setView({ kind: "picker", side })}
-					onPolicyRefusal={() => setPolicyOpen(true)}
+					onPolicyRefusal={() => setPolicyOpenNonce((n) => n + 1)}
 					// A settled swap moved the balance the header line and the
 					// shortfall guard are both drawn from.
 					onSettled={refresh}
@@ -172,8 +214,8 @@ export function FibxApp({ app, snapshot }: { app: App; snapshot: Snapshot }) {
 			<PolicySection
 				app={app}
 				initial={snapshot.policy}
-				sessionKind={auth.sessionType ?? "walletconnect"}
-				open={policyOpen}
+				sessionKind={sessionKind}
+				openNonce={policyOpenNonce}
 			/>
 		</div>
 	);

@@ -121,6 +121,11 @@ export function SwapForm({
 		}
 		dispatch({ type: "TERMS_CHANGED", terms });
 		if (quote) dispatch({ type: "QUOTE_ARRIVED", quote });
+		// A picked token or a changed chain nulls the shell's quote, and
+		// nothing else would ask for a new one: "You Receive" sat at — until
+		// the user retyped the amount. The debounce is the same one a
+		// keystroke uses, so a burst of re-seeds costs one call.
+		else if (terms.amount !== "") scheduleQuote(terms);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [terms, quote]);
 

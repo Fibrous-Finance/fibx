@@ -111,6 +111,34 @@ describe("FibxApp", () => {
 		m.unmount();
 	});
 
+	// `logout` deletes session.json — on the imported-key path that file is the
+	// encrypted private key. One click on the address must not do that.
+	it("asks before ending the session, and only ends it on the second click", async () => {
+		const snap = {
+			...BASE,
+			auth: {
+				...BASE.auth,
+				authenticated: true,
+				walletAddress: "0x0363000000000000000000000000000000003d44",
+				sessionType: "walletconnect" as const,
+			},
+		};
+		const app = fakeApp({
+			logout: { ok: true },
+			get_auth_status: BASE.auth,
+		});
+		const m = mount(<FibxApp app={app} snapshot={snap} />);
+		m.click("button[data-action=wallet]");
+		await m.flush();
+		expect(m.container.querySelector("button[data-action=end-session]")).not.toBeNull();
+		expect(m.container.querySelector("button[data-action=keep-session]")).not.toBeNull();
+		expect(app.calls.filter((c) => c.name === "logout")).toHaveLength(0);
+		m.click("button[data-action=end-session]");
+		await m.flush();
+		expect(app.calls.filter((c) => c.name === "logout")).toHaveLength(1);
+		m.unmount();
+	});
+
 	it("switches to the pairing view from Connect and back on cancel", async () => {
 		const m = mount(<FibxApp app={fakeApp({})} snapshot={BASE} />);
 		m.click("button[data-action=wallet]");

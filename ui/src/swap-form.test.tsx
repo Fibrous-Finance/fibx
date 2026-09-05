@@ -256,6 +256,30 @@ describe("SwapForm", () => {
 		m.unmount();
 	});
 
+	// Picking a token (or changing chain) nulls the shell's quote, and nothing
+	// else asked for a new one: "You Receive" sat at — until the user retyped
+	// the amount.
+	it("re-quotes when the shell re-seeds the terms with no quote", async () => {
+		vi.useFakeTimers();
+		const app = fakeApp({ get_quote: QUOTE });
+		const props = {
+			app,
+			chain: "base",
+			quote: null,
+			balances: null,
+			connected: false,
+			onPickToken: () => {},
+		};
+		const m = mount(<SwapForm {...props} terms={TERMS} />);
+		m.rerender(<SwapForm {...props} terms={{ ...TERMS, to: "DAI" }} />);
+		await vi.advanceTimersByTimeAsync(450);
+		const quotes = app.calls.filter((c) => c.name === "get_quote");
+		expect(quotes).toHaveLength(1);
+		expect(quotes[0].args.to_token).toBe("DAI");
+		vi.useRealTimers();
+		m.unmount();
+	});
+
 	// get_balance omits an ERC-20 the wallet holds none of, so the key is
 	// simply absent. Reading that as unknown sent a zero-balance token
 	// straight into swap_tokens and its eth_estimateGas dump.

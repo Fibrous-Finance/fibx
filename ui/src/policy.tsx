@@ -22,21 +22,21 @@ export function PolicySection({
 	app,
 	initial,
 	sessionKind,
-	open,
+	openNonce,
 }: {
 	app: App;
 	initial: PolicyState;
 	sessionKind: SessionKind;
-	open?: boolean;
+	/** A count of refusals, not a flag. A boolean latches: once the shell had
+	 *  set it true, a second POLICY_BLOCKED after the user collapsed this
+	 *  section re-rendered the same `true` and the effect below never ran
+	 *  again. Every refusal bumps this, so every refusal re-opens. */
+	openNonce?: number;
 }) {
-	const [isOpen, setIsOpen] = useState(open ?? false);
-	// `open` is only the initial value above — a later `open={true}` (the shell
-	// re-rendering this section after a POLICY_BLOCKED refusal on an already
-	// mounted section) would otherwise do nothing. This expands it; the user
-	// may still collapse it afterwards with the toggle.
+	const [isOpen, setIsOpen] = useState((openNonce ?? 0) > 0);
 	useEffect(() => {
-		if (open) setIsOpen(true);
-	}, [open]);
+		if (openNonce) setIsOpen(true);
+	}, [openNonce]);
 	const [policy, setPolicy] = useState<PolicyState>(initial);
 	const [pending, setPending] = useState<string | null>(null);
 	const [error, setError] = useState<Explained | null>(null);
