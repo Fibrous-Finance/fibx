@@ -90,6 +90,7 @@ describe("SwapForm", () => {
 		await vi.advanceTimersByTimeAsync(0);
 		expect((m.q("button[data-action=swap]") as HTMLButtonElement).disabled).toBe(false);
 		m.type("input[data-field=amount]", "0.002");
+		await vi.advanceTimersByTimeAsync(0);
 		expect((m.q("button[data-action=swap]") as HTMLButtonElement).disabled).toBe(true);
 		expect(app.calls.filter((c) => c.name === "get_quote")).toHaveLength(0);
 		await vi.advanceTimersByTimeAsync(450);
@@ -145,6 +146,53 @@ describe("SwapForm", () => {
 			expect((m.q(sel) as HTMLButtonElement).disabled).toBe(true);
 		}
 		vi.useRealTimers();
+		m.unmount();
+	});
+
+	it("explains itself in place of the explorer link when the host refuses to open it", async () => {
+		vi.useFakeTimers();
+		const { m, app } = form(
+			{},
+			{
+				swap_tokens: (args: Record<string, unknown>) =>
+					args.simulate
+						? SIM
+						: {
+								txHash: "0xh",
+								amountIn: "0.001",
+								amountOut: "2.45",
+								tokenIn: "ETH",
+								tokenOut: "USDC",
+								chain: "base",
+							},
+				get_tx_status: {
+					hash: "0xh",
+					status: "confirmed",
+					blockNumber: "1",
+					explorer: "https://x/tx/0xh",
+				},
+			}
+		);
+		app.openLink = async () => ({ isError: true });
+		m.click("button[data-action=simulate]");
+		await vi.advanceTimersByTimeAsync(0);
+		m.click("button[data-action=swap]");
+		await vi.advanceTimersByTimeAsync(0);
+		await vi.advanceTimersByTimeAsync(1000);
+		vi.useRealTimers();
+		expect(m.text()).toContain("confirmed");
+		const explorerButton = Array.from(m.container.querySelectorAll("button")).find((b) =>
+			b.textContent?.includes("View on explorer")
+		);
+		if (!explorerButton) throw new Error("no explorer button rendered");
+		explorerButton.click();
+		await m.flush();
+		expect(
+			Array.from(m.container.querySelectorAll("button")).some((b) =>
+				b.textContent?.includes("View on explorer")
+			)
+		).toBe(false);
+		expect(m.text()).toContain("can't open links");
 		m.unmount();
 	});
 

@@ -131,11 +131,11 @@ export function FibxApp({ app, snapshot }: { app: App; snapshot: Snapshot }) {
 				<TokenPicker
 					app={app}
 					chain={chain}
-					// The token already sitting on the side being changed —
-					// re-picking it would be a no-op. (Not the opposite side:
-					// a picker with only one token listed, e.g. in a test,
-					// must still be able to select it.)
-					exclude={view.side === "from" ? terms.from : terms.to}
+					// Exclude the opposite side's token: handleGetQuote rejects
+					// from === to with a message no explainError branch maps,
+					// so picking from must not let the user land on terms.to
+					// (and vice versa).
+					exclude={view.side === "from" ? terms.to : terms.from}
 					onPick={(t) => picked(view.side, t)}
 					onClose={() => setView({ kind: "form" })}
 				/>

@@ -63,13 +63,18 @@ describe("FibxApp", () => {
 	it("opens the picker from a token button and closes it on pick", async () => {
 		const tokens = {
 			chain: "base",
-			tokens: [{ symbol: "USDC", name: "USD Coin", address: "0x2", decimals: 6 }],
+			tokens: [
+				{ symbol: "USDC", name: "USD Coin", address: "0x2", decimals: 6 },
+				{ symbol: "DAI", name: "Dai", address: "0x3", decimals: 18 },
+			],
 		};
 		const m = mount(<FibxApp app={fakeApp({ list_tokens: tokens })} snapshot={BASE} />);
 		m.click("button[data-action=pick-from]");
 		await m.flush();
 		expect(m.container.querySelector(".picker")).not.toBeNull();
-		m.click('[data-token="USDC"]');
+		// terms.to is USDC (the default), so the from picker excludes USDC.
+		expect(m.container.querySelector('[data-token="USDC"]')).toBeNull();
+		m.click('[data-token="DAI"]');
 		await m.flush();
 		expect(m.container.querySelector(".picker")).toBeNull();
 		m.unmount();

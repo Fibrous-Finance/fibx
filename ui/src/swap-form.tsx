@@ -1,4 +1,3 @@
-import { options } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { App } from "@modelcontextprotocol/ext-apps";
 import { callJson } from "./rpc.js";
@@ -18,18 +17,6 @@ import { isLocked, canSwap, initialState, transition, type Event, type State } f
 import type { BroadcastResult, SimulateResult, Terms, TxStatusResult } from "./types.js";
 
 const DEBOUNCE_MS = 400;
-
-/**
- * Preact defers a state-triggered re-render to a microtask by default, which
- * is invisible to a test that checks the DOM in the same synchronous tick as
- * the click or keystroke that caused it (no `await` in between) — and the
- * money-path guards this form exists to prove (Swap re-locking the instant an
- * amount changes, in particular) are asserted exactly that way. Rendering
- * synchronously removes the gap; it changes nothing observable about what
- * gets rendered, only when, and `useEffect` callbacks (which run on their own
- * schedule regardless of this) are unaffected.
- */
-options.debounceRendering = (callback: () => void) => callback();
 
 /**
  * Tell the model what just happened on this card. Fire-and-forget on
@@ -245,17 +232,7 @@ export function SwapForm({
 			// is set regardless: an ERC-20 approval may already be on chain.
 			const explained = explainError(e, {});
 			if (explained.action === "policy") onPolicyRefusal?.();
-			setState((s) =>
-				s.kind === "swapping"
-					? {
-							kind: "failed",
-							terms: s.terms,
-							quote: s.quote,
-							message: explained.title,
-							afterSwapAttempt: true,
-						}
-					: s
-			);
+			dispatch({ type: "SWAP_FAILED", message: explained.title });
 			return;
 		}
 		if (!alive.current) return;
@@ -547,11 +524,16 @@ export function SwapForm({
 					<span class="mono" title={state.txHash}>
 						{shortAddress(state.txHash)}
 					</span>
-					{state.explorer && explorerLinkOk && (
-						<button class="ghost" onClick={() => openExplorer(state.explorer!)}>
-							View on explorer
-						</button>
-					)}
+					{state.explorer &&
+						(explorerLinkOk ? (
+							<button class="ghost" onClick={() => openExplorer(state.explorer!)}>
+								View on explorer
+							</button>
+						) : (
+							<span class="muted">
+								This host can't open links — the hash above is the transaction.
+							</span>
+						))}
 				</div>
 			)}
 
