@@ -614,20 +614,58 @@ input.mono {
 .card > button.policy-row {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: 10px;
 	width: calc(100% + 32px);
 	margin: -16px;
 	padding: 16px;
 	border-radius: 12px;
 	text-align: left;
+	font-size: 15px;
+	letter-spacing: 0.03rem;
+	transition: background-color 150ms ease;
+}
+
+/* Fibrous's nav rows hover by tone, not by colouring the words: the surface
+   shifts toward the page colour and the text stays put. */
+.card > button.policy-row:hover {
+	background: rgb(var(--bg-primary) / 0.6);
+	color: rgb(var(--text-primary));
 }
 
 .card > button.policy-row[aria-expanded="true"] {
 	margin-bottom: -12px;
 }
 
-.policy-row .chevron {
+/* The disclosure control is Fibrous's fee chip: a bg-primary square holding
+   a chevron, brand on hover, and brand-and-turned while the section is open. */
+.chev {
+	flex: none;
 	margin-left: auto;
+	width: 26px;
+	height: 26px;
+	border-radius: 8px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background: rgb(var(--bg-primary));
+	color: rgb(var(--text-secondary));
+	transition:
+		background-color 300ms ease,
+		color 300ms ease;
+}
+
+.chev svg {
+	transition: transform 200ms ease;
+}
+
+.policy-row:hover .chev,
+.policy-row[aria-expanded="true"] .chev {
+	background: rgb(var(--brand-primary));
+	color: #fff;
+}
+
+.policy-row[aria-expanded="true"] .chev svg {
+	transform: rotate(180deg);
 }
 
 button.bare {

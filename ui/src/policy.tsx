@@ -94,7 +94,17 @@ export function PolicySection({
 					</span>
 				)}
 				{policy.state === "unreadable" && <span class="pill err">unreadable</span>}
-				<span class="chevron muted">{isOpen ? "▾" : "▸"}</span>
+				<span class="chev" aria-hidden="true">
+					<svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+						<path
+							d="M6 9l6 6 6-6"
+							stroke="currentColor"
+							stroke-width="2.2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						/>
+					</svg>
+				</span>
 			</button>
 
 			{isOpen && (
