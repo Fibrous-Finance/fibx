@@ -10,7 +10,6 @@
 	--status-success: 59 193 113;
 	--status-warning: 255 184 0;
 	--status-error: 255 100 124;
-	--surface-stroke: 142 149 162;
 	--font-display: "Urbanist", ui-sans-serif, system-ui, sans-serif;
 	--font-rubik: "Rubik", ui-monospace, monospace;
 }
@@ -22,7 +21,6 @@
 	--text-primary: 255 255 255;
 	--text-secondary: 182 186 195;
 	--text-muted: 125 127 130;
-	--surface-stroke: 142 149 162;
 }
 
 * {
@@ -67,16 +65,18 @@ h1 {
 	margin-right: auto;
 }
 
-/* The header's chain and address pills: the token button at a smaller size,
-   so the three read as one family. */
+/* The header's chain and address pills: the navbar's own — a bg-secondary
+   slab with the 8px corner, no stroke. Nothing in Fibrous carries a border;
+   surfaces are told apart by tone alone. */
 .hpill {
 	background: rgb(var(--bg-secondary));
 	color: rgb(var(--text-primary));
-	border: 1px solid rgb(var(--surface-stroke) / 0.25);
-	border-radius: 999px;
-	padding: 5px 12px;
+	border: 0;
+	border-radius: 8px;
+	padding: 7px 14px;
 	font-size: 13px;
 	font-weight: 600;
+	letter-spacing: 0.03rem;
 	line-height: 1.4;
 }
 
@@ -104,11 +104,12 @@ select.hpill {
 
 /* ---------------------------------------------------------------- card */
 
+/* The trade container: bg-secondary, rounded-xl, no stroke. */
 .card {
 	background: rgb(var(--bg-secondary));
-	border: 1px solid rgb(var(--surface-stroke) / 0.35);
-	border-radius: 16px;
-	padding: 14px;
+	border: 0;
+	border-radius: 12px;
+	padding: 16px;
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
@@ -176,7 +177,7 @@ button:disabled {
 	font-size: 12px;
 	font-weight: 600;
 	padding: 3px 10px;
-	border-radius: 999px;
+	border-radius: 6px;
 	background: rgb(var(--bg-tertiary));
 	color: rgb(var(--text-secondary));
 	white-space: nowrap;
@@ -206,9 +207,10 @@ button:disabled {
 	gap: 4px;
 }
 
+/* A token input: bg-tertiary, rounded-lg, p-4. */
 .box {
 	background: rgb(var(--bg-tertiary));
-	border-radius: 12px;
+	border-radius: 8px;
 	padding: 16px;
 	display: flex;
 	flex-direction: column;
@@ -318,30 +320,35 @@ input.box-amount:disabled {
 	align-items: center;
 	justify-content: center;
 	border-radius: 999px;
-	background: rgb(var(--bg-secondary));
-	border: 1px solid rgb(var(--surface-stroke) / 0.35);
-	color: rgb(var(--text-secondary));
-	font-size: 14px;
+	/* Fibrous's direction arrow: a disc in the secondary text colour, ringed
+	   3px in the page colour so it cuts cleanly through the join. */
+	background: rgb(var(--text-secondary));
+	border: 3px solid rgb(var(--bg-primary));
+	color: rgb(var(--bg-primary));
+	font-size: 13px;
+	font-weight: 700;
 }
 
 .flip-btn:hover {
-	background: rgb(var(--brand-hover) / 0.15);
-	color: rgb(var(--brand-primary));
+	background: rgb(var(--brand-primary));
+	color: #fff;
 }
 
 .token-btn {
 	background: rgb(var(--bg-primary));
 	color: rgb(var(--text-primary));
-	border: 1px solid rgb(var(--surface-stroke) / 0.25);
-	border-radius: 999px;
-	padding: 6px 14px;
-	font-size: 15px;
-	font-weight: 600;
+	border: 0;
+	border-radius: 6px;
+	padding: 6px 8px 6px 10px;
+	font-size: 17px;
+	font-weight: 700;
+	letter-spacing: 0.025em;
 	white-space: nowrap;
 }
 
 .token-btn:hover {
-	background: rgb(var(--brand-hover) / 0.15);
+	background: rgb(var(--brand-primary));
+	color: #fff;
 }
 
 /* --------------------------------------------------- rate, details, cta */
@@ -352,12 +359,13 @@ input.box-amount:disabled {
 	gap: 6px;
 	align-self: flex-start;
 	max-width: 100%;
-	background: rgb(var(--bg-tertiary));
+	background: rgb(var(--bg-primary));
 	border-radius: 8px;
-	padding: 6px 10px;
-	font-family: var(--font-rubik);
+	padding: 6px 8px;
 	font-variant-numeric: tabular-nums;
 	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: 0.03rem;
 	color: rgb(var(--text-secondary));
 }
 
@@ -395,10 +403,11 @@ input.box-amount:disabled {
 
 .primary {
 	width: 100%;
-	height: 48px;
-	border-radius: 12px;
-	font-size: 16px;
-	font-weight: 600;
+	height: 56px;
+	border-radius: 8px;
+	font-size: 17px;
+	font-weight: 500;
+	letter-spacing: 0.03rem;
 	background: rgb(var(--brand-primary));
 	color: #fff;
 }
@@ -500,7 +509,7 @@ textarea.uri {
 	font-size: 0.78rem;
 	background: rgb(var(--bg-tertiary));
 	color: rgb(var(--text-primary));
-	border: 1px solid rgb(var(--surface-stroke) / 0.35);
+	border: 0;
 	border-radius: 8px;
 	padding: 8px;
 }
@@ -513,8 +522,7 @@ table {
 td,
 th {
 	text-align: left;
-	padding: 6px 4px;
-	border-bottom: 1px solid rgb(var(--surface-stroke) / 0.2);
+	padding: 7px 4px;
 }
 
 td {
@@ -538,7 +546,7 @@ input.mono {
 	font-family: var(--font-rubik);
 	background: rgb(var(--bg-tertiary));
 	color: rgb(var(--text-primary));
-	border: 1px solid rgb(var(--surface-stroke) / 0.35);
+	border: 0;
 	border-radius: 8px;
 	padding: 7px 9px;
 	min-width: 9rem;
@@ -552,9 +560,9 @@ input.mono {
 	gap: 8px;
 	max-height: 360px;
 	background: rgb(var(--bg-secondary));
-	border: 1px solid rgb(var(--surface-stroke) / 0.35);
-	border-radius: 16px;
-	padding: 14px;
+	border: 0;
+	border-radius: 12px;
+	padding: 16px;
 }
 
 .picker input[type="search"] {
@@ -564,7 +572,7 @@ input.mono {
 	font-size: 0.9rem;
 	background: rgb(var(--bg-tertiary));
 	color: rgb(var(--text-primary));
-	border: 1px solid rgb(var(--surface-stroke) / 0.35);
+	border: 0;
 	border-radius: 8px;
 	padding: 7px 9px;
 	min-width: 0;
