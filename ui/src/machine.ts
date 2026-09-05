@@ -1,3 +1,4 @@
+import type { Explained } from "./errors.js";
 import type { QuoteResult } from "./quote.js";
 import type { SimulateResult, Terms } from "./types.js";
 
@@ -27,20 +28,29 @@ export type State =
 			kind: "failed";
 			terms: Terms;
 			quote: QuoteResult | null;
-			message: string;
+			/** The whole mapped explanation, not a re-explainable string: see
+			 *  the note on `Event` below. */
+			explained: Explained;
 			afterSwapAttempt: boolean;
 	  };
 
+/**
+ * The three failure events carry an `Explained`, never a message. A title is
+ * not re-explainable: `explainError` matches on a raw signature and a
+ * `ToolError`'s code, and feeding it back its own headline drops the detail,
+ * the severity, the action and the code, then falls through to the unmapped
+ * branch. The mapping happens once, at the catch site, and travels whole.
+ */
 export type Event =
 	| { type: "TERMS_CHANGED"; terms: Terms }
 	| { type: "QUOTE_ARRIVED"; quote: QuoteResult }
-	| { type: "QUOTE_FAILED"; message: string }
+	| { type: "QUOTE_FAILED"; explained: Explained }
 	| { type: "SIMULATE" }
 	| { type: "SIMULATED"; sim: SimulateResult }
-	| { type: "SIMULATE_FAILED"; message: string }
+	| { type: "SIMULATE_FAILED"; explained: Explained }
 	| { type: "SWAP" }
 	| { type: "BROADCAST"; txHash: string; explorer?: string; amounts: Amounts }
-	| { type: "SWAP_FAILED"; message: string }
+	| { type: "SWAP_FAILED"; explained: Explained }
 	| { type: "RECEIPT"; status: "confirmed" | "reverted"; blockNumber: string; explorer?: string }
 	| { type: "POLL_EXPIRED" };
 
@@ -88,7 +98,7 @@ export function transition(s: State, ev: Event): State {
 						kind: "failed",
 						terms: s.terms,
 						quote: s.quote,
-						message: ev.message,
+						explained: ev.explained,
 						afterSwapAttempt: false,
 					};
 				return s;
@@ -106,7 +116,7 @@ export function transition(s: State, ev: Event): State {
 						kind: "failed",
 						terms: s.terms,
 						quote: s.quote,
-						message: ev.message,
+						explained: ev.explained,
 						afterSwapAttempt: true,
 					};
 				return s;
@@ -146,7 +156,7 @@ export function transition(s: State, ev: Event): State {
 				kind: "failed",
 				terms: s.terms,
 				quote: null,
-				message: ev.message,
+				explained: ev.explained,
 				afterSwapAttempt: false,
 			};
 		case "SIMULATE": {

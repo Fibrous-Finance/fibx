@@ -204,7 +204,72 @@ describe("SwapForm", () => {
 		m.click("button[data-action=simulate]");
 		await m.flush();
 		expect(m.text()).toContain("Rejected in your wallet");
+		// The detail is half the sentence: the map's whole Explained reaches the
+		// screen, not just its title.
+		expect(m.text()).toContain("Nothing was sent.");
 		expect(m.text()).not.toContain("UserRejectedRequestError");
+		m.unmount();
+	});
+
+	// A refusal that does not name the rule is a refusal the user cannot act
+	// on. `details.rule` survives only because the whole Explained travels.
+	it("names the policy rule that refused a simulate", async () => {
+		const { m } = form(
+			{},
+			{
+				swap_tokens: {
+					success: false,
+					error: "Blocked",
+					code: "POLICY_BLOCKED",
+					details: { rule: "base.maxValue" },
+				},
+			}
+		);
+		m.click("button[data-action=simulate]");
+		await m.flush();
+		expect(m.text()).toContain("Blocked by your signing policy");
+		expect(m.text()).toContain("base.maxValue");
+		m.unmount();
+	});
+
+	// The placeholder is what a re-explained title used to produce: the symbol
+	// was gone by then, and with it the branch that offers the picker.
+	it("offers the picker, with the symbol, when the token is not on the chain", async () => {
+		const { m } = form(
+			{ terms: { from: "XYZ", to: "USDC", amount: "1", slippage: 0.5 }, balances: null },
+			{
+				swap_tokens: {
+					success: false,
+					error: "Token not supported",
+					code: "TOKEN_NOT_SUPPORTED",
+				},
+			}
+		);
+		m.click("button[data-action=simulate]");
+		await m.flush();
+		expect(m.text()).toContain("XYZ");
+		expect(m.text()).not.toContain("That token");
+		const pick = Array.from(m.container.querySelectorAll("button")).find((b) =>
+			b.textContent?.includes("Choose a different token")
+		);
+		expect(pick).toBeDefined();
+		m.unmount();
+	});
+
+	// get_balance omits an ERC-20 the wallet holds none of, so the key is
+	// simply absent. Reading that as unknown sent a zero-balance token
+	// straight into swap_tokens and its eth_estimateGas dump.
+	it("refuses a token the balances map omits entirely, reading it as zero", () => {
+		const { m, app } = form({
+			// A quote is seeded, so `short` is the only thing that can be
+			// disabling Simulate here.
+			terms: { from: "USDC", to: "ETH", amount: "5", slippage: 0.5 },
+			balances: { ETH: "1" },
+		});
+		expect((m.q("button[data-action=simulate]") as HTMLButtonElement).disabled).toBe(true);
+		expect(m.text()).toContain("Insufficient balance");
+		expect(m.text()).toContain("0 USDC");
+		expect(app.calls.filter((c) => c.name === "swap_tokens")).toHaveLength(0);
 		m.unmount();
 	});
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { canSwap, initialState, isLocked, transition, type State } from "./machine.js";
+import type { Explained } from "./errors.js";
 import type { QuoteResult } from "./quote.js";
 import type { SimulateResult } from "./types.js";
 
@@ -37,6 +38,14 @@ const SIM: SimulateResult = {
 	requiresApproval: false,
 };
 const TX = { txHash: "0xabc", explorer: "https://x/tx/0xabc" };
+// The machine never re-explains: whatever `explainError` produced at the catch
+// site is what `failed` holds. These stand in for one.
+const REJECTED: Explained = {
+	title: "Rejected in your wallet",
+	detail: "Nothing was sent.",
+	severity: "warning",
+};
+const SHORT: Explained = { title: "Insufficient balance", severity: "error" };
 
 function quoted(): State {
 	return transition(initialState(TERMS), { type: "QUOTE_ARRIVED", quote: QUOTE });
@@ -144,7 +153,7 @@ describe("failure", () => {
 	it("a simulate failure is not after a swap attempt", () => {
 		const s = transition(transition(quoted(), { type: "SIMULATE" }), {
 			type: "SIMULATE_FAILED",
-			message: "insufficient",
+			explained: SHORT,
 		});
 		expect(s.kind).toBe("failed");
 		expect(s.kind === "failed" && s.afterSwapAttempt).toBe(false);
@@ -154,15 +163,17 @@ describe("failure", () => {
 	it("a swap failure is after a swap attempt", () => {
 		const s = transition(transition(simulated(), { type: "SWAP" }), {
 			type: "SWAP_FAILED",
-			message: "rejected",
+			explained: REJECTED,
 		});
 		expect(s.kind === "failed" && s.afterSwapAttempt).toBe(true);
+		// The explanation travels whole. Nothing re-derives it downstream.
+		expect(s.kind === "failed" && s.explained).toBe(REJECTED);
 	});
 
 	it("failed keeps the quote so the form still draws", () => {
 		const s = transition(transition(quoted(), { type: "SIMULATE" }), {
 			type: "SIMULATE_FAILED",
-			message: "x",
+			explained: SHORT,
 		});
 		expect(s.kind === "failed" && s.quote).toEqual(QUOTE);
 	});

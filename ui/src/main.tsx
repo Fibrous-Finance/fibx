@@ -2,6 +2,7 @@ import { render } from "preact";
 import { useEffect, useState } from "preact/hooks";
 import { App } from "@modelcontextprotocol/ext-apps";
 import { FibxApp } from "./app.js";
+import { explainError, type Explained } from "./errors.js";
 import { parseToolJson } from "./status.js";
 import type { Snapshot } from "./types.js";
 import "./tokens.css";
@@ -28,7 +29,11 @@ function toolError(payload: unknown): string | null {
 
 function Root() {
 	const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
-	const [failure, setFailure] = useState<string | null>(null);
+	// All three ways this can fail go through explainError, the same as every
+	// failure inside the app: a raw `String(e)`, or a server's `error` string,
+	// is not a sentence a user can act on, and the unmapped branch at least
+	// puts the whole text behind a disclosure instead of on the page.
+	const [failure, setFailure] = useState<Explained | null>(null);
 
 	useEffect(() => {
 		app.addEventListener("toolresult", (result) => {
@@ -36,15 +41,17 @@ function Root() {
 				const parsed = parseToolJson<Snapshot>(result);
 				const f = toolError(parsed);
 				if (f) {
-					setFailure(f);
+					setFailure(explainError(new Error(f), {}));
 					return;
 				}
 				setSnapshot(parsed);
 			} catch (e) {
-				setFailure(e instanceof Error ? e.message : String(e));
+				setFailure(explainError(e, {}));
 			}
 		});
-		app.connect().catch((e: unknown) => setFailure(`connect failed: ${String(e)}`));
+		app.connect().catch((e: unknown) =>
+			setFailure(explainError(new Error(`connect failed: ${String(e)}`), {}))
+		);
 		return () => {
 			app.close().catch(() => {});
 		};
@@ -54,7 +61,14 @@ function Root() {
 		return (
 			<div data-fibx-app class="app">
 				<span class="brand">FibX</span>
-				<p class="error">{failure}</p>
+				<p class="error">{failure.title}</p>
+				{failure.detail && <p class="muted">{failure.detail}</p>}
+				{failure.raw && (
+					<details>
+						<summary>details</summary>
+						<pre class="mono">{failure.raw}</pre>
+					</details>
+				)}
 			</div>
 		);
 	}

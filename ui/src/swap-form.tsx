@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { App } from "@modelcontextprotocol/ext-apps";
 import { callJson } from "./rpc.js";
-import { explainError } from "./errors.js";
+import { explainError, type Explained } from "./errors.js";
 import { shortAddress } from "./status.js";
 import {
 	buildSwapArgs,
@@ -55,6 +55,7 @@ export function SwapForm({
 	connected,
 	onPickToken,
 	onPolicyRefusal,
+	onSettled,
 }: {
 	app: App;
 	chain: string;
@@ -66,6 +67,10 @@ export function SwapForm({
 	/** The shell opens the picker; the form only says which side. */
 	onPickToken: (side: "from" | "to") => void;
 	onPolicyRefusal?: () => void;
+	/** A receipt arrived — confirmed or reverted. The balance the shell handed
+	 *  down is stale from here on, and the shortfall guard below computes
+	 *  against it, so the shell is told to re-read it. */
+	onSettled?: () => void;
 }) {
 	// A snapshot that arrived with a quoteError (the model asked for a quote on
 	// a token that could not be resolved) starts the form already explaining
@@ -74,7 +79,14 @@ export function SwapForm({
 	const [state, setState] = useState<State>(() => {
 		const seeded = initialState(terms, quote);
 		return quoteError
-			? transition(seeded, { type: "QUOTE_FAILED", message: quoteError })
+			? transition(seeded, {
+					type: "QUOTE_FAILED",
+					explained: explainError(new Error(quoteError), {
+						symbol: terms.from,
+						amount: terms.amount,
+						balance: balances?.[terms.from],
+					}),
+				})
 			: seeded;
 	});
 	const dispatch = (ev: Event) => setState((s) => transition(s, ev));
@@ -124,10 +136,23 @@ export function SwapForm({
 	const locked = isLocked(state);
 	const liveTerms = state.terms;
 
-	const short =
-		connected &&
-		balances?.[liveTerms.from] !== undefined &&
-		Number(liveTerms.amount) > Number(balances[liveTerms.from]);
+	// A balances map that came back at all is complete: get_balance omits an
+	// ERC-20 the wallet holds none of, so a missing key is zero, not unknown.
+	// Reading it as unknown let a zero-balance token past this guard and into
+	// swap_tokens — the eth_estimateGas dump the spec opens with. `null`
+	// (not authenticated, or the read failed) is still unknown.
+	const held = balances ? (balances[liveTerms.from] ?? "0") : undefined;
+	const short = connected && held !== undefined && Number(liveTerms.amount) > Number(held);
+
+	/**
+	 * The one place a raw error becomes an explanation. It is mapped once, here,
+	 * and the whole `Explained` is what the machine carries: a title fed back
+	 * through `explainError` matches nothing and loses the detail, the action
+	 * and the severity that made it useful.
+	 */
+	function explain(e: unknown, t: Terms): Explained {
+		return explainError(e, { symbol: t.from, amount: t.amount, balance: balances?.[t.from] });
+	}
 
 	function scheduleQuote(nextTerms: Terms) {
 		if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -159,7 +184,7 @@ export function SwapForm({
 			}
 		} catch (e) {
 			if (!alive.current) return;
-			dispatch({ type: "QUOTE_FAILED", message: explainError(e, {}).title });
+			dispatch({ type: "QUOTE_FAILED", explained: explain(e, nextTerms) });
 		}
 	}
 
@@ -208,9 +233,9 @@ export function SwapForm({
 			dispatch({ type: "SIMULATED", sim: result });
 		} catch (e) {
 			if (!alive.current) return;
-			const explained = explainError(e, {});
+			const explained = explain(e, liveTerms);
 			if (explained.action === "policy") onPolicyRefusal?.();
-			dispatch({ type: "SIMULATE_FAILED", message: explained.title });
+			dispatch({ type: "SIMULATE_FAILED", explained });
 		}
 	}
 
@@ -230,9 +255,9 @@ export function SwapForm({
 			// stay clickable. That is not the same as "nothing left this
 			// machine" — see swap-card.tsx's swap() for why afterSwapAttempt
 			// is set regardless: an ERC-20 approval may already be on chain.
-			const explained = explainError(e, {});
+			const explained = explain(e, liveTerms);
 			if (explained.action === "policy") onPolicyRefusal?.();
-			dispatch({ type: "SWAP_FAILED", message: explained.title });
+			dispatch({ type: "SWAP_FAILED", explained });
 			return;
 		}
 		if (!alive.current) return;
@@ -291,6 +316,7 @@ export function SwapForm({
 			if (decision.action === "stop") {
 				if (status === "confirmed") {
 					dispatch({ type: "RECEIPT", status: "confirmed", blockNumber, explorer });
+					onSettled?.();
 					// `amountOut` is what the handler quoted at broadcast, not
 					// what the receipt settled at — within the slippage floor
 					// those can differ, so it is named as the quote rather
@@ -302,6 +328,7 @@ export function SwapForm({
 					return;
 				}
 				dispatch({ type: "RECEIPT", status: "reverted", blockNumber, explorer });
+				onSettled?.();
 				tellModel(
 					app,
 					`Swap tx ${broadcast.txHash} on ${broadcast.chain} REVERTED — no tokens changed hands. The ${broadcast.amountIn} ${broadcast.tokenIn} was not swapped and is still held; only gas was spent. Do not say the swap succeeded.`
@@ -349,7 +376,7 @@ export function SwapForm({
 						onInput={(e) => editAmount(e.currentTarget.value)}
 					/>
 				</div>
-				{connected && <span class="muted">bal {balances?.[liveTerms.from] ?? "—"}</span>}
+				{connected && <span class="muted">bal {held ?? "—"}</span>}
 			</div>
 
 			{short &&
@@ -357,7 +384,7 @@ export function SwapForm({
 					const explained = explainError(new Error("insufficient"), {
 						symbol: liveTerms.from,
 						amount: liveTerms.amount,
-						balance: balances?.[liveTerms.from],
+						balance: held,
 					});
 					return (
 						<div>
@@ -447,36 +474,32 @@ export function SwapForm({
 			</div>
 			{slippageError && <p class="error">{slippageError}</p>}
 
-			{state.kind === "failed" &&
-				(() => {
-					const explained = explainError(new Error(state.message), {
-						symbol: state.terms.from,
-					});
-					return (
-						<div>
-							<p class="error">{explained.title}</p>
-							{explained.detail && <p class="muted">{explained.detail}</p>}
-							{explained.raw && (
-								<details>
-									<summary>details</summary>
-									<pre class="mono">{explained.raw}</pre>
-								</details>
-							)}
-							{explained.action === "pick" && (
-								<button class="ghost" onClick={() => onPickToken("from")}>
-									Choose a different token
-								</button>
-							)}
-							{state.afterSwapAttempt && (
-								<p class="muted">
-									If this swap needed an ERC-20 approval first, that approval may
-									already have been sent, cost gas and left a standing allowance
-									to the router. Check your wallet before retrying.
-								</p>
-							)}
-						</div>
-					);
-				})()}
+			{state.kind === "failed" && (
+				<div>
+					<p class={state.explained.severity === "warning" ? "muted" : "error"}>
+						{state.explained.title}
+					</p>
+					{state.explained.detail && <p class="muted">{state.explained.detail}</p>}
+					{state.explained.raw && (
+						<details>
+							<summary>details</summary>
+							<pre class="mono">{state.explained.raw}</pre>
+						</details>
+					)}
+					{state.explained.action === "pick" && (
+						<button class="ghost" onClick={() => onPickToken("from")}>
+							Choose a different token
+						</button>
+					)}
+					{state.afterSwapAttempt && (
+						<p class="muted">
+							If this swap needed an ERC-20 approval first, that approval may already
+							have been sent, cost gas and left a standing allowance to the router.
+							Check your wallet before retrying.
+						</p>
+					)}
+				</div>
+			)}
 
 			{state.kind === "simulated" && state.sim.requiresApproval && (
 				<p class="muted">

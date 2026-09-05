@@ -163,6 +163,9 @@ export function FibxApp({ app, snapshot }: { app: App; snapshot: Snapshot }) {
 					connected={auth.authenticated}
 					onPickToken={(side) => setView({ kind: "picker", side })}
 					onPolicyRefusal={() => setPolicyOpen(true)}
+					// A settled swap moved the balance the header line and the
+					// shortfall guard are both drawn from.
+					onSettled={refresh}
 				/>
 			)}
 
