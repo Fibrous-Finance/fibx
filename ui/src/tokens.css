@@ -622,13 +622,12 @@ input.mono {
 	text-align: left;
 	font-size: 15px;
 	letter-spacing: 0.03rem;
-	transition: background-color 150ms ease;
 }
 
-/* Fibrous's nav rows hover by tone, not by colouring the words: the surface
-   shifts toward the page colour and the text stays put. */
+/* Hovering the row changes nothing but the chevron: no tint, no recolouring
+   of the words. The disclosure control alone says the row is a control. */
 .card > button.policy-row:hover {
-	background: rgb(var(--bg-primary) / 0.6);
+	background: transparent;
 	color: rgb(var(--text-primary));
 }
 
@@ -637,7 +636,7 @@ input.mono {
 }
 
 /* The disclosure control is Fibrous's fee chip: a bg-primary square holding
-   a chevron, brand on hover, and brand-and-turned while the section is open. */
+   a chevron. It brightens on hover and is brand-and-turned while open. */
 .chev {
 	flex: none;
 	margin-left: auto;
@@ -658,7 +657,10 @@ input.mono {
 	transition: transform 200ms ease;
 }
 
-.policy-row:hover .chev,
+.policy-row:hover .chev {
+	color: rgb(var(--text-primary));
+}
+
 .policy-row[aria-expanded="true"] .chev {
 	background: rgb(var(--brand-primary));
 	color: #fff;
