@@ -242,3 +242,36 @@ input.mono {
 .token-row:hover {
 	background: rgb(var(--bg-tertiary));
 }
+
+.field {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.token-btn {
+	background: rgb(var(--bg-tertiary));
+	color: rgb(var(--text-primary));
+	white-space: nowrap;
+}
+
+.token-btn:hover {
+	background: rgb(var(--brand-hover) / 0.15);
+}
+
+.flip {
+	align-self: center;
+	border-radius: 999px;
+	padding: 6px 10px;
+}
+
+.price-info {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.price-info .row {
+	font-family: var(--font-rubik);
+	font-size: 0.85rem;
+}

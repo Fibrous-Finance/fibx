@@ -8,11 +8,9 @@ describe("the app resource", () => {
 	});
 
 	// The vitest html-as-text loader (vitest.config.ts) inlined the built
-	// document rather than a path or an empty string. Until Task 6 rewrites
-	// main.tsx the marker is the old panel's; Task 6 changes this assertion to
-	// `data-fibx-app`.
+	// document rather than a path or an empty string.
 	it("carries the built document, inlined", () => {
-		expect(appHtml).toContain("data-fibx-panel");
+		expect(appHtml).toContain("data-fibx-app");
 		expect(appHtml).not.toMatch(/<script[^>]+src=/);
 	});
 
