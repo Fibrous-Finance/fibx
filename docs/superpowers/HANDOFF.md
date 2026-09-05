@@ -77,7 +77,7 @@ that `dependencies` in `package.json` stays empty, and `happy-dom` sits in
 `devDependencies` beside vitest itself.
 
 **The byte guard is 400,000 bytes, measured in bytes** (`Buffer.byteLength`),
-never raised. The document is at **369,082 bytes** as of this commit.
+never raised. The document is at **369,812 bytes** as of this commit.
 
 **Before this worktree is removed:** `claude_desktop_config.json`'s
 `mcpServers.fibx-dev` entry points at _this worktree's_ `dist/index.js`.
@@ -519,8 +519,8 @@ removed — repoint it at the main checkout's `dist/index.js` and `pnpm build`
 there before that happens. See "Waiting on you" above.
 
 **The app costs ~370 KB in the published bundle.** `dist/index.js` is
-2,816,847 bytes as of this commit, and the one built document inlined into it
-(`ui/dist/index.html`) is **369,082 bytes** — roughly 90% zod and the MCP SDK's
+2,817,672 bytes as of this commit, and the one built document inlined into it
+(`ui/dist/index.html`) is **369,812 bytes** — roughly 90% zod and the MCP SDK's
 schema layer, pulled in transitively by `App` from
 `@modelcontextprotocol/ext-apps`, not by Preact, which accounts for only ~4 KB.
 With `splitting: false` this sits in the single bundle every `fibx` invocation
@@ -529,7 +529,7 @@ written to protect. The guard is `src/mcp/ui.test.ts`'s 400,000-byte ceiling,
 measured in **bytes** (`Buffer.byteLength`) — an earlier version of this same
 guard measured `String.length`'s UTF-16 code units instead and quietly
 reported headroom that did not exist, because chars and bytes diverge once the
-document holds any multi-byte content. Roughly 30,900 bytes of real headroom
+document holds any multi-byte content. Roughly 30,200 bytes of real headroom
 remains. Whether the lighter `@modelcontextprotocol/ext-apps/app-bridge` entry
 point (43 KB) would suffice is still unanswered, and is the one lever that
 would move this number.
