@@ -87,6 +87,18 @@ export function explainError(err: unknown, ctx: ErrorContext): Explained {
 		return { title: "Insufficient balance", detail, severity: "error" };
 	}
 
+	// An estimateGas failure the rules above could not name is still a
+	// simulation failure, not a headline: the RPC's URL and request body are
+	// the raw text, and they stay behind the disclosure.
+	if (/eth_estimateGas|estimateGas|Transaction creation failed/i.test(message)) {
+		return {
+			title: "The simulation failed",
+			detail: "Nothing was sent. The network could not estimate it — often the balance does not cover the amount plus gas.",
+			raw: message,
+			severity: "error",
+		};
+	}
+
 	const firstLine = message.split("\n")[0].trim();
 	return {
 		title: firstLine.length > 120 ? `${firstLine.slice(0, 120)}…` : firstLine,

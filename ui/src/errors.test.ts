@@ -70,4 +70,18 @@ describe("explainError", () => {
 		});
 		expect(x.title).not.toBe("Insufficient balance");
 	});
+
+	it("never puts an estimateGas dump in the headline", () => {
+		const raw =
+			'Transaction creation failed. URL: https://mainnet.base.org Request body: {"method":"eth_estimateGas","params":[...]}';
+		const x = explainError(new Error(raw), {
+			symbol: "ETH",
+			amount: "0.0001",
+			balance: "0.0002",
+		});
+		expect(x.title).toBe("The simulation failed");
+		expect(x.title).not.toContain("mainnet.base.org");
+		expect(x.raw).toBe(raw);
+		expect(x.detail).toContain("gas");
+	});
 });
