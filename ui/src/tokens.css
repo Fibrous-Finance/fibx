@@ -387,6 +387,12 @@ input.box-amount:disabled {
 	margin-right: 6px;
 }
 
+/* The route always starts a new line and carries no dot: a separator at the
+   head of a line is exactly the stranded "·" the rule above exists to avoid. */
+.detail-line .detail-route {
+	flex-basis: 100%;
+}
+
 .primary {
 	width: 100%;
 	height: 48px;

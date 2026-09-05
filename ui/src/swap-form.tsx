@@ -557,8 +557,12 @@ export function SwapForm({
 					/>
 					%
 				</span>
+				{/* The route is the longest part and the one the aggregator exists
+				    to show, so it always takes its own line — and therefore
+				    carries no leading dot, which would otherwise sit stranded at
+				    the start of that line. */}
 				{routedQuote && routedQuote.route.length > 0 && (
-					<span class="detail-sep">
+					<span class="detail-route">
 						via {routedQuote.route.map(routeLabel).join(" › ")}
 					</span>
 				)}
