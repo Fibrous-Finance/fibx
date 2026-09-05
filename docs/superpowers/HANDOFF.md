@@ -47,18 +47,23 @@ on this same repo, at 340 KB for a stub that did nothing but import `App`.
 One document behind two URIs (plan 1 and 2's shape) or, now, one URI (plan
 3's) is the only way to pay for that layer once.
 
-**What that leaves:**
+**Where it stands (2026-09-05, evening):**
 
-1. **Task 10 of the third plan — manual verification — is outstanding.**
-   Nobody has run the app against a real wallet in Claude Desktop. This
-   supersedes plan 2's Task 8: there is no swap card left to verify by hand,
-   and the steps that matter now are the app's — build, restart Claude
-   Desktop, check that three different chat phrasings each open the same
-   whole app, work the pairing buttons, run a real swap, and confirm the
-   policy still refuses. The plan's Task 10 has the full steps. It is the
-   gate on `npm publish`.
-2. **Merge** — deliberately not done by an agent; a shared-branch side effect.
-3. **`npm publish`** — built, tested, pushed, not released.
+1. **Task 10 passed.** Gates 1–5 on a real wallet in Claude Desktop (a
+   WalletConnect pairing, a real swap on Base, the policy refusal); gate 6 —
+   both pairing refusals — in the dev host the same day. Nothing is
+   outstanding before publish.
+2. **Merged to `main`, fast-forward**, worktree and branch removed, the
+   Claude Desktop config repointed at the main checkout's `dist/index.js`.
+3. **A design pass followed the merge**, five commits on `main` after the
+   plan's last one: every 1px stroke removed and the corners set to Fibrous's
+   own scale (read from `fibrous-interface`, not guessed), the Fibrous mark
+   in the header, the signing-policy row one edge-to-edge button with the
+   fee chip's chevron, and `explainError` taught that an `eth_estimateGas`
+   dump is "The simulation failed", never a headline.
+4. **`main` is 83 commits ahead of `origin/main`; the push and the
+   publish are yours.**
+5. **`npm publish`** — built, tested, pushed, not released.
 
 **The dev host** closes the "nobody could see it" gap the swap card shipped
 without. `pnpm dev:ui` opens a local host against fixtures — every widget
@@ -302,7 +307,8 @@ Both surface through MCP and the CLI, so `fibx-server`, `fibx-telegram-bot` and
 
 ### 1. Task 10 — manual verification, on a real wallet in Claude Desktop
 
-**Nobody has done this.** It is the gate on `npm publish`. Full steps are in
+**Passed on 2026-09-05** — gates 1–5 by hand on a real wallet, gate 6 in the
+dev host. Kept here as the checklist for the next release. Full steps are in
 `docs/superpowers/plans/2026-09-05-fibx-app-widget.md`'s Task 10; the six
 gates, one line each (the sixth was added by the branch review — it is the
 only one that needs no wallet):
@@ -330,38 +336,26 @@ only one that needs no wallet):
    state that motivated the spec, and nobody has yet watched either control
    actually be refused — gate 2 above sees them granted.
 
-```bash
-git commit --allow-empty -m "chore: verify the app by hand on a real wallet"
-```
+### 2. Merge — done
 
-### 2. Merge
+Fast-forwarded onto `main` on 2026-09-05; the worktree, its branch and the
+`.superpowers/` ledger are gone. `git log` carries what the ledger did.
 
-`git checkout main && git merge --no-ff worktree-mcp-apps-panel` from the main
-checkout. Deliberately not done by an agent: a shared-branch side effect. After
-merging, the SDD workspaces under `.superpowers/` and the worktree can go.
+### 3. Repoint the Claude Desktop config — done
 
-### 3. Repoint the Claude Desktop config
+`mcpServers.fibx-dev` runs `node /Users/ahmetenesdur/workspace/fibx/dist/index.js
+mcp-start`; a dated `.bak` sits beside the config. After any `pnpm build`,
+quit Claude Desktop/Code fully (`Cmd+Q`) — the MCP process starts at launch
+and never reloads.
 
-`claude_desktop_config.json`'s `mcpServers.fibx-dev` entry currently points at
-**this worktree's** `dist/index.js` (a `.bak` of the pre-edit file sits beside
-it). **It breaks the moment this worktree is removed.** Before that happens,
-point it at the main checkout instead and build there:
+### 4. Push, then npm publish of 0.10.0
 
-```json
-"mcpServers": { "fibx-dev": { "command": "node", "args": ["/Users/ahmetenesdur/workspace/fibx/dist/index.js", "mcp-start"] } }
-```
+`main` is 83 commits ahead of `origin/main`. npm is **not** logged in on
+this machine, so both are yours:
 
 ```bash
-pnpm build
+git push origin main
 ```
-
-(run from the main checkout, not this worktree)
-
-### 4. npm publish of 0.10.0 — gated on Task 10
-
-`main` is pushed and `origin/main` is current. npm is **not** logged in on this
-machine, so the release has to come from you, and only once Task 10 above has
-passed:
 
 ```bash
 npm login
@@ -407,6 +401,12 @@ current one._
 ## Landmines
 
 Things that have already gone wrong once, or nearly did.
+
+**The dev host shows the built widget, not the source.** Its iframe loads
+`ui/dist/index.html`, which `pnpm dev:ui` builds once at start; Vite's HMR
+covers only the host page. An edit under `ui/src` is invisible until
+`pnpm build:ui` runs and the page reloads — a CSS fix was "not working" for
+one round before this was noticed.
 
 **Never let a test touch the real config directory.** `policyPath()` and
 `sessionPath()` resolve to the actual `~/Library/Preferences/fibx-nodejs`, which
