@@ -10,6 +10,8 @@
 		"resolveJsonModule": true,
 		"sourceMap": true,
 		"outDir": "dist",
+		// rootDir is "." (not "src") so ui/dev-host/bridge.ts typechecks here too;
+		// every tsc script in this repo is --noEmit, tsup owns emission.
 		"rootDir": "."
 	},
 	"include": ["src/**/*", "ui/dev-host/bridge.ts"],

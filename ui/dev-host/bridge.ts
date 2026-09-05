@@ -9,6 +9,10 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
  *
  * It talks to the REAL server — a real session, a real policy file, real
  * quotes. A Swap from the dev host in live mode is a real swap.
+ *
+ * The root tsconfig's `rootDir` is `"."` (not `"src"`) so this file
+ * typechecks alongside `src/`; every `tsc` script in this repo is
+ * `--noEmit`, and tsup — not `tsc` — owns emission for the published build.
  */
 const PORT = 7331;
 
@@ -19,9 +23,18 @@ const transport = new StdioClientTransport({
 const client = new Client({ name: "fibx-dev-host-bridge", version: "0" });
 await client.connect(transport);
 
+async function shutdown(signal: string) {
+	console.log(`fibx dev bridge: ${signal} received, closing the spawned server and exiting`);
+	await client.close();
+	process.exit(0);
+}
+process.on("SIGINT", () => void shutdown("SIGINT"));
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+
 createServer(async (req, res) => {
 	res.setHeader("access-control-allow-origin", "*");
 	res.setHeader("access-control-allow-headers", "content-type");
+	res.setHeader("access-control-allow-methods", "POST, OPTIONS");
 	if (req.method === "OPTIONS") return void res.end();
 	if (req.method !== "POST" || req.url !== "/call") {
 		res.statusCode = 404;
@@ -29,16 +42,35 @@ createServer(async (req, res) => {
 	}
 	let body = "";
 	for await (const chunk of req) body += chunk;
-	const { name, arguments: args } = JSON.parse(body) as {
-		name: string;
-		arguments?: Record<string, unknown>;
-	};
+	let name: string;
+	let args: Record<string, unknown> | undefined;
+	try {
+		({ name, arguments: args } = JSON.parse(body) as {
+			name: string;
+			arguments?: Record<string, unknown>;
+		});
+	} catch {
+		res.statusCode = 400;
+		res.setHeader("content-type", "application/json");
+		res.end(
+			JSON.stringify({
+				content: [
+					{
+						type: "text",
+						text: JSON.stringify({ success: false, error: "bad request body" }),
+					},
+				],
+			})
+		);
+		return;
+	}
 	try {
 		const result = await client.callTool({ name, arguments: args ?? {} });
 		res.setHeader("content-type", "application/json");
 		res.end(JSON.stringify(result));
 	} catch (e) {
 		res.statusCode = 500;
+		res.setHeader("content-type", "application/json");
 		res.end(
 			JSON.stringify({
 				content: [
