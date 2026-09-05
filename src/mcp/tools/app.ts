@@ -23,7 +23,7 @@ export function registerAppTools(server: McpServer): number {
 			// reason to skip the app in a host that does. The snapshot is
 			// readable JSON in every host, so the honest sentence is that one.
 			description:
-				"Open the FibX app: wallet, balances, signing policy, and a swap form with the Fibrous route. In a host that renders MCP Apps UI this is the entry point for anything about the wallet, a balance, a quote, or a swap — it executes nothing; the user sees the app and presses Simulate and Swap themselves. Pass from/to/amount to open it pre-filled with a quote. Supported chains: Base, HyperEVM, Monad. If the host does not render UI, the result is still a complete JSON snapshot you can read and summarise.",
+				"Open the FibX app: wallet, balances, signing policy, and a swap form with the Fibrous route. Call this FIRST for anything about the wallet, a balance, a quote, or a swap — it returns the session, balances, policy and quote in one snapshot, so get_auth_status, get_balance, get_policy and get_quote are not needed before it. It executes nothing; where the host renders MCP Apps UI the user sees the app and presses Simulate and Swap themselves. Pass from/to/amount to open it pre-filled with a quote. Supported chains: Base, HyperEVM, Monad. If the host does not render UI, the result is still a complete JSON snapshot you can read and summarise.",
 			inputSchema: {
 				chain: ChainEnum.default("base").describe("Chain to open on"),
 				from: z.string().optional().describe("Source token symbol, to pre-fill a swap"),

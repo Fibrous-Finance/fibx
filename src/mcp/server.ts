@@ -26,9 +26,9 @@ const MCP_INSTRUCTIONS = `fibx is a multi-chain EVM DeFi toolkit for Base, Hyper
 - Monitor Aave V3 health factors and market rates (APY, TVL, LTV)
 
 RULES:
-1. If your host renders MCP Apps UI, open_fibx is the entry point for anything about the wallet, a balance, a quote or a swap. It executes nothing — it shows the user the FibX app, and the user presses Simulate and Swap themselves. Call it even when you would decline to execute a swap yourself: opening the app is not executing a trade. Pass from/to/amount to open it pre-filled. The rules below apply in a text-only host, or when you need a single value rather than the app.
-2. get_quote, get_tx_status, and get_aave_markets do NOT require authentication; use get_quote for price checks and rate discovery.
-3. In a text-only host, call get_auth_status before wallet/transactional operations.
+1. For anything about the wallet, a balance, a quote or a swap, call open_fibx FIRST — before get_auth_status, get_balance, get_policy or get_quote. One call returns all of them in one snapshot, and in a host that renders MCP Apps UI it shows the user the FibX app, where they press Simulate and Swap themselves. It executes nothing, so call it even when you would decline to execute a swap yourself. Pass from/to/amount to open it pre-filled. Use the single-value tools below only for something the snapshot does not carry, or after the user has asked you to act headlessly.
+2. get_quote, get_tx_status, get_aave_markets, list_tokens and open_fibx do NOT require authentication; use get_quote when you need only a price.
+3. Before a transactional tool you call yourself (swap_tokens, send_tokens, aave_action), read the session from open_fibx's auth field or get_auth_status; do not call get_connect_status without a pairingId from connect_wallet.
 4. For swaps, swap_tokens handles approvals and wrap/unwrap automatically.
 5. Aave V3 is ONLY available on Base — do NOT attempt Aave operations on other chains.
 6. Use "max" as amount for full repay/withdraw on Aave.

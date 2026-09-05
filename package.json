@@ -1,6 +1,6 @@
 {
 	"name": "fibx",
-	"version": "0.10.0",
+	"version": "0.10.1",
 	"mcpName": "finance.fibrous/fibx",
 	"description": "Zero-dependency CLI and MCP server for DeFi on Base, HyperEVM, and Monad — Fibrous aggregation, your own wallet over WalletConnect, a local signing policy, and the FibX app as MCP Apps UI.",
 	"author": "Ahmet Enes Dur",

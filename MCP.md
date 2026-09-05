@@ -179,7 +179,7 @@ still requires native gas.
 
 ### get_auth_status
 
-Check whether fibx is authenticated and the Fibrous API is reachable. **Always call this first** before any transactional tool.
+Check whether fibx is authenticated and the Fibrous API is reachable. `open_fibx` already returns this as its `auth` field; call it on its own when you need the session state and nothing else, or before a transactional tool you are calling yourself.
 
 ```
 Input:  { chain?: "base" | "hyperevm" | "monad" }

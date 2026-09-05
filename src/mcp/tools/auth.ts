@@ -20,7 +20,7 @@ export function registerAuthAndConfigTools(server: McpServer): number {
 		{
 			title: "Check Auth & Fibrous Status",
 			description:
-				"Check authentication status and Fibrous API health. Always call this first to verify the session is active before performing any transaction.",
+				"Check authentication status and Fibrous API health. open_fibx already returns this as its auth field; call this on its own only when you need the session state and nothing else, or before a transactional tool you are calling yourself.",
 			inputSchema: {
 				chain: ChainEnum.default("base").describe(
 					"Target chain to check Fibrous health for"

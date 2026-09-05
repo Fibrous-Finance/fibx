@@ -5,6 +5,18 @@ All notable changes to FibX. The format follows
 [SemVer](https://semver.org/) while below 1.0, where a minor bump may change a
 contract.
 
+## [0.10.1] — 2026-09-05
+
+### Changed
+
+- The server's instructions and the tool descriptions no longer ask the model
+  to guess whether its host renders UI. `open_fibx` is to be called first for
+  any wallet, balance, quote or swap question in every host — it returns the
+  session, balances, policy and quote in one snapshot, and renders the app
+  where the host can. `get_auth_status` no longer says "always call this
+  first", which had been pulling the model away from the app; and the model is
+  told not to call `get_connect_status` without a `pairingId`.
+
 ## [0.10.0] — 2026-09-05
 
 ### Added
@@ -70,4 +82,5 @@ contract.
 See the [git history](https://github.com/Fibrous-Finance/fibx/commits/main)
 and the [npm versions](https://www.npmjs.com/package/fibx?activeTab=versions).
 
+[0.10.1]: https://github.com/Fibrous-Finance/fibx/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/Fibrous-Finance/fibx/compare/v0.8.2...v0.10.0
