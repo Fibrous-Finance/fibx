@@ -10,8 +10,8 @@
 		"resolveJsonModule": true,
 		"sourceMap": true,
 		"outDir": "dist",
-		"rootDir": "src"
+		"rootDir": "."
 	},
-	"include": ["src/**/*"],
+	"include": ["src/**/*", "ui/dev-host/bridge.ts"],
 	"exclude": ["node_modules", "dist"]
 }
