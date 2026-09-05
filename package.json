@@ -2,7 +2,7 @@
 	"name": "fibx",
 	"version": "0.10.0",
 	"mcpName": "finance.fibrous/fibx",
-	"description": "Zero-dependency CLI for DeFi operations on Base, HyperEVM, and Monad — powered by Fibrous aggregation, with built-in MCP server for AI agents.",
+	"description": "Zero-dependency CLI and MCP server for DeFi on Base, HyperEVM, and Monad — Fibrous aggregation, your own wallet over WalletConnect, a local signing policy, and the FibX app as MCP Apps UI.",
 	"author": "Ahmet Enes Dur",
 	"repository": {
 		"type": "git",
@@ -85,7 +85,10 @@
 		"agent",
 		"ai",
 		"mcp",
-		"skills"
+		"skills",
+		"mcp-apps",
+		"walletconnect",
+		"claude-desktop"
 	],
 	"license": "MIT"
 }

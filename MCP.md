@@ -2,6 +2,8 @@
 
 fibx includes a built-in [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server that exposes all DeFi operations as callable tools. AI editors like **Cursor**, **Claude Desktop**, **Antigravity**, and any MCP-compatible client can connect to fibx and execute trades, transfers, and DeFi operations through natural language.
 
+In hosts that render [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) UI — Claude Desktop today — the server also serves **the FibX app**: one `ui://` document showing the wallet, balances, the signing policy and a swap form with the Fibrous route, opened by the `open_fibx` tool and pre-filled from the conversation. The model opens it; the user presses Simulate and Swap.
+
 ## Quick Start
 
 ```bash
@@ -17,6 +19,7 @@ This starts an MCP server over **stdio** (standard input/output). The server spe
 3. Wallet-dependent tools read the local session file; public tools such as quotes, transaction status, and Aave markets do not require one
 4. Tools are executed against live blockchains — transactional tools advertise `destructiveHint: true`, which clients may use to request confirmation
 5. The server sends built-in `MCP_INSTRUCTIONS` to guide AI agents on proper tool usage, chain selection, and error handling
+6. `open_fibx` is bound to the resource `ui://fibx/app.html`. A host that renders MCP Apps shows the app inline and the tool's JSON result seeds it; a host that does not simply gets the JSON — a complete snapshot of chain, session, balances, policy and quote — and the model reads that instead
 
 > **Note:** stderr is used for logging (server banner, tool counts); stdout is reserved for JSON-RPC protocol messages.
 
@@ -52,6 +55,10 @@ Add to `claude_desktop_config.json`:
 }
 ```
 
+The FibX app renders inline in Claude Desktop. After changing this file, quit
+Claude Desktop fully (`Cmd+Q` on macOS) — the server process starts at launch
+and is not restarted by closing a window.
+
 ### Antigravity
 
 Add to `~/.gemini/antigravity/mcp_config.json`:
@@ -71,7 +78,19 @@ Add to `~/.gemini/antigravity/mcp_config.json`:
 > operations. Run `fibx auth setup` to choose a signing path, or `fibx auth connect` /
 > `fibx auth login <email>` / `fibx auth import` directly.
 
-## Available Tools (17)
+## Available Tools (19)
+
+### The app (2 tools)
+
+| Tool          | Description                                                                                                                    | Auth Required |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------- |
+| `open_fibx`   | Open the FibX app — wallet, balances, signing policy and a swap form with the Fibrous route — pre-filled from `from/to/amount` | No            |
+| `list_tokens` | List the tokens Fibrous supports on a chain, with address, decimals and USD price where known                                  | No            |
+
+`open_fibx` advertises `readOnlyHint: true`: it executes nothing. Simulate and
+Swap are buttons in the app, pressed by the user; the swap itself goes through
+`swap_tokens` from inside the app, under the same signing policy as any other
+caller.
 
 ### Read-Only (9 tools)
 
@@ -113,6 +132,36 @@ protecting the wallet, or end the active session outright.
 | `logout`            | End the WalletConnect pairing and clear the local session                    |
 
 ## Tool Details
+
+### open_fibx
+
+Open the FibX app. In a host that renders MCP Apps UI this is the entry point
+for anything about the wallet, a balance, a quote or a swap — the model calls
+it with whatever the conversation supplied, and the user works the app.
+
+```
+Input:  { chain?, from?, to?, amount?, slippage? }
+Output: { chain, auth, balances, policy, terms, quote, quoteError }
+```
+
+`auth` is the session as `get_auth_status` reports it; `balances` is `null`
+without a session; `terms` echoes the resolved `from/to/amount` and `quote`
+carries the Fibrous route when all three were given. A quote that could not be
+fetched sets `quoteError` rather than failing the call, so the app still opens.
+The app requests one host permission, `clipboardWrite`, for the Copy link
+button on the pairing screen; if the host refuses it, the button says so
+instead of failing silently.
+
+### list_tokens
+
+List the tokens Fibrous supports on a chain. **No authentication required.**
+Feeds the app's token picker; useful headlessly to resolve a symbol before
+`get_quote` or `swap_tokens`.
+
+```
+Input:  { chain? }
+Output: { chain, tokens: [{ symbol, name, address, decimals, price? }] }
+```
 
 ### get_quote
 
@@ -379,9 +428,12 @@ configuration:
   does not bound token amounts — an ERC-20 transfer carries `value: 0`, so only
   `allowedDestinations` constrains it — and it is a local file, so it is worth
   nothing against something that can already write to the user's disk.
-- **Read-only tools need no wallet.** `get_quote`, `get_tx_status`, and
-  `get_aave_markets` work with no session at all, so an agent can explore
-  prices and rates before any wallet exists.
+- **Read-only tools need no wallet.** `get_quote`, `get_tx_status`,
+  `get_aave_markets`, `list_tokens` and `open_fibx` work with no session at
+  all, so an agent can explore prices and rates before any wallet exists.
+- **The app executes nothing on its own.** `open_fibx` renders; a swap leaves
+  the app only when the user presses Swap, after Simulate, and it still passes
+  through the local signing policy. The model never gets to press the button.
 
 ## Error Handling
 
@@ -436,3 +488,5 @@ If using Privy authentication, ensure [fibx-server](https://github.com/Fibrous-F
 | Rate limit errors          | Use `config_action` tool to set a custom RPC URL                               |
 | Editor can't connect       | Verify the MCP config JSON syntax and restart the editor                       |
 | Stale tool responses       | Config changes are auto-detected via hot-reload — no restart needed            |
+| The app does not appear    | The host does not render MCP Apps; the model gets `open_fibx`'s JSON instead   |
+| The app is out of date     | Quit the host fully (`Cmd+Q`) — the server process only starts at app launch   |

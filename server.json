@@ -2,7 +2,7 @@
 	"$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
 	"name": "finance.fibrous/fibx",
 	"title": "FibX",
-	"description": "Swap, transfer, track a portfolio and use Aave V3 on Base, HyperEVM and Monad.",
+	"description": "Swap, transfer, portfolio and Aave V3 on Base, HyperEVM and Monad, with the FibX app as MCP Apps UI.",
 	"version": "0.10.0",
 	"websiteUrl": "https://docs.fibrous.finance/fibx-agent",
 	"repository": {

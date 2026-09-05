@@ -1,6 +1,6 @@
 # FibX
 
-A command-line tool for DeFi operations on **Base, HyperEVM, and Monad**, powered by [Fibrous](https://fibrous.finance) aggregation and [Privy](https://privy.io) Server Wallets.
+A command-line tool and MCP server for DeFi operations on **Base, HyperEVM, and Monad**, powered by [Fibrous](https://fibrous.finance) aggregation. Sign with your own wallet over WalletConnect, with a [Privy](https://privy.io) server wallet, or with an imported key — every path bounded by a signing policy that lives on your machine.
 
 [![npm version](https://badge.fury.io/js/fibx.svg)](https://badge.fury.io/js/fibx)
 
@@ -11,11 +11,13 @@ A command-line tool for DeFi operations on **Base, HyperEVM, and Monad**, powere
 - **Token Swaps**: Optimal routing via Fibrous aggregation with auto-slippage
 - **Transfers**: Send ETH or any ERC-20 token
 - **Aave V3**: Supply, borrow, repay, withdraw, and browse markets on Base
-- **MCP Server**: Built-in AI agent integration for Cursor, Claude Desktop, and Antigravity (11 tools, 4 categories)
+- **MCP Server**: Built-in AI agent integration for Cursor, Claude Desktop, and Antigravity (19 tools)
+- **The FibX app, in the chat**: in hosts that render [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) UI such as Claude Desktop, `open_fibx` shows the wallet, balances, signing policy and a swap form with the Fibrous route inline — the model opens it, and you press Simulate and Swap
 - **Agent Skills**: Prompt-based AI skills via [fibx-skills](https://github.com/Fibrous-Finance/fibx-skills)
+- **Your own wallet**: Pair over WalletConnect and approve every transaction on your phone
 - **Privy Server Wallets**: Server-side signing — the CLI receives signed transaction payloads or signatures, not Privy app credentials or raw keys
-- **Policy-Enforced Signing**: Configured chain allowlists and native-value caps are evaluated by Privy at signing time
 - **Private Key Import**: Use an existing wallet with AES-256-GCM encrypted local storage
+- **Local signing policy**: A file you own — native value cap per chain, allowed chains, allowed destinations, expiry — enforced before every signature on all three paths (Privy adds its own server-side policy on top)
 - **Preflight Checks**: Transaction flows validate or estimate execution where the underlying RPC supports it
 - **Dry‑Run Mode**: `--simulate` previews write operations without broadcasting; gas estimates are included where available
 - **JSON Output**: `--json` flag for scripting and pipelines
@@ -289,7 +291,9 @@ fibx includes a built-in [MCP](https://modelcontextprotocol.io) server for AI ed
 npx fibx mcp-start
 ```
 
-The MCP server exposes **11 tools** across 4 categories (Auth & Config, Wallet & Portfolio, Trading, DeFi). All write operations support a `simulate=true` preview that does not broadcast; gas estimates are returned only where available.
+The MCP server exposes **19 tools**: the FibX app (`open_fibx`, `list_tokens`), read-only queries, three transactional tools, and session and policy management. All write operations support a `simulate=true` preview that does not broadcast; gas estimates are returned only where available.
+
+In a host that renders MCP Apps UI — Claude Desktop today — `open_fibx` is the entry point: ask about your wallet, a balance, a price or a swap and the whole app opens inline, pre-filled from the conversation. It executes nothing on its own; Simulate and Swap are buttons you press. In a text-only host the same call returns a JSON snapshot the model can summarise, and the headless tools do the rest.
 
 ### Agent Skills
 
@@ -330,14 +334,22 @@ the stack:
 
 ```
 src/
-├── commands/           # CLI commands (auth, trade, send, aave, config)
+├── commands/           # CLI commands (auth, policy, trade, send, aave, config)
 ├── mcp/                # Modular MCP server
 │   ├── server.ts       # Entry point + MCP_INSTRUCTIONS
-│   ├── tools/          # Tool registrations (auth, wallet, trade, defi)
+│   ├── ui.ts           # The ui://fibx/app.html resource (the built widget, inlined)
+│   ├── tools/          # Tool registrations (app, auth, wallet, trade, defi, policy)
 │   └── handlers/       # Tool implementations
-├── services/           # Business logic (chain, fibrous, auth, defi, portfolio)
+├── services/           # Business logic (chain, fibrous, auth, policy, walletconnect, defi, portfolio)
 └── lib/                # Shared utilities (errors, fetch, format, crypto)
+ui/
+├── src/                # The FibX app widget — Preact, one document, no network
+└── dev-host/           # A local MCP Apps host for the widget: fixtures, or a bridge to the real server
 ```
+
+The widget is built by Vite into a single HTML document and embedded in
+`dist/index.js` by tsup, so the published package is still one file with no
+runtime dependencies.
 
 ## Development
 
@@ -347,13 +359,20 @@ pnpm dev          # run the CLI from source
 pnpm test         # vitest unit tests
 pnpm typecheck    # tsc --noEmit
 pnpm lint         # eslint
-pnpm build        # tsup bundle to dist/
+pnpm format:check # prettier
+pnpm build        # vite (the app widget) then tsup, to dist/
+pnpm dev:ui       # the app widget in a local host, against fixtures — no wallet needed
 ```
+
+`pnpm dev:ui:bridge` runs the same host against the real MCP server; a Swap
+there is a real swap.
 
 ## Related Links
 
 - [Fibrous Finance](https://fibrous.finance) — DEX aggregator powering swaps
+- [FibX agent docs](https://docs.fibrous.finance/fibx-agent)
 - [npm package](https://www.npmjs.com/package/fibx)
+- [MCP registry listing](https://registry.modelcontextprotocol.io) — `finance.fibrous/fibx`
 
 ## License
 

@@ -46,8 +46,10 @@ Anything that would move it server-side takes the argument with it.
 
 ```bash
 pnpm test          # vitest run
-pnpm build         # vite (the MCP Apps panel) then tsup
+pnpm build         # vite (the FibX app widget, ui/) then tsup
+pnpm build:ui      # the widget alone — the dev host serves this build
 pnpm dev:ui        # the widget in a local host, against fixtures
+pnpm dev:ui:bridge # the same host against the REAL server — a Swap there is a real swap
 pnpm typecheck     # tsc --noEmit
 pnpm lint          # eslint src/
 pnpm format:check  # prettier --check .
@@ -83,6 +85,13 @@ a fail-open, and it has happened twice. In `src/mcp/handlers/policy.ts` the
 branch **order** is what protects it: `isEmptyPolicy("unreadable")` evaluates to
 `true`, because every field read on a string primitive returns `undefined`, so
 the string must be checked first.
+
+**The dev host shows the built widget, not the source.** Its iframe loads
+`ui/dist/index.html`, built once when `pnpm dev:ui` starts; Vite's HMR covers
+only the host page. After editing anything under `ui/src`, run `pnpm build:ui`
+and reload, or the change is invisible. `open_fibx`'s document has a byte
+guard in `src/mcp/ui.test.ts` (under 400,000 bytes); keep the widget's
+dependencies to what `ui/src` already imports.
 
 **`fibx send` simulates before it signs.** On an address with no gas money the
 simulation fails at `eth_estimateGas` before the policy is consulted, so an

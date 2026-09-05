@@ -348,13 +348,19 @@ mcp-start`; a dated `.bak` sits beside the config. After any `pnpm build`,
 quit Claude Desktop/Code fully (`Cmd+Q`) — the MCP process starts at launch
 and never reloads.
 
-### 4. Push, then npm publish of 0.10.0
+### 4. npm publish of 0.10.0
+
+The release surface is written: README and MCP.md describe the app and all 19
+tools, CHANGELOG.md opens at 0.10.0, `package.json` and `server.json` carry
+the same version and a description that names the app, and `v0.10.0` is
+tagged locally on the release commit. What remains needs your npm login and
+the registry key:
 
 `main` is 83 commits ahead of `origin/main`. npm is **not** logged in on
 this machine, so both are yours:
 
 ```bash
-git push origin main
+git push origin main --tags
 ```
 
 ```bash
