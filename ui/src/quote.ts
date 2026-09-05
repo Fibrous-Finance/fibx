@@ -49,7 +49,35 @@ export function formatImpact(
  */
 export function formatUsd(value: number | null | undefined): string {
 	if (typeof value !== "number" || !Number.isFinite(value)) return "—";
-	return `$${value.toFixed(2)}`;
+	return `$${value.toLocaleString("en-US", {
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	})}`;
+}
+
+/**
+ * An amount at reading length. A route answers with the token's full
+ * precision — "0.000099679682043379" for a native balance — which pushes the
+ * token button off the card when drawn whole, and `toPrecision` answers
+ * "9.96797e-5", which stops being an amount at all. Six significant digits
+ * past the leading zeros, no trailing zeros, never an exponent.
+ *
+ * Display only. Every amount that reaches a tool call is the string the user
+ * typed or the one the route returned, never this.
+ */
+export function formatAmountShort(s: string, significant = 6): string {
+	const n = Number(s);
+	// Number("") is 0, and drawing "0" where the server sent nothing would be
+	// an invented balance.
+	if (s.trim() === "" || !Number.isFinite(n)) return s;
+	if (n === 0) return "0";
+	const magnitude = Math.floor(Math.log10(Math.abs(n)));
+	const decimals = Math.min(Math.max(0, significant - 1 - magnitude), 100);
+	const fixed = n.toFixed(decimals);
+	// toFixed gives up on exponents past 1e21 — far above any token amount,
+	// but the raw string is still better than "1e+21" in an amount field.
+	if (fixed.includes("e")) return s;
+	return fixed.includes(".") ? fixed.replace(/0+$/, "").replace(/\.$/, "") : fixed;
 }
 
 /**

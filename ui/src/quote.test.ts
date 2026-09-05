@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	buildSwapArgs,
 	checkSlippage,
+	formatAmountShort,
 	formatImpact,
 	formatUsd,
 	hasRoute,
@@ -45,8 +46,13 @@ describe("formatImpact", () => {
 });
 
 describe("formatUsd", () => {
-	it("formats a value it can stand behind", () => {
-		expect(formatUsd(4000)).toBe("$4000.00");
+	// A four-figure price with no separator is one long digit run at a glance,
+	// on the one line a user reads to decide whether the trade is the size
+	// they meant.
+	it("formats a value it can stand behind, grouped in thousands", () => {
+		expect(formatUsd(4000)).toBe("$4,000.00");
+		expect(formatUsd(2454.11)).toBe("$2,454.11");
+		expect(formatUsd(0.25)).toBe("$0.25");
 	});
 
 	// "$0.00" beneath a real amount is a number the app cannot justify. The
@@ -54,6 +60,42 @@ describe("formatUsd", () => {
 	it("renders an absent value as an explicit dash", () => {
 		expect(formatUsd(null)).toBe("—");
 		expect(formatUsd(undefined)).toBe("—");
+	});
+});
+
+// A route answers with the token's full precision — eighteen decimals on a
+// native balance. Drawn whole that pushes the token button off the card;
+// drawn through toPrecision it becomes "9.96797e-5", which is not an amount.
+describe("formatAmountShort", () => {
+	it("keeps six significant digits past the leading zeros", () => {
+		expect(formatAmountShort("0.000099679682043379")).toBe("0.0000996797");
+	});
+
+	it("rounds a plain decimal to six significant digits", () => {
+		expect(formatAmountShort("2.453625")).toBe("2.45363");
+	});
+
+	it("drops the trailing zeros a fixed width would add", () => {
+		expect(formatAmountShort("1")).toBe("1");
+		expect(formatAmountShort("2.45")).toBe("2.45");
+		expect(formatAmountShort("0.0002")).toBe("0.0002");
+	});
+
+	it("reads zero as zero", () => {
+		expect(formatAmountShort("0")).toBe("0");
+	});
+
+	it("never answers in exponent notation", () => {
+		expect(formatAmountShort("0.000000000123456789")).toBe("0.000000000123457");
+		expect(formatAmountShort("1e-7")).toBe("0.0000001");
+	});
+
+	// An empty string is Number 0, and drawing "0" where the server sent
+	// nothing would be an invented balance. Anything unreadable travels
+	// through untouched instead.
+	it("hands back what it cannot read as a number", () => {
+		expect(formatAmountShort("")).toBe("");
+		expect(formatAmountShort("unknown")).toBe("unknown");
 	});
 });
 
