@@ -59,10 +59,19 @@ h1 {
 }
 
 .brand {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
 	font-size: 1.1rem;
 	font-weight: 700;
 	letter-spacing: -0.01em;
 	margin-right: auto;
+}
+
+/* The mark is always the brand teal, in both themes. */
+.logo {
+	color: rgb(var(--brand-primary));
+	flex: none;
 }
 
 /* The header's chain and address pills: the navbar's own — a bg-secondary
@@ -599,10 +608,22 @@ input.mono {
 	background: rgb(var(--bg-tertiary));
 }
 
-.policy-row {
+/* The row is one button that fills the card's padding, so the closed card
+   is clickable edge to edge. Open, it pulls the content below back to the
+   card's own 12px gap. */
+.card > button.policy-row {
 	display: flex;
 	align-items: center;
 	gap: 8px;
+	width: calc(100% + 32px);
+	margin: -16px;
+	padding: 16px;
+	border-radius: 12px;
+	text-align: left;
+}
+
+.card > button.policy-row[aria-expanded="true"] {
+	margin-bottom: -12px;
 }
 
 .policy-row .chevron {

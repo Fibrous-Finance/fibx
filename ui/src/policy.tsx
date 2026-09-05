@@ -77,12 +77,16 @@ export function PolicySection({
 
 	return (
 		<div class="card">
-			{/* One row, closed: the name, the state, and the arrow that opens
-			    it. Everything else in this section is behind that click. */}
-			<div class="policy-row">
-				<button class="bare" data-action="toggle-policy" onClick={() => setIsOpen(!isOpen)}>
-					Signing policy
-				</button>
+			{/* One row, closed: the name, the state, and the arrow. The whole
+			    row is the button — it reaches into the card's padding, so any
+			    click on the closed card opens it. */}
+			<button
+				class="bare policy-row"
+				data-action="toggle-policy"
+				aria-expanded={isOpen}
+				onClick={() => setIsOpen(!isOpen)}
+			>
+				<span>Signing policy</span>
 				{policy.state === "active" && <span class="pill ok">active</span>}
 				{policy.state === "absent" && (
 					<span class={`pill ${sessionKind === "private-key" ? "warn" : ""}`}>
@@ -91,7 +95,7 @@ export function PolicySection({
 				)}
 				{policy.state === "unreadable" && <span class="pill err">unreadable</span>}
 				<span class="chevron muted">{isOpen ? "▾" : "▸"}</span>
-			</div>
+			</button>
 
 			{isOpen && (
 				<>
