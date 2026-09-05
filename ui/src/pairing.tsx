@@ -128,7 +128,7 @@ export function Pairing({
 	}
 
 	const backButton = (
-		<button class="ghost" data-action="back" onClick={onCancel}>
+		<button class="ghost wide" data-action="back" onClick={onCancel}>
 			Back
 		</button>
 	);
@@ -138,8 +138,12 @@ export function Pairing({
 			<div class="card">
 				<p class="muted">No wallet is connected. Pair your own wallet to sign from it.</p>
 				{phase.kind === "failed" && (
-					<>
-						<p class="error">{phase.explained.title}</p>
+					<div class="error-chip">
+						<span
+							class={`pill ${phase.explained.severity === "warning" ? "warn" : "err"}`}
+						>
+							{phase.explained.title}
+						</span>
 						{phase.explained.detail && <p class="muted">{phase.explained.detail}</p>}
 						{phase.explained.raw && (
 							<details>
@@ -147,18 +151,17 @@ export function Pairing({
 								<pre class="mono">{phase.explained.raw}</pre>
 							</details>
 						)}
-					</>
+					</div>
 				)}
-				<div class="row">
-					<button
-						data-action="connect"
-						onClick={connect}
-						disabled={phase.kind === "opening"}
-					>
-						{phase.kind === "opening" ? "Opening a pairing…" : "Connect a wallet"}
-					</button>
-					{backButton}
-				</div>
+				<button
+					class="primary"
+					data-action="connect"
+					onClick={connect}
+					disabled={phase.kind === "opening"}
+				>
+					{phase.kind === "opening" ? "Opening a pairing…" : "Connect a wallet"}
+				</button>
+				{backButton}
 			</div>
 		);
 	}
@@ -171,17 +174,21 @@ export function Pairing({
 					{phase.kind === "expired" ? "expired" : "waiting for the wallet"}
 				</span>
 			</div>
-			<img class="qr" src={pairing.qrDataUri} alt="WalletConnect pairing QR" />
-			<textarea
-				class="uri"
-				readOnly
-				value={pairing.uri}
-				onFocus={(e) => e.currentTarget.select()}
-			/>
+			{/* The same box the amounts sit in, so the pairing view reads as
+			    part of the card rather than as a different screen. */}
+			<div class="box">
+				<img class="qr" src={pairing.qrDataUri} alt="WalletConnect pairing QR" />
+				<textarea
+					class="uri"
+					readOnly
+					value={pairing.uri}
+					onFocus={(e) => e.currentTarget.select()}
+				/>
+			</div>
 			<div class="row">
 				{walletLinkState === "ready" ? (
 					<button
-						class="ghost"
+						class="ghost wide"
 						data-action="open-wallet"
 						onClick={async () => {
 							const r = await app.openLink({ url: pairing.uri });
@@ -202,7 +209,7 @@ export function Pairing({
 			<div class="row">
 				{copyState !== "unavailable" ? (
 					<button
-						class="ghost"
+						class="ghost wide"
 						data-action="copy"
 						onClick={async () => {
 							const how = await copyText(pairing.uri);
@@ -221,7 +228,11 @@ export function Pairing({
 						Clipboard unavailable here — select the link above and copy it.
 					</span>
 				)}
-				{phase.kind === "expired" && <button onClick={connect}>Try again</button>}
+				{phase.kind === "expired" && (
+					<button class="primary" onClick={connect}>
+						Try again
+					</button>
+				)}
 				{backButton}
 			</div>
 		</div>

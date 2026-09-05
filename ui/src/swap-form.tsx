@@ -6,6 +6,7 @@ import { shortAddress } from "./status.js";
 import {
 	buildSwapArgs,
 	checkSlippage,
+	formatAmountShort,
 	formatImpact,
 	formatUsd,
 	hasRoute,
@@ -13,7 +14,8 @@ import {
 	routeLabel,
 	type QuoteResult,
 } from "./quote.js";
-import { isLocked, canSwap, initialState, transition, type Event, type State } from "./machine.js";
+import { primaryAction } from "./action.js";
+import { isLocked, initialState, transition, type Event, type State } from "./machine.js";
 import type { BroadcastResult, SimulateResult, Terms, TxStatusResult } from "./types.js";
 
 const DEBOUNCE_MS = 400;
@@ -36,11 +38,8 @@ function quoteOf(s: State): QuoteResult | null {
 /** A USD value, or an explicit dash where the route carried no price. */
 function UsdValue({ value }: { value: number | null }) {
 	return (
-		<span
-			class="muted"
-			title={value === null ? "No price for this token — USD value unknown." : undefined}
-		>
-			{formatUsd(value)}
+		<span title={value === null ? "No price for this token — USD value unknown." : undefined}>
+			{value === null ? "—" : `~${formatUsd(value)}`}
 		</span>
 	);
 }
@@ -54,6 +53,7 @@ export function SwapForm({
 	balances,
 	connected,
 	onPickToken,
+	onConnect,
 	onPolicyRefusal,
 	onSettled,
 }: {
@@ -66,6 +66,9 @@ export function SwapForm({
 	connected: boolean;
 	/** The shell opens the picker; the form only says which side. */
 	onPickToken: (side: "from" | "to") => void;
+	/** The shell opens the pairing view. Without a wallet the primary button
+	 *  is the only thing on this card worth pressing, so it is what asks. */
+	onConnect?: () => void;
 	onPolicyRefusal?: () => void;
 	/** A receipt arrived — confirmed or reverted. The balance the shell handed
 	 *  down is stale from here on, and the shortfall guard below computes
@@ -94,6 +97,10 @@ export function SwapForm({
 	const [slippageDraft, setSlippageDraft] = useState(() => String(terms.slippage));
 	const [slippageError, setSlippageError] = useState<string | null>(null);
 	const [explorerLinkOk, setExplorerLinkOk] = useState(true);
+	// The debounce and the call after it, as one visible fact. The machine has
+	// no "fetching" kind — `editing` covers a typed amount whether or not a
+	// call is out — so this lives beside it rather than in it.
+	const [quoting, setQuoting] = useState(false);
 
 	const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -161,6 +168,7 @@ export function SwapForm({
 
 	function scheduleQuote(nextTerms: Terms) {
 		if (debounceRef.current) clearTimeout(debounceRef.current);
+		setQuoting(true);
 		debounceRef.current = setTimeout(() => {
 			void fetchQuote(nextTerms);
 		}, DEBOUNCE_MS);
@@ -176,6 +184,7 @@ export function SwapForm({
 				slippage: nextTerms.slippage,
 			});
 			if (!alive.current) return;
+			setQuoting(false);
 			dispatch({ type: "QUOTE_ARRIVED", quote: result });
 			// The seeded quote (the one the shell opened with) does not
 			// announce itself — only a quote that arrived from the user's own
@@ -189,6 +198,7 @@ export function SwapForm({
 			}
 		} catch (e) {
 			if (!alive.current) return;
+			setQuoting(false);
 			dispatch({ type: "QUOTE_FAILED", explained: explain(e, nextTerms) });
 		}
 	}
@@ -349,141 +359,185 @@ export function SwapForm({
 		if (r.isError && alive.current) setExplorerLinkOk(false);
 	}
 
+	/** Back to a fresh quote on the current terms — what a settled swap and a
+	 *  quote that never arrived both need. Never a swap. */
+	function requote() {
+		dispatch({ type: "TERMS_CHANGED", terms: liveTerms });
+		scheduleQuote(liveTerms);
+	}
+
 	const routed = currentQuote !== null && hasRoute(currentQuote);
-	const impact =
-		routed && currentQuote && hasRoute(currentQuote)
-			? formatImpact(currentQuote.quote.priceImpact)
-			: null;
+	const routedQuote = currentQuote && hasRoute(currentQuote) ? currentQuote.quote : null;
+	const impact = routedQuote ? formatImpact(routedQuote.priceImpact) : null;
 	const impactUnknown = routed && impact === null;
 	const impactClass = impact?.severity === "bad" ? "err" : (impact?.severity ?? "");
 
-	const simulateDisabled = locked || short || !("quote" in state) || state.quote === null;
-	const swapDisabled = locked || !canSwap(state);
+	// The one source of the button's label and of its `disabled`. Nothing
+	// below computes a second one.
+	const primary = primaryAction({
+		state,
+		connected,
+		amount: liveTerms.amount,
+		fromSymbol: liveTerms.from,
+		short,
+		quoting,
+	});
+
+	/** The only caller of swap_tokens, in either mode. */
+	function onPrimary() {
+		switch (primary.intent) {
+			case "connect":
+				onConnect?.();
+				return;
+			case "simulate":
+				void simulate();
+				return;
+			case "swap":
+				void swap();
+				return;
+			case "swap-again":
+				requote();
+				return;
+			case "retry":
+				// A simulate or swap that failed still holds its quote, so the
+				// retry is the simulate again; a quote that failed holds none,
+				// and the retry is the quote.
+				if (currentQuote) void simulate();
+				else requote();
+				return;
+			default:
+				return;
+		}
+	}
+
+	const heldOut = balances ? (balances[liveTerms.to] ?? "0") : undefined;
+	const outputAmount = currentQuote
+		? formatAmountShort(
+				hasRoute(currentQuote) ? currentQuote.quote.outputAmount : currentQuote.output
+			)
+		: "—";
 
 	return (
 		<div class="card">
-			<div class="field">
-				<span class="label">You Pay</span>
-				<div class="row">
-					<button
-						class="token-btn"
-						data-action="pick-from"
-						onClick={() => onPickToken("from")}
-					>
-						{liveTerms.from} ▾
-					</button>
-					<input
-						class="mono"
-						data-field="amount"
-						inputMode="decimal"
-						value={liveTerms.amount}
-						disabled={locked}
-						onInput={(e) => editAmount(e.currentTarget.value)}
-					/>
-				</div>
-				{connected && <span class="muted">bal {held ?? "—"}</span>}
-			</div>
-
-			{short &&
-				(() => {
-					const explained = explainError(new Error("insufficient"), {
-						symbol: liveTerms.from,
-						amount: liveTerms.amount,
-						balance: held,
-					});
-					return (
-						<div>
-							<p class="error">{explained.title}</p>
-							{explained.detail && <p class="muted">{explained.detail}</p>}
-						</div>
-					);
-				})()}
-
-			<div class="row">
-				<button class="flip ghost" data-action="flip" onClick={flip} disabled={locked}>
-					⇅
-				</button>
-			</div>
-
-			<div class="field">
-				<span class="label">You Receive</span>
-				<div class="row">
-					<button
-						class="token-btn"
-						data-action="pick-to"
-						onClick={() => onPickToken("to")}
-					>
-						{liveTerms.to} ▾
-					</button>
-					<span class="amount mono">
-						{currentQuote
-							? hasRoute(currentQuote)
-								? currentQuote.quote.outputAmount
-								: currentQuote.output
-							: "—"}
-					</span>
-					{routed && currentQuote && hasRoute(currentQuote) && (
-						<UsdValue value={currentQuote.quote.usdOut} />
-					)}
-				</div>
-			</div>
-
-			{currentQuote && (
-				<div class="price-info">
-					<div class="row">
-						<span class="mono muted">{currentQuote.rate}</span>
-						{impact && <span class={`pill ${impactClass}`}>{impact.text}</span>}
-						{impactUnknown && (
-							<span
-								class="muted"
-								title="A token price was missing from the route, so price impact could not be derived."
+			<div class="boxes">
+				<div class="box">
+					<div class="box-top">
+						<input
+							class="box-amount"
+							data-field="amount"
+							inputMode="decimal"
+							placeholder="0"
+							aria-label={`Amount of ${liveTerms.from}`}
+							value={liveTerms.amount}
+							disabled={locked}
+							onInput={(e) => editAmount(e.currentTarget.value)}
+						/>
+						<button
+							class="token-btn"
+							data-action="pick-from"
+							onClick={() => onPickToken("from")}
+						>
+							{liveTerms.from} ▾
+						</button>
+					</div>
+					<div class="box-meta">
+						<span>{routedQuote && <UsdValue value={routedQuote.usdIn} />}</span>
+						{connected && held !== undefined && (
+							// The balance is the ceiling on this amount, so it is
+							// also the control that fills it in.
+							<button
+								class={`bal ${short ? "over" : ""}`}
+								data-action="max"
+								title="Use the whole balance"
+								disabled={locked}
+								onClick={() => editAmount(held)}
 							>
-								price impact unknown
-							</span>
+								{`${formatAmountShort(held)} ${liveTerms.from}`}
+							</button>
 						)}
 					</div>
-
-					{routed && hasRoute(currentQuote) && currentQuote.quote.route.length > 0 && (
-						<div class="row">
-							{currentQuote.quote.route.map((hop, i) => (
-								<span class="pill" key={`${hop.protocol}-${hop.pool}-${i}`}>
-									{routeLabel(hop)}
-								</span>
-							))}
-						</div>
-					)}
-
-					{routed && hasRoute(currentQuote) && (
-						<div class="row">
-							<span
-								class="mono muted"
-								title="Estimated from this quote. swap_tokens re-routes when it runs and derives its own on-chain floor."
-							>
-								≈ {currentQuote.quote.minReceived} {currentQuote.quote.toToken}{" "}
-								(est.)
-							</span>
-						</div>
-					)}
 				</div>
-			)}
 
-			<div class="field">
-				<span class="label">Slippage</span>
-				<input
-					class="mono"
-					data-field="slippage"
-					value={slippageDraft}
-					disabled={locked}
-					onInput={(e) => editSlippage(e.currentTarget.value)}
-				/>
+				<div class="seam">
+					<button
+						class="flip-btn"
+						data-action="flip"
+						aria-label="Swap the two tokens"
+						onClick={flip}
+						disabled={locked}
+					>
+						⇅
+					</button>
+				</div>
+
+				<div class="box">
+					<div class="box-top">
+						<span class="box-amount">{outputAmount}</span>
+						<button
+							class="token-btn"
+							data-action="pick-to"
+							onClick={() => onPickToken("to")}
+						>
+							{liveTerms.to} ▾
+						</button>
+					</div>
+					<div class="box-meta">
+						<span>
+							{routedQuote && <UsdValue value={routedQuote.usdOut} />}
+							{impact && (
+								<span class={`impact ${impactClass}`}> ({impact.text})</span>
+							)}
+							{impactUnknown && (
+								<span title="A token price was missing from the route, so price impact could not be derived.">
+									{" "}
+									(impact unknown)
+								</span>
+							)}
+						</span>
+						{connected && heldOut !== undefined && (
+							<span>{`${formatAmountShort(heldOut)} ${liveTerms.to}`}</span>
+						)}
+					</div>
+				</div>
+			</div>
+
+			{currentQuote && <div class="chip">⇄ {currentQuote.rate}</div>}
+
+			<div class="detail-line">
+				{routedQuote && (
+					<>
+						<span title="Estimated from this quote. swap_tokens re-routes when it runs and derives its own on-chain floor.">
+							Min ≈ {formatAmountShort(routedQuote.minReceived)} {routedQuote.toToken}
+						</span>
+						<span>·</span>
+					</>
+				)}
+				<span>
+					Slippage{" "}
+					<input
+						class="mono"
+						data-field="slippage"
+						aria-label="Slippage"
+						value={slippageDraft}
+						disabled={locked}
+						onInput={(e) => editSlippage(e.currentTarget.value)}
+					/>
+					%
+				</span>
+				{routedQuote && routedQuote.route.length > 0 && (
+					<>
+						<span>·</span>
+						<span>via {routedQuote.route.map(routeLabel).join(" › ")}</span>
+					</>
+				)}
 			</div>
 			{slippageError && <p class="error">{slippageError}</p>}
 
 			{state.kind === "failed" && (
-				<div>
-					<p class={state.explained.severity === "warning" ? "muted" : "error"}>
+				<div class="error-chip">
+					<span class={`pill ${state.explained.severity === "warning" ? "warn" : "err"}`}>
 						{state.explained.title}
-					</p>
+					</span>
 					{state.explained.detail && <p class="muted">{state.explained.detail}</p>}
 					{state.explained.raw && (
 						<details>
@@ -506,34 +560,32 @@ export function SwapForm({
 				</div>
 			)}
 
-			{state.kind === "simulated" && state.sim.requiresApproval && (
-				<p class="muted">
-					This swap needs an ERC-20 approval first — it will take two transactions and two
-					wallet approvals.
-				</p>
-			)}
+			{primary.intent === "swap" &&
+				state.kind === "simulated" &&
+				state.sim.requiresApproval && (
+					<p class="muted">
+						This swap needs an ERC-20 approval first — it will take two transactions and
+						two wallet approvals.
+					</p>
+				)}
 
-			<div class="row">
-				<button
-					class="ghost"
-					data-action="simulate"
-					disabled={simulateDisabled}
-					onClick={simulate}
-				>
-					{state.kind === "simulating" ? "Simulating…" : "Simulate"}
-				</button>
-				<button data-action="swap" disabled={swapDisabled} onClick={swap}>
-					{state.kind === "swapping" ? "Swapping…" : "Swap"}
-				</button>
-			</div>
+			<button
+				class="primary"
+				data-action="primary"
+				data-intent={primary.intent}
+				disabled={!primary.enabled}
+				onClick={onPrimary}
+			>
+				{primary.label}
+			</button>
 
 			{(state.kind === "broadcast" ||
 				state.kind === "confirmed" ||
 				state.kind === "reverted" ||
 				state.kind === "unknown") && (
-				<div class="row">
+				<div class="status-row">
 					<span
-						class={`pill ${
+						class={`dot ${
 							state.kind === "confirmed"
 								? "ok"
 								: state.kind === "reverted"
@@ -541,6 +593,11 @@ export function SwapForm({
 									: "warn"
 						}`}
 					>
+						●
+					</span>
+					{/* Lower case in the DOM, capitalised by the stylesheet: the
+					    word is the machine's, not the card's. */}
+					<span class="status-label">
 						{state.kind === "broadcast"
 							? "waiting for confirmation"
 							: state.kind === "confirmed"
@@ -549,12 +606,13 @@ export function SwapForm({
 									? "reverted"
 									: "unresolved"}
 					</span>
+					<span class="muted">·</span>
 					<span class="mono" title={state.txHash}>
 						{shortAddress(state.txHash)}
 					</span>
 					{state.explorer &&
 						(explorerLinkOk ? (
-							<button class="ghost" onClick={() => openExplorer(state.explorer!)}>
+							<button class="link-btn" onClick={() => openExplorer(state.explorer!)}>
 								View on explorer
 							</button>
 						) : (

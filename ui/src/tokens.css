@@ -45,18 +45,77 @@ h1 {
 	margin: 0 0 12px;
 }
 
+/* ---------------------------------------------------------------- shell */
+
+.app {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	max-width: 460px;
+	margin: 0 auto;
+}
+
+.app-header {
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.brand {
+	font-size: 1.1rem;
+	font-weight: 700;
+	letter-spacing: -0.01em;
+	margin-right: auto;
+}
+
+/* The header's chain and address pills: the token button at a smaller size,
+   so the three read as one family. */
+.hpill {
+	background: rgb(var(--bg-secondary));
+	color: rgb(var(--text-primary));
+	border: 1px solid rgb(var(--surface-stroke) / 0.25);
+	border-radius: 999px;
+	padding: 5px 12px;
+	font-size: 13px;
+	font-weight: 600;
+	line-height: 1.4;
+}
+
+.hpill:hover {
+	background: rgb(var(--brand-hover) / 0.15);
+}
+
+select.hpill {
+	font-family: var(--font-display);
+	appearance: none;
+	cursor: pointer;
+	text-transform: capitalize;
+	padding-right: 22px;
+	background-image: linear-gradient(transparent, transparent);
+	background-repeat: no-repeat;
+}
+
+.session-line {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+	margin: -4px 0 0;
+}
+
+/* ---------------------------------------------------------------- card */
+
 .card {
 	background: rgb(var(--bg-secondary));
 	border: 1px solid rgb(var(--surface-stroke) / 0.35);
-	border-radius: 12px;
-	padding: 16px;
+	border-radius: 16px;
+	padding: 14px;
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
 }
 
 .card + .card {
-	margin-top: 10px;
+	margin-top: 0;
 }
 
 .row {
@@ -111,34 +170,16 @@ button:disabled {
 	cursor: default;
 }
 
-.label {
-	font-family: var(--font-rubik);
-	font-size: 0.72rem;
-	letter-spacing: 0.06em;
-	text-transform: uppercase;
-	color: rgb(var(--text-muted));
-}
-
-.amount-row {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-}
-
-.amount {
-	font-size: 1.3rem;
-	font-weight: 600;
-}
-
+/* Sentence case, in the app's own typeface — an uppercase mono chip reads as
+   a status light, and half of these are ordinary words. */
 .pill {
-	font-family: var(--font-rubik);
-	font-size: 0.72rem;
-	letter-spacing: 0.06em;
-	text-transform: uppercase;
-	padding: 3px 9px;
+	font-size: 12px;
+	font-weight: 600;
+	padding: 3px 10px;
 	border-radius: 999px;
 	background: rgb(var(--bg-tertiary));
 	color: rgb(var(--text-secondary));
+	white-space: nowrap;
 }
 
 .pill.ok {
@@ -155,6 +196,278 @@ button:disabled {
 	background: rgb(var(--status-error) / 0.15);
 	color: rgb(var(--status-error));
 }
+
+/* ------------------------------------------------------- the two boxes */
+
+.boxes {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.box {
+	background: rgb(var(--bg-tertiary));
+	border-radius: 12px;
+	padding: 16px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.box-top {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+}
+
+/* The amount is the largest thing on the card, and it sits where the eye
+   lands first: left, not behind the token button. */
+.box-amount {
+	font-family: var(--font-rubik);
+	font-variant-numeric: tabular-nums;
+	font-size: 22px;
+	font-weight: 600;
+	line-height: 1.3;
+	color: rgb(var(--text-primary));
+	min-width: 0;
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+input.box-amount {
+	width: 100%;
+	background: transparent;
+	border: 0;
+	padding: 0;
+	outline: none;
+}
+
+input.box-amount:disabled {
+	color: rgb(var(--text-secondary));
+}
+
+.box-meta {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	font-family: var(--font-rubik);
+	font-variant-numeric: tabular-nums;
+	font-size: 12px;
+	color: rgb(var(--text-muted));
+}
+
+/* The balance is a control: clicking it fills the amount. */
+.bal {
+	background: transparent;
+	border: 0;
+	padding: 0;
+	font: inherit;
+	color: rgb(var(--text-muted));
+	white-space: nowrap;
+}
+
+.bal:hover {
+	background: transparent;
+	color: rgb(var(--brand-primary));
+}
+
+.bal:disabled {
+	cursor: default;
+}
+
+.over,
+.bal.over,
+.bal.over:hover {
+	color: rgb(var(--status-error));
+}
+
+.impact.ok {
+	color: rgb(var(--status-success));
+}
+
+.impact.warn {
+	color: rgb(var(--status-warning));
+}
+
+.impact.err {
+	color: rgb(var(--status-error));
+}
+
+/* A zero-height strip between the boxes, so the circle sits on the join
+   rather than pushing them apart. */
+.seam {
+	position: relative;
+	height: 0;
+	z-index: 1;
+}
+
+.flip-btn {
+	position: absolute;
+	left: 50%;
+	top: 0;
+	transform: translate(-50%, -50%);
+	width: 30px;
+	height: 30px;
+	padding: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 999px;
+	background: rgb(var(--bg-secondary));
+	border: 1px solid rgb(var(--surface-stroke) / 0.35);
+	color: rgb(var(--text-secondary));
+	font-size: 14px;
+}
+
+.flip-btn:hover {
+	background: rgb(var(--brand-hover) / 0.15);
+	color: rgb(var(--brand-primary));
+}
+
+.token-btn {
+	background: rgb(var(--bg-primary));
+	color: rgb(var(--text-primary));
+	border: 1px solid rgb(var(--surface-stroke) / 0.25);
+	border-radius: 999px;
+	padding: 6px 14px;
+	font-size: 15px;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.token-btn:hover {
+	background: rgb(var(--brand-hover) / 0.15);
+}
+
+/* --------------------------------------------------- rate, details, cta */
+
+.chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	align-self: flex-start;
+	max-width: 100%;
+	background: rgb(var(--bg-tertiary));
+	border-radius: 8px;
+	padding: 6px 10px;
+	font-family: var(--font-rubik);
+	font-variant-numeric: tabular-nums;
+	font-size: 12px;
+	color: rgb(var(--text-secondary));
+}
+
+.detail-line {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px;
+	font-family: var(--font-rubik);
+	font-variant-numeric: tabular-nums;
+	font-size: 12px;
+	color: rgb(var(--text-muted));
+}
+
+.detail-line input.mono {
+	width: 3.6rem;
+	min-width: 0;
+	padding: 2px 6px;
+	font-size: 12px;
+}
+
+.primary {
+	width: 100%;
+	height: 48px;
+	border-radius: 12px;
+	font-size: 16px;
+	font-weight: 600;
+	background: rgb(var(--brand-primary));
+	color: #fff;
+}
+
+/* Muted, never grey: a disabled primary is still the card's answer, and a
+   grey slab reads as a broken control rather than as a sentence. */
+.primary:disabled {
+	background: rgb(var(--brand-primary));
+	color: #fff;
+	opacity: 0.55;
+}
+
+.status-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+	font-size: 13px;
+}
+
+.dot {
+	font-size: 10px;
+	line-height: 1;
+	color: rgb(var(--text-secondary));
+}
+
+.dot.ok {
+	color: rgb(var(--status-success));
+}
+
+.dot.warn {
+	color: rgb(var(--status-warning));
+}
+
+.dot.err {
+	color: rgb(var(--status-error));
+}
+
+/* The state's own word, capitalised for reading only — the text itself stays
+   as the machine names it. */
+.status-label {
+	display: inline-block;
+}
+
+.status-label::first-letter {
+	text-transform: uppercase;
+}
+
+.link-btn {
+	background: transparent;
+	border: 0;
+	padding: 0;
+	font: inherit;
+	font-size: 13px;
+	color: rgb(var(--brand-primary));
+	text-decoration: underline;
+}
+
+.link-btn:hover {
+	background: transparent;
+	color: rgb(var(--brand-hover));
+}
+
+.wide {
+	width: 100%;
+}
+
+.error-chip {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	align-items: flex-start;
+}
+
+/* Small enough to sit at the end of a line, and it carries its sentence in a
+   title rather than spending three lines of the card on it. */
+.info {
+	cursor: help;
+	color: rgb(var(--text-secondary));
+	font-size: 12px;
+}
+
+/* ------------------------------------------------------------ elsewhere */
 
 .qr {
 	width: 220px;
@@ -203,6 +516,7 @@ th {
 .error {
 	color: rgb(var(--status-error));
 	font-size: 0.9rem;
+	margin: 0;
 }
 
 input.mono {
@@ -216,11 +530,30 @@ input.mono {
 	min-width: 9rem;
 }
 
+/* The picker replaces the form in place, so it carries the card's own
+   surface — otherwise it reads as rows floating on the page. */
 .picker {
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
 	max-height: 360px;
+	background: rgb(var(--bg-secondary));
+	border: 1px solid rgb(var(--surface-stroke) / 0.35);
+	border-radius: 16px;
+	padding: 14px;
+}
+
+.picker input[type="search"] {
+	flex: 1;
+	font: inherit;
+	font-family: var(--font-rubik);
+	font-size: 0.9rem;
+	background: rgb(var(--bg-tertiary));
+	color: rgb(var(--text-primary));
+	border: 1px solid rgb(var(--surface-stroke) / 0.35);
+	border-radius: 8px;
+	padding: 7px 9px;
+	min-width: 0;
 }
 
 .token-list {
@@ -237,41 +570,32 @@ input.mono {
 	background: transparent;
 	color: rgb(var(--text-primary));
 	text-align: left;
+	border-radius: 8px;
 }
 
 .token-row:hover {
 	background: rgb(var(--bg-tertiary));
 }
 
-.field {
+.policy-row {
 	display: flex;
-	flex-direction: column;
-	gap: 4px;
+	align-items: center;
+	gap: 8px;
 }
 
-.token-btn {
-	background: rgb(var(--bg-tertiary));
+.policy-row .chevron {
+	margin-left: auto;
+}
+
+button.bare {
+	background: transparent;
 	color: rgb(var(--text-primary));
-	white-space: nowrap;
+	padding: 0;
+	font-weight: 600;
+	font-size: 14px;
 }
 
-.token-btn:hover {
-	background: rgb(var(--brand-hover) / 0.15);
-}
-
-.flip {
-	align-self: center;
-	border-radius: 999px;
-	padding: 6px 10px;
-}
-
-.price-info {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-}
-
-.price-info .row {
-	font-family: var(--font-rubik);
-	font-size: 0.85rem;
+button.bare:hover {
+	background: transparent;
+	color: rgb(var(--brand-primary));
 }

@@ -77,13 +77,11 @@ export function PolicySection({
 
 	return (
 		<div class="card">
-			<div class="row">
-				<button
-					class="ghost"
-					data-action="toggle-policy"
-					onClick={() => setIsOpen(!isOpen)}
-				>
-					{isOpen ? "▾" : "▸"} Signing policy
+			{/* One row, closed: the name, the state, and the arrow that opens
+			    it. Everything else in this section is behind that click. */}
+			<div class="policy-row">
+				<button class="bare" data-action="toggle-policy" onClick={() => setIsOpen(!isOpen)}>
+					Signing policy
 				</button>
 				{policy.state === "active" && <span class="pill ok">active</span>}
 				{policy.state === "absent" && (
@@ -92,6 +90,7 @@ export function PolicySection({
 					</span>
 				)}
 				{policy.state === "unreadable" && <span class="pill err">unreadable</span>}
+				<span class="chevron muted">{isOpen ? "▾" : "▸"}</span>
 			</div>
 
 			{isOpen && (
@@ -168,14 +167,18 @@ export function PolicySection({
 							<button type="submit" disabled={pending !== null}>
 								{pending ?? "Set"}
 							</button>
+							{/* The caveat that has to be here and must not take
+							    three lines of the card: maxValue bounds native
+							    value only, and the README once claimed
+							    otherwise. */}
+							<span
+								class="info"
+								title="maxValue caps the native value of one transaction. It does not bound token amounts — an ERC-20 transfer carries value 0 — so use allowedDestinations to bound where tokens may go."
+							>
+								ⓘ
+							</span>
 						</form>
 					)}
-
-					<p class="muted">
-						maxValue caps the native value of one transaction. It does not bound token
-						amounts — an ERC-20 transfer carries value 0 — so use allowedDestinations to
-						bound where tokens may go.
-					</p>
 
 					{policy.state !== "absent" && (
 						<div class="row">

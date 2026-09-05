@@ -108,7 +108,7 @@ export function FibxApp({ app, snapshot }: { app: App; snapshot: Snapshot }) {
 			<header class="row app-header">
 				<span class="brand">FibX</span>
 				<select
-					class="mono"
+					class="hpill"
 					value={chain}
 					aria-label="Chain"
 					onChange={(e) => changeChain(e.currentTarget.value)}
@@ -120,52 +120,66 @@ export function FibxApp({ app, snapshot }: { app: App; snapshot: Snapshot }) {
 					))}
 				</select>
 				{auth.authenticated && auth.walletAddress ? (
-					<>
-						<button
-							class="ghost mono"
-							data-action="wallet"
-							title={auth.walletAddress}
-							disabled={endingSession}
-							onClick={() => setConfirmingEnd(true)}
-						>
-							{shortAddress(auth.walletAddress)}
-						</button>
-						{confirmingEnd && (
-							<>
-								{/* `danger` on the one that destroys the session, and
-								    not on Keep — the same shape as the policy wipe. */}
-								<button
-									class="ghost danger"
-									data-action="end-session"
-									disabled={endingSession}
-									onClick={() => void endSession()}
-								>
-									End session
-								</button>
-								<button
-									class="ghost"
-									data-action="keep-session"
-									disabled={endingSession}
-									onClick={() => setConfirmingEnd(false)}
-								>
-									Keep
-								</button>
-							</>
-						)}
-						<span class="muted">{session.label}</span>
-						{session.approvesPerTransaction && (
-							<span class="pill">approves on your phone</span>
-						)}
-						{session.policyIsOnlyBound && (
-							<span class="pill warn">bounded by policy only</span>
-						)}
-					</>
+					<button
+						class="hpill mono"
+						data-action="wallet"
+						title={auth.walletAddress}
+						disabled={endingSession}
+						onClick={() => setConfirmingEnd(true)}
+					>
+						{shortAddress(auth.walletAddress)}
+					</button>
 				) : (
-					<button data-action="wallet" onClick={() => setView({ kind: "pairing" })}>
+					<button
+						class="hpill"
+						data-action="wallet"
+						onClick={() => setView({ kind: "pairing" })}
+					>
 						Connect
 					</button>
 				)}
 			</header>
+
+			{confirmingEnd && (
+				<div class="row">
+					<span class="muted">End this session?</span>
+					{/* `danger` on the one that destroys the session, and not on
+					    Keep — the same shape as the policy wipe. */}
+					<button
+						class="ghost danger"
+						data-action="end-session"
+						disabled={endingSession}
+						onClick={() => void endSession()}
+					>
+						End session
+					</button>
+					<button
+						class="ghost"
+						data-action="keep-session"
+						disabled={endingSession}
+						onClick={() => setConfirmingEnd(false)}
+					>
+						Keep
+					</button>
+				</div>
+			)}
+
+			{/* Which of the three signing paths this is, in one line. Only the
+			    path where the local policy is the only bound gets a pill; the
+			    other two are information, and a pill on information trains the
+			    eye to ignore the one that matters. */}
+			{auth.authenticated && (
+				<div class="session-line">
+					<span class="muted">
+						{session.approvesPerTransaction
+							? `${session.label} · approves on your phone`
+							: session.label}
+					</span>
+					{session.policyIsOnlyBound && (
+						<span class="pill warn">bounded by policy only</span>
+					)}
+				</div>
+			)}
 
 			{error && <p class="error">{error}</p>}
 
@@ -204,6 +218,7 @@ export function FibxApp({ app, snapshot }: { app: App; snapshot: Snapshot }) {
 					balances={balances}
 					connected={auth.authenticated}
 					onPickToken={(side) => setView({ kind: "picker", side })}
+					onConnect={() => setView({ kind: "pairing" })}
 					onPolicyRefusal={() => setPolicyOpenNonce((n) => n + 1)}
 					// A settled swap moved the balance the header line and the
 					// shortfall guard are both drawn from.

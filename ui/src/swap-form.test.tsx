@@ -63,12 +63,16 @@ describe("SwapForm", () => {
 		m.unmount();
 	});
 
+	// The gate, on one button now: it offers Simulate, and only a simulate
+	// that succeeded turns it into Swap.
 	it("keeps Swap disabled until a simulate succeeds", async () => {
 		const { m } = form();
-		expect((m.q("button[data-action=swap]") as HTMLButtonElement).disabled).toBe(true);
-		m.click("button[data-action=simulate]");
+		expect(m.q("button[data-action=primary]").getAttribute("data-intent")).toBe("simulate");
+		m.click("button[data-action=primary]");
 		await m.flush();
-		expect((m.q("button[data-action=swap]") as HTMLButtonElement).disabled).toBe(false);
+		const button = m.q("button[data-action=primary]") as HTMLButtonElement;
+		expect(button.getAttribute("data-intent")).toBe("swap");
+		expect(button.disabled).toBe(false);
 		m.unmount();
 	});
 
@@ -76,9 +80,14 @@ describe("SwapForm", () => {
 	// the balance and refuses before any call is made.
 	it("blocks Simulate and names the shortfall when the amount exceeds the balance", () => {
 		const { m, app } = form({ balances: { ETH: "0.0002" } });
-		expect((m.q("button[data-action=simulate]") as HTMLButtonElement).disabled).toBe(true);
-		expect(m.text()).toContain("Insufficient balance");
+		const button = m.q("button[data-action=primary]") as HTMLButtonElement;
+		expect(button.getAttribute("data-intent")).toBe("insufficient");
+		expect(button.disabled).toBe(true);
+		expect(button.textContent).toContain("Insufficient ETH balance");
+		// The balance itself is still on the card, in red, beside the amount
+		// that exceeds it.
 		expect(m.text()).toContain("0.0002 ETH");
+		expect(m.q("button[data-action=max]").className).toContain("over");
 		expect(app.calls.filter((c) => c.name === "swap_tokens")).toHaveLength(0);
 		m.unmount();
 	});
@@ -86,12 +95,12 @@ describe("SwapForm", () => {
 	it("re-quotes when the amount changes, after a debounce, and re-locks Swap", async () => {
 		vi.useFakeTimers();
 		const { m, app } = form();
-		m.click("button[data-action=simulate]");
+		m.click("button[data-action=primary]");
 		await vi.advanceTimersByTimeAsync(0);
-		expect((m.q("button[data-action=swap]") as HTMLButtonElement).disabled).toBe(false);
+		expect(m.q("button[data-action=primary]").getAttribute("data-intent")).toBe("swap");
 		m.type("input[data-field=amount]", "0.002");
 		await vi.advanceTimersByTimeAsync(0);
-		expect((m.q("button[data-action=swap]") as HTMLButtonElement).disabled).toBe(true);
+		expect(m.q("button[data-action=primary]").getAttribute("data-intent")).not.toBe("swap");
 		expect(app.calls.filter((c) => c.name === "get_quote")).toHaveLength(0);
 		await vi.advanceTimersByTimeAsync(450);
 		expect(app.calls.filter((c) => c.name === "get_quote")).toHaveLength(1);
@@ -130,16 +139,17 @@ describe("SwapForm", () => {
 				get_tx_status: new Error("receipt not found"),
 			}
 		);
-		m.click("button[data-action=simulate]");
+		m.click("button[data-action=primary]");
 		await vi.advanceTimersByTimeAsync(0);
-		m.click("button[data-action=swap]");
+		m.click("button[data-action=primary]");
 		await vi.advanceTimersByTimeAsync(0);
 		// Past MAX_POLL_ATTEMPTS seconds of "not mined yet".
 		await vi.advanceTimersByTimeAsync(125_000);
 		expect(m.text()).toContain("0xh");
+		expect(m.q("button[data-action=primary]").getAttribute("data-intent")).toBe("unresolved");
 		for (const sel of [
-			"button[data-action=swap]",
-			"button[data-action=simulate]",
+			"button[data-action=primary]",
+			"button[data-action=flip]",
 			"input[data-field=amount]",
 			"input[data-field=slippage]",
 		]) {
@@ -174,9 +184,9 @@ describe("SwapForm", () => {
 			}
 		);
 		app.openLink = async () => ({ isError: true });
-		m.click("button[data-action=simulate]");
+		m.click("button[data-action=primary]");
 		await vi.advanceTimersByTimeAsync(0);
-		m.click("button[data-action=swap]");
+		m.click("button[data-action=primary]");
 		await vi.advanceTimersByTimeAsync(0);
 		await vi.advanceTimersByTimeAsync(1000);
 		vi.useRealTimers();
@@ -201,7 +211,7 @@ describe("SwapForm", () => {
 			{},
 			{ swap_tokens: new Error("UserRejectedRequestError: User rejected the request") }
 		);
-		m.click("button[data-action=simulate]");
+		m.click("button[data-action=primary]");
 		await m.flush();
 		expect(m.text()).toContain("Rejected in your wallet");
 		// The detail is half the sentence: the map's whole Explained reaches the
@@ -225,7 +235,7 @@ describe("SwapForm", () => {
 				},
 			}
 		);
-		m.click("button[data-action=simulate]");
+		m.click("button[data-action=primary]");
 		await m.flush();
 		expect(m.text()).toContain("Blocked by your signing policy");
 		expect(m.text()).toContain("base.maxValue");
@@ -245,7 +255,7 @@ describe("SwapForm", () => {
 				},
 			}
 		);
-		m.click("button[data-action=simulate]");
+		m.click("button[data-action=primary]");
 		await m.flush();
 		expect(m.text()).toContain("XYZ");
 		expect(m.text()).not.toContain("That token");
@@ -286,12 +296,13 @@ describe("SwapForm", () => {
 	it("refuses a token the balances map omits entirely, reading it as zero", () => {
 		const { m, app } = form({
 			// A quote is seeded, so `short` is the only thing that can be
-			// disabling Simulate here.
+			// disabling the button here.
 			terms: { from: "USDC", to: "ETH", amount: "5", slippage: 0.5 },
 			balances: { ETH: "1" },
 		});
-		expect((m.q("button[data-action=simulate]") as HTMLButtonElement).disabled).toBe(true);
-		expect(m.text()).toContain("Insufficient balance");
+		const button = m.q("button[data-action=primary]") as HTMLButtonElement;
+		expect(button.disabled).toBe(true);
+		expect(button.textContent).toContain("Insufficient USDC balance");
 		expect(m.text()).toContain("0 USDC");
 		expect(app.calls.filter((c) => c.name === "swap_tokens")).toHaveLength(0);
 		m.unmount();
