@@ -23,6 +23,7 @@
 		"build:ui": "vite build -c ui/vite.config.ts",
 		"build": "pnpm build:ui && tsup",
 		"dev": "node --env-file=.env --import tsx/esm src/index.ts",
+		"dev:ui": "pnpm build:ui && vite -c ui/dev-host/vite.config.ts",
 		"start": "node dist/index.js",
 		"pretest": "pnpm typecheck:ui && pnpm build:ui",
 		"test": "vitest run",

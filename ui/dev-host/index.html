@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<title>FibX dev host</title>
+		<style>
+			body {
+				font: 14px system-ui;
+				margin: 0;
+				display: grid;
+				grid-template-columns: 260px 1fr;
+				height: 100vh;
+			}
+			aside {
+				padding: 12px;
+				border-right: 1px solid #ccc;
+				overflow: auto;
+			}
+			iframe {
+				width: 100%;
+				height: 100%;
+				border: 0;
+			}
+			pre {
+				font-size: 11px;
+				white-space: pre-wrap;
+			}
+			label {
+				display: block;
+				margin: 6px 0;
+			}
+		</style>
+	</head>
+	<body>
+		<aside>
+			<h3>Snapshot</h3>
+			<label><input type="radio" name="fixture" value="bare" checked /> bare</label>
+			<label><input type="radio" name="fixture" value="connected" /> connected</label>
+			<label><input type="radio" name="fixture" value="quoted" /> quoted</label>
+			<label><input type="radio" name="fixture" value="quote-error" /> quote error</label>
+			<h3>Outcome</h3>
+			<label><input type="radio" name="outcome" value="confirmed" checked /> confirmed</label>
+			<label><input type="radio" name="outcome" value="reverted" /> reverted</label>
+			<label
+				><input type="radio" name="outcome" value="unknown" /> unknown (never mined)</label
+			>
+			<label
+				><input type="radio" name="outcome" value="insufficient" /> simulate:
+				insufficient</label
+			>
+			<h3>Host</h3>
+			<label><input type="checkbox" id="clipboard" checked /> grant clipboardWrite</label>
+			<label><input type="checkbox" id="wclinks" /> accept wc: in openLink</label>
+			<label
+				>Mode
+				<select id="mode">
+					<option value="fixtures">fixtures</option>
+					<option value="live">live (bridge on :7331)</option>
+				</select></label
+			>
+			<button id="reload">Reload widget</button>
+			<h3>Model context</h3>
+			<pre id="model"></pre>
+			<h3>Calls</h3>
+			<pre id="calls"></pre>
+		</aside>
+		<iframe id="widget" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
+		<script type="module" src="./host.ts"></script>
+	</body>
+</html>

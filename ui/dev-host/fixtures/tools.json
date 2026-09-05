@@ -1,0 +1,66 @@
+{
+	"get_quote": { "$ref": "quoted.json#/quote" },
+	"list_tokens": { "$ref": "tokens.json" },
+	"swap_tokens": [
+		{
+			"success": true,
+			"mode": "SIMULATION (no TX sent)",
+			"amountIn": "0.001",
+			"amountOut": "2.45",
+			"tokenIn": "ETH",
+			"tokenOut": "USDC",
+			"chain": "base",
+			"requiresApproval": false,
+			"estimatedGas": "210000"
+		},
+		{
+			"txHash": "0xabc123",
+			"amountIn": "0.001",
+			"amountOut": "2.45",
+			"tokenIn": "ETH",
+			"tokenOut": "USDC",
+			"chain": "base",
+			"explorer": "https://basescan.org/tx/0xabc123"
+		}
+	],
+	"swap_tokens_insufficient_simulate": {
+		"success": false,
+		"error": "Transaction creation failed. URL: https://mainnet.base.org Request body: {...eth_estimateGas...}"
+	},
+	"get_tx_status": [
+		{ "success": false, "error": "Transaction receipt not found — it may still be pending" },
+		{ "success": false, "error": "Transaction receipt not found — it may still be pending" },
+		{
+			"hash": "0xabc123",
+			"status": "confirmed",
+			"blockNumber": "123",
+			"explorer": "https://basescan.org/tx/0xabc123"
+		}
+	],
+	"get_tx_status_reverted": [
+		{ "success": false, "error": "Transaction receipt not found — it may still be pending" },
+		{ "success": false, "error": "Transaction receipt not found — it may still be pending" },
+		{
+			"hash": "0xabc123",
+			"status": "reverted",
+			"blockNumber": "123",
+			"explorer": "https://basescan.org/tx/0xabc123"
+		}
+	],
+	"get_auth_status": { "$ref": "connected.json#/auth" },
+	"get_balance": { "wallet": "0x0363…", "chain": "base", "balances": { "ETH": "0.0002" } },
+	"get_policy": { "$ref": "connected.json#/policy" },
+	"connect_wallet": {
+		"uri": "wc:deadbeef@2?relay-protocol=irn&symKey=00",
+		"qrDataUri": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><rect width='120' height='120' fill='white'/><text x='10' y='60'>QR</text></svg>",
+		"pairingId": "p1"
+	},
+	"get_connect_status": [
+		{ "status": "pending" },
+		{ "status": "pending" },
+		{ "status": "connected", "address": "0x0363000000000000000000000000000000003d44" }
+	],
+	"logout": { "ok": true },
+	"set_policy_rule": { "ok": true },
+	"clear_policy_rule": { "ok": true }
+}

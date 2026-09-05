@@ -1,0 +1,51 @@
+{
+	"chain": "base",
+	"auth": { "$ref": "connected.json#/auth" },
+	"balances": { "$ref": "connected.json#/balances" },
+	"policy": { "$ref": "connected.json#/policy" },
+	"terms": { "from": "ETH", "to": "USDC", "amount": "0.001", "slippage": 0.5 },
+	"quote": {
+		"input": "0.001 ETH",
+		"output": "~2.45 USDC",
+		"rate": "1 ETH ≈ 2450 USDC",
+		"chain": "base",
+		"slippage": "0.5%",
+		"router": "0xr",
+		"quote": {
+			"fromToken": "ETH",
+			"toToken": "USDC",
+			"inputAmount": "0.001",
+			"outputAmount": "2.45",
+			"minReceived": "2.43",
+			"slippage": 0.5,
+			"usdIn": 2.45,
+			"usdOut": 2.45,
+			"priceImpact": 0.02,
+			"route": [
+				{
+					"protocol": 1,
+					"displayName": "PancakeSwap V3",
+					"pool": "0xaaaa000000000000000000000000000000aaaa"
+				},
+				{
+					"protocol": 2,
+					"displayName": "BaseSwap V3",
+					"pool": "0xbbbb000000000000000000000000000000bbbb"
+				},
+				{
+					"protocol": 3,
+					"displayName": "PancakeSwap Infinity",
+					"pool": "0xcccc000000000000000000000000000000cccc"
+				},
+				{
+					"protocol": 2,
+					"displayName": "BaseSwap V3",
+					"pool": "0xdddd000000000000000000000000000000dddd"
+				}
+			],
+			"routerAddress": "0xr",
+			"chain": "base"
+		}
+	},
+	"quoteError": null
+}

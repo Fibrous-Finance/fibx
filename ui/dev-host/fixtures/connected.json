@@ -1,0 +1,20 @@
+{
+	"chain": "base",
+	"auth": {
+		"authenticated": true,
+		"walletAddress": "0x0363000000000000000000000000000000003d44",
+		"sessionType": "walletconnect",
+		"chain": "base",
+		"requiresApprovalPerTransaction": true,
+		"fibrousStatus": "ok"
+	},
+	"balances": { "ETH": "0.0002" },
+	"policy": {
+		"state": "active",
+		"path": "/Users/dev/Library/Preferences/fibx-nodejs/policy.json",
+		"rules": { "maxValue": { "base": "0.05" } }
+	},
+	"terms": null,
+	"quote": null,
+	"quoteError": null
+}

@@ -1,0 +1,20 @@
+{
+	"chain": "base",
+	"auth": {
+		"authenticated": false,
+		"walletAddress": null,
+		"sessionType": null,
+		"chain": "base",
+		"requiresApprovalPerTransaction": false,
+		"fibrousStatus": "ok"
+	},
+	"balances": null,
+	"policy": {
+		"state": "absent",
+		"path": "/Users/dev/Library/Preferences/fibx-nodejs/policy.json",
+		"message": "No policy file found — signing is unrestricted."
+	},
+	"terms": null,
+	"quote": null,
+	"quoteError": null
+}

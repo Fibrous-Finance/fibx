@@ -1,0 +1,9 @@
+{
+	"chain": "base",
+	"auth": { "$ref": "connected.json#/auth" },
+	"balances": { "$ref": "connected.json#/balances" },
+	"policy": { "$ref": "connected.json#/policy" },
+	"terms": { "from": "XYZ", "to": "USDC", "amount": "1", "slippage": 0.5 },
+	"quote": null,
+	"quoteError": "Token not found: XYZ"
+}
