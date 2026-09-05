@@ -280,11 +280,17 @@ Both surface through MCP and the CLI, so `fibx-server`, `fibx-telegram-bot` and
 - **`open_fibx` is new, and it is the only tool bound to a `ui://` resource.**
   It takes `chain` plus an optional `from`/`to`/`amount`/`slippage` and answers
   with the whole snapshot the app opens on — auth, balances, policy, and a
-  quote where one was asked for. Its description now says which host it is
-  for: it opens with `In a host that renders UI, ` and closes by naming
-  `get_auth_status`, `get_balance` and `get_quote` as what to reach for
-  instead in a text-only host. `fibx-telegram-bot` and CLI agents see this
-  tool and cannot render it, so that last sentence is the contract for them.
+  quote where one was asked for. Its description says it is the entry point
+  in a host that renders MCP Apps UI, that it executes nothing (the user
+  presses Simulate and Swap themselves), and that in a host without UI the
+  result is still a complete JSON snapshot to read. It deliberately does
+  **not** tell the model to prefer other tools anywhere: a model cannot tell
+  which host it is in, and the first hands-on test showed it reading an
+  earlier "in a text-only host, prefer get_quote" sentence as a reason to
+  skip the app in a host that renders it (commit `99feb9f`). The server's
+  connect-time instructions (`MCP_INSTRUCTIONS` in `src/mcp/server.ts`) lead
+  with the same rule. `fibx-telegram-bot` and CLI agents see this tool and
+  cannot render it; for them it is a snapshot, nothing more.
 - **`list_tokens` is new and headless.** It takes a `chain` and returns the
   tokens Fibrous supports on it — symbol, name, address, decimals, and a USD
   price where one is known. It exists for the app's token picker; nothing
