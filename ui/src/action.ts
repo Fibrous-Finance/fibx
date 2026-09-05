@@ -61,8 +61,7 @@ export function primaryAction(input: PrimaryInput): PrimaryAction {
 	if (!connected) return go("connect", "Connect wallet", true);
 	if (state.kind === "unknown") return go("unresolved", "Unresolved — check the explorer");
 	if (state.kind === "simulating") return go("simulating", "Simulating…");
-	if (state.kind === "swapping" || state.kind === "broadcast")
-		return go("waiting", "Waiting for confirmation…");
+	if (state.kind === "swapping" || state.kind === "broadcast") return go("waiting", "Waiting…");
 	if (state.kind === "failed") return go("retry", "Try again", !locked);
 	if (state.kind === "confirmed" || state.kind === "reverted")
 		return go("swap-again", "Swap again", true);

@@ -147,6 +147,11 @@ describe("SwapForm", () => {
 		await vi.advanceTimersByTimeAsync(125_000);
 		expect(m.text()).toContain("0xh");
 		expect(m.q("button[data-action=primary]").getAttribute("data-intent")).toBe("unresolved");
+		// `unknown` carries amounts but no quote — the rate chip, the detail
+		// line and its route stay on screen from the quote this card last held,
+		// not just the bare hash.
+		expect(m.text()).toContain("Hydrex");
+		expect(m.text()).toContain(QUOTE.rate);
 		for (const sel of [
 			"button[data-action=primary]",
 			"button[data-action=flip]",
@@ -191,6 +196,10 @@ describe("SwapForm", () => {
 		await vi.advanceTimersByTimeAsync(1000);
 		vi.useRealTimers();
 		expect(m.text()).toContain("confirmed");
+		// Same guarantee in `confirmed`: the quote this card last held is still
+		// what explains the rate and the route, not just the receipt.
+		expect(m.text()).toContain("Hydrex");
+		expect(m.text()).toContain(QUOTE.rate);
 		const explorerButton = Array.from(m.container.querySelectorAll("button")).find((b) =>
 			b.textContent?.includes("View on explorer")
 		);

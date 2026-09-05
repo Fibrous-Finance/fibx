@@ -92,7 +92,18 @@ export function SwapForm({
 				})
 			: seeded;
 	});
-	const dispatch = (ev: Event) => setState((s) => transition(s, ev));
+	// The last non-null quote this card held. `broadcast`, `confirmed`,
+	// `reverted` and `unknown` carry `amounts` but no `quote` — without this,
+	// the rate chip, the detail line and the box USD/impact meta vanish the
+	// instant Swap is pressed, which is exactly when the user most wants to
+	// see what they committed to. Cleared only on TERMS_CHANGED (a genuine new
+	// pair or a fresh requote), so a new quote request never shows a stale
+	// rate while it is in flight.
+	const lastQuote = useRef<QuoteResult | null>(null);
+	const dispatch = (ev: Event) => {
+		if (ev.type === "TERMS_CHANGED") lastQuote.current = null;
+		setState((s) => transition(s, ev));
+	};
 
 	const [slippageDraft, setSlippageDraft] = useState(() => String(terms.slippage));
 	const [slippageError, setSlippageError] = useState<string | null>(null);
@@ -145,6 +156,12 @@ export function SwapForm({
 	}, [state.terms.slippage]);
 
 	const currentQuote = quoteOf(state);
+	// Remembers the current quote the moment the machine carries one, so it
+	// survives into the four states that do not.
+	useEffect(() => {
+		if (currentQuote) lastQuote.current = currentQuote;
+	}, [currentQuote]);
+	const displayQuote = currentQuote ?? lastQuote.current;
 	const locked = isLocked(state);
 	const liveTerms = state.terms;
 
@@ -366,8 +383,8 @@ export function SwapForm({
 		scheduleQuote(liveTerms);
 	}
 
-	const routed = currentQuote !== null && hasRoute(currentQuote);
-	const routedQuote = currentQuote && hasRoute(currentQuote) ? currentQuote.quote : null;
+	const routed = displayQuote !== null && hasRoute(displayQuote);
+	const routedQuote = displayQuote && hasRoute(displayQuote) ? displayQuote.quote : null;
 	const impact = routedQuote ? formatImpact(routedQuote.priceImpact) : null;
 	const impactUnknown = routed && impact === null;
 	const impactClass = impact?.severity === "bad" ? "err" : (impact?.severity ?? "");
@@ -411,11 +428,23 @@ export function SwapForm({
 	}
 
 	const heldOut = balances ? (balances[liveTerms.to] ?? "0") : undefined;
-	const outputAmount = currentQuote
-		? formatAmountShort(
-				hasRoute(currentQuote) ? currentQuote.quote.outputAmount : currentQuote.output
-			)
-		: "—";
+	// Once a swap has broadcast, the amounts it moved are the state's own
+	// record (`state.amounts`), not the quote — a re-quote can never reach
+	// these four kinds, but the box should still read what was actually sent.
+	const settledAmounts =
+		state.kind === "broadcast" ||
+		state.kind === "confirmed" ||
+		state.kind === "reverted" ||
+		state.kind === "unknown"
+			? state.amounts
+			: null;
+	const outputAmount = settledAmounts
+		? formatAmountShort(settledAmounts.amountOut)
+		: currentQuote
+			? formatAmountShort(
+					hasRoute(currentQuote) ? currentQuote.quote.outputAmount : currentQuote.output
+				)
+			: "—";
 
 	return (
 		<div class="card">
@@ -501,18 +530,22 @@ export function SwapForm({
 				</div>
 			</div>
 
-			{currentQuote && <div class="chip">⇄ {currentQuote.rate}</div>}
+			{displayQuote && <div class="chip">⇄ {displayQuote.rate}</div>}
 
 			<div class="detail-line">
+				{/* Each part carries its own leading separator as a `::before` on
+				    `.detail-sep` (nothing on the first part) — a single flex item,
+				    dot glued to its text — so a wrap never strands a bare "·" at
+				    the line break the way a standalone separator span could. */}
 				{routedQuote && (
-					<>
-						<span title="Estimated from this quote. swap_tokens re-routes when it runs and derives its own on-chain floor.">
-							Min ≈ {formatAmountShort(routedQuote.minReceived)} {routedQuote.toToken}
-						</span>
-						<span>·</span>
-					</>
+					<span
+						class="detail-sep"
+						title="Estimated from this quote. swap_tokens re-routes when it runs and derives its own on-chain floor."
+					>
+						Min ≈ {formatAmountShort(routedQuote.minReceived)} {routedQuote.toToken}
+					</span>
 				)}
-				<span>
+				<span class="detail-sep">
 					Slippage{" "}
 					<input
 						class="mono"
@@ -525,10 +558,9 @@ export function SwapForm({
 					%
 				</span>
 				{routedQuote && routedQuote.route.length > 0 && (
-					<>
-						<span>·</span>
-						<span>via {routedQuote.route.map(routeLabel).join(" › ")}</span>
-					</>
+					<span class="detail-sep">
+						via {routedQuote.route.map(routeLabel).join(" › ")}
+					</span>
 				)}
 			</div>
 			{slippageError && <p class="error">{slippageError}</p>}

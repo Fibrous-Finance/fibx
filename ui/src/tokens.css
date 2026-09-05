@@ -379,6 +379,14 @@ input.box-amount:disabled {
 	font-size: 12px;
 }
 
+/* The dot lives on the part it precedes, not as its own flex item, so a wrap
+   moves separator and text together instead of stranding a bare "·" at the
+   line break. The first part gets no dot. */
+.detail-line .detail-sep:not(:first-child)::before {
+	content: "·";
+	margin-right: 6px;
+}
+
 .primary {
 	width: 100%;
 	height: 48px;

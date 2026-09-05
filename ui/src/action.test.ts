@@ -91,12 +91,12 @@ describe("primaryAction", () => {
 		});
 		expect(act({ kind: "swapping", terms: TERMS, quote: QUOTE, sim: SIM })).toEqual({
 			intent: "waiting",
-			label: "Waiting for confirmation…",
+			label: "Waiting…",
 			enabled: false,
 		});
 		expect(act({ kind: "broadcast", terms: TERMS, txHash: "0xh", amounts: AMOUNTS })).toEqual({
 			intent: "waiting",
-			label: "Waiting for confirmation…",
+			label: "Waiting…",
 			enabled: false,
 		});
 	});
