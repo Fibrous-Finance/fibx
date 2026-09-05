@@ -277,6 +277,18 @@ Both surface through MCP and the CLI, so `fibx-server`, `fibx-telegram-bot` and
   protocol display names where the Fibrous graph API resolves them), the exact
   output, the slippage floor and the derived price impact. Wrap/unwrap results
   still have no `quote` — a 1:1 conversion has no route to describe.
+- **`open_fibx` is new, and it is the only tool bound to a `ui://` resource.**
+  It takes `chain` plus an optional `from`/`to`/`amount`/`slippage` and answers
+  with the whole snapshot the app opens on — auth, balances, policy, and a
+  quote where one was asked for. Its description now says which host it is
+  for: it opens with `In a host that renders UI, ` and closes by naming
+  `get_auth_status`, `get_balance` and `get_quote` as what to reach for
+  instead in a text-only host. `fibx-telegram-bot` and CLI agents see this
+  tool and cannot render it, so that last sentence is the contract for them.
+- **`list_tokens` is new and headless.** It takes a `chain` and returns the
+  tokens Fibrous supports on it — symbol, name, address, decimals, and a USD
+  price where one is known. It exists for the app's token picker; nothing
+  stops another consumer using it.
 
 ---
 
@@ -285,8 +297,9 @@ Both surface through MCP and the CLI, so `fibx-server`, `fibx-telegram-bot` and
 ### 1. Task 10 — manual verification, on a real wallet in Claude Desktop
 
 **Nobody has done this.** It is the gate on `npm publish`. Full steps are in
-`docs/superpowers/plans/2026-09-05-fibx-app-widget.md`'s Task 10; the five
-gates, one line each:
+`docs/superpowers/plans/2026-09-05-fibx-app-widget.md`'s Task 10; the six
+gates, one line each (the sixth was added by the branch review — it is the
+only one that needs no wallet):
 
 1. **The model reaches for `open_fibx`** for a wallet-status question, a
    what-would-I-get question and a swap request alike — all three should open
@@ -304,6 +317,12 @@ gates, one line each:
    follows the hash to settled and the model's next turn says the swap
    _settled_, never "swapped X for Y" as fact before the receipt arrives; then
    a tightened `base.maxValue` still refuses a swap and names the rule.
+6. **Both refusals, seen once** — in the dev host (`pnpm dev:ui`, no bridge
+   needed), open the pairing view with _grant clipboardWrite_ and _accept
+   wc:_ **both unchecked**. Copy link must become the clipboard-refused
+   sentence and Open in your wallet the wallet-links sentence. This is the
+   state that motivated the spec, and nobody has yet watched either control
+   actually be refused — gate 2 above sees them granted.
 
 ```bash
 git commit --allow-empty -m "chore: verify the app by hand on a real wallet"

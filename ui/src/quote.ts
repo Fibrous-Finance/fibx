@@ -10,7 +10,7 @@ export type Quote = {
 	minReceived: string;
 	slippage: number;
 	// Null where the route carried no usable price for that token. A missing
-	// price used to arrive here as 0, which the card drew as "$0.00" beneath a
+	// price used to arrive here as 0, which the form drew as "$0.00" beneath a
 	// real amount and — through price impact's zero branch — as a green
 	// "0.00%" pill, a fabricated safety signal on the one number that exists to
 	// make a user stop. Absent is now absent.
@@ -32,7 +32,7 @@ export type Severity = "ok" | "warn" | "bad";
  * Returns null when there is no impact to describe — `get_quote` sends null
  * whenever either side's price was missing. A caller must render that as an
  * explicit unknown and NOT as a severity, because a colour on an absent
- * number is a claim the card cannot back.
+ * number is a claim the app cannot back.
  */
 export function formatImpact(
 	impact: number | null | undefined
@@ -43,7 +43,7 @@ export function formatImpact(
 }
 
 /**
- * A USD value the card can stand behind, or an explicit dash. Rendering an
+ * A USD value the app can stand behind, or an explicit dash. Rendering an
  * absent price as "$0.00" puts a number under a real amount that nothing
  * supports; a dash says what is actually true.
  */
@@ -53,7 +53,7 @@ export function formatUsd(value: number | null | undefined): string {
 }
 
 /**
- * The highest slippage the card will send. Slippage is the floor on what the
+ * The highest slippage the swap form will send. Slippage is the floor on what the
  * user receives: `swap_tokens` derives the on-chain `min_received` from this
  * same number, and the local signing policy cannot catch a bad one — its
  * `maxValue` bounds native value only, so an ERC-20 swap reaches the router
@@ -62,7 +62,7 @@ export function formatUsd(value: number | null | undefined): string {
  *
  * The tool schema carries its own, wider bound (src/mcp/tools/trade.ts). This
  * is not a substitute for that one: the model calls the schema directly,
- * never passing through this card.
+ * never passing through the swap form.
  */
 export const MAX_SLIPPAGE_PERCENT = 5;
 

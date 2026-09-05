@@ -31,7 +31,7 @@ function parseArgs(server: McpServer, name: string, args: Record<string, unknown
 	return schema.safeParse({ amount: "1", from_token: "ETH", to_token: "USDC", ...args }).success;
 }
 
-// get_quote used to be the swap card's bound tool; open_fibx (src/mcp/tools/
+// get_quote used to be a bound tool of its own; open_fibx (src/mcp/tools/
 // app.ts) is now the only tool bound to a ui:// resource, composing this same
 // handler into its snapshot. get_quote itself goes back to headless, same as
 // swap_tokens below.
@@ -73,12 +73,12 @@ describe("swap_tokens is never bound to a UI resource", () => {
 	});
 });
 
-// A limit in the swap card alone is bypassable: the model calls these schemas
-// directly and never passes through the card. swap_tokens derives the on-chain
-// min_received from this number, and the local signing policy cannot catch a
-// bad one either — maxValue bounds native value only, so an ERC-20 swap
+// A limit in the app's swap form alone is bypassable: the model calls these
+// schemas directly and never passes through the form. swap_tokens derives the
+// on-chain min_received from this number, and the local signing policy cannot
+// catch a bad one either — maxValue bounds native value only, so an ERC-20 swap
 // reaches the router with value: 0n and the cap never sees the amount.
-describe("slippage is bounded by the schema, not only by the card", () => {
+describe("slippage is bounded by the schema, not only by the form", () => {
 	const server = new McpServer({ name: "fibx-test", version: "0.0.0" });
 	registerTradeTools(server);
 

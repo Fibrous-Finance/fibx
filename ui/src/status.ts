@@ -30,7 +30,7 @@ type ToolResultLike = { content?: Array<{ type: string; text?: string }> };
 /**
  * Every fibx tool answers with a single text block holding JSON. Decode it in
  * one place, and fail loudly when the shape is not that — a silent `undefined`
- * would surface as a blank panel with nothing to grep for.
+ * would surface as a blank app with nothing to grep for.
  */
 export function parseToolJson<T>(result: ToolResultLike): T {
 	const text = result.content?.find((c) => c.type === "text")?.text;

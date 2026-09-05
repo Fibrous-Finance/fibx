@@ -29,11 +29,11 @@ export const amountSchema = z.string().refine(
  * - `fibx quote` / `fibx trade` (`src/index.ts` → these commands), which pass
  *   through neither the schema nor any UI and were unbounded until this
  *   existed;
- * - the swap card, which refuses at a deliberately tighter 5%
+ * - the app's swap form, which refuses at a deliberately tighter 5%
  *   (`ui/src/quote.ts`) because a human typing into a box is a different risk
  *   from a caller asking for a wide slippage on an illiquid pair.
  *
- * The bound is not the card's: it is the outer wall behind it.
+ * The bound is not the form's: it is the outer wall behind it.
  */
 export const MIN_SLIPPAGE_PERCENT = 0.01;
 export const MAX_SLIPPAGE_PERCENT = 50;

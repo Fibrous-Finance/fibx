@@ -15,8 +15,12 @@ export function registerAppTools(server: McpServer): number {
 		"open_fibx",
 		{
 			title: "Open FibX",
+			// The Telegram bot and every CLI agent see this tool too, and in
+			// those hosts nobody sees an app or acts from it. The description
+			// says which host it is for, and names the headless tools that
+			// answer the same questions in the other one.
 			description:
-				"Open the FibX app: wallet, balances, signing policy, and a swap form with the Fibrous route. Call this for anything about the wallet, a balance, a quote, or a swap — the user sees the app and acts from it. Pass from/to/amount to open it pre-filled with a quote. Supported chains: Base, HyperEVM, Monad.",
+				"In a host that renders UI, open the FibX app: wallet, balances, signing policy, and a swap form with the Fibrous route. Call this for anything about the wallet, a balance, a quote, or a swap — the user sees the app and acts from it. Pass from/to/amount to open it pre-filled with a quote. Supported chains: Base, HyperEVM, Monad. In a text-only host, prefer get_auth_status, get_balance and get_quote.",
 			inputSchema: {
 				chain: ChainEnum.default("base").describe("Chain to open on"),
 				from: z.string().optional().describe("Source token symbol, to pre-fill a swap"),

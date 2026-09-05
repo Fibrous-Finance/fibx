@@ -49,7 +49,7 @@ describe("formatUsd", () => {
 		expect(formatUsd(4000)).toBe("$4000.00");
 	});
 
-	// "$0.00" beneath a real amount is a number the card cannot justify. The
+	// "$0.00" beneath a real amount is a number the app cannot justify. The
 	// dash says what is true instead.
 	it("renders an absent value as an explicit dash", () => {
 		expect(formatUsd(null)).toBe("—");
@@ -128,8 +128,8 @@ describe("nextTxPoll", () => {
 		expect(nextTxPoll("reverted", 5).action).toBe("stop");
 	});
 
-	// Reuses the wallet-panel's own ceiling rather than a second invented
-	// number, so both poll loops give up on the same schedule.
+	// Reuses the pairing loop's own ceiling (status.ts) rather than a second
+	// invented number, so both poll loops give up on the same schedule.
 	it("gives up after the shared attempt ceiling", () => {
 		expect(nextTxPoll(undefined, MAX_POLL_ATTEMPTS).action).toBe("expired");
 	});

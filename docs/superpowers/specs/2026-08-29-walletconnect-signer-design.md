@@ -56,15 +56,15 @@ backend, and viem then broadcasts the signed payload with `eth_sendRawTransactio
 That shape does not work over WalletConnect: **MetaMask does not implement
 `eth_signTransaction` over WalletConnect**, and support across other wallets is
 inconsistent. What wallets do implement is `eth_sendTransaction` — the wallet
-signs *and* broadcasts.
+signs _and_ broadcasts.
 
 So the WalletConnect branch builds the client the other way round:
 
 ```ts
 createWalletClient({
-  account: session.walletAddress,   // an address, not a local account
-  chain: chain.viemChain,
-  transport: custom(walletConnectProvider),
+	account: session.walletAddress, // an address, not a local account
+	chain: chain.viemChain,
+	transport: custom(walletConnectProvider),
 });
 ```
 
@@ -162,7 +162,7 @@ it in their wallet and re-pair — never a bare RPC failure.
 An earlier draft had the provider attempt `wallet_addEthereumChain` followed by
 `wallet_switchEthereumChain`. That cannot work, and the Task 5 review proved it
 against the installed SDK: `signClient.request()` validates the chain id and the
-method against the session's namespaces *locally* and throws before anything
+method against the session's namespaces _locally_ and throws before anything
 reaches the relay. A repair request is by definition scoped to the chain that is
 missing, so it fails that check every time — and `wallet_addEthereumChain` is not
 among the methods this client negotiates, so it would fail the method check too.
@@ -267,14 +267,14 @@ external request.
 
 Every case below produces a typed `FibxError`, never a bare RPC failure:
 
-| Case | Behaviour |
-|---|---|
-| User rejects the pairing | Clear message; no session written |
-| Pairing expires | Message names the expiry and how to retry |
-| Session disconnected or expired at use time | Detected before signing; tells the user to run `fibx auth connect` |
-| Chain absent from session | Fail before contacting the wallet, with a typed `UNSUPPORTED_CHAIN` naming the chain and the manual step — see Chain coverage |
-| Relay unreachable | Existing retry helper, then a message distinguishing network failure from rejection |
-| User rejects a signature | Distinguished from a failure — this is a normal outcome |
+| Case                                        | Behaviour                                                                                                                     |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| User rejects the pairing                    | Clear message; no session written                                                                                             |
+| Pairing expires                             | Message names the expiry and how to retry                                                                                     |
+| Session disconnected or expired at use time | Detected before signing; tells the user to run `fibx auth connect`                                                            |
+| Chain absent from session                   | Fail before contacting the wallet, with a typed `UNSUPPORTED_CHAIN` naming the chain and the manual step — see Chain coverage |
+| Relay unreachable                           | Existing retry helper, then a message distinguishing network failure from rejection                                           |
+| User rejects a signature                    | Distinguished from a failure — this is a normal outcome                                                                       |
 
 ## Testing
 

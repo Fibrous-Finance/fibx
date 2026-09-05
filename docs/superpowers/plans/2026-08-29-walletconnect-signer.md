@@ -4,7 +4,7 @@
 
 **Goal:** Let someone pair the `fibx` CLI with the wallet they already own over WalletConnect v2, so signing happens on their phone instead of in a wallet FibX minted for them.
 
-**Architecture:** WalletConnect becomes a third branch in `getWalletClient()`, the single 47-line file where every signer decision already lives. Unlike the Privy path — which builds a viem *account* and broadcasts the signed payload itself — this branch builds a viem client from a bare address plus a custom EIP-1193 transport, so viem emits `eth_sendTransaction` and the wallet signs *and* broadcasts. The Privy and private-key paths are untouched.
+**Architecture:** WalletConnect becomes a third branch in `getWalletClient()`, the single 47-line file where every signer decision already lives. Unlike the Privy path — which builds a viem _account_ and broadcasts the signed payload itself — this branch builds a viem client from a bare address plus a custom EIP-1193 transport, so viem emits `eth_sendTransaction` and the wallet signs _and_ broadcasts. The Privy and private-key paths are untouched.
 
 **Tech Stack:** TypeScript (ESM, `.js` import specifiers), viem 2.x, `@walletconnect/sign-client` 2.24.0, `qrcode` 1.5.4, vitest, zod 4.
 
@@ -26,40 +26,42 @@
 
 **Created:**
 
-| File | Responsibility |
-|---|---|
-| `src/services/walletconnect/storage.ts` | `IKeyValueStorage` backed by a `0600` JSON file in `paths.config` |
-| `src/services/walletconnect/client.ts` | `SignClient` singleton — init once per process, reuse |
-| `src/services/walletconnect/namespaces.ts` | CAIP-2 namespace construction and account/chain extraction |
-| `src/services/walletconnect/connect.ts` | Session lifecycle: produce a URI, await approval, return the session, and tear one down on logout |
-| `src/services/walletconnect/provider.ts` | EIP-1193 shim over a live session, pinned to one chain |
-| `src/services/walletconnect/qr.ts` | QR as a terminal string and as a data URI |
-| `src/commands/auth/connect.ts` | `fibx auth connect` |
+| File                                       | Responsibility                                                                                    |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `src/services/walletconnect/storage.ts`    | `IKeyValueStorage` backed by a `0600` JSON file in `paths.config`                                 |
+| `src/services/walletconnect/client.ts`     | `SignClient` singleton — init once per process, reuse                                             |
+| `src/services/walletconnect/namespaces.ts` | CAIP-2 namespace construction and account/chain extraction                                        |
+| `src/services/walletconnect/connect.ts`    | Session lifecycle: produce a URI, await approval, return the session, and tear one down on logout |
+| `src/services/walletconnect/provider.ts`   | EIP-1193 shim over a live session, pinned to one chain                                            |
+| `src/services/walletconnect/qr.ts`         | QR as a terminal string and as a data URI                                                         |
+| `src/commands/auth/connect.ts`             | `fibx auth connect`                                                                               |
 
 **Modified:**
 
-| File | Change |
-|---|---|
-| `src/services/auth/session.ts` | `type` enum gains `"walletconnect"`; add `wcTopic` |
-| `src/lib/config.ts` | Project id constant and accessor |
-| `src/services/chain/client.ts` | `getWalletClient()` becomes async; third branch; `managesOwnNonce()` |
-| `src/services/defi/aave.ts` | `setWalletClient` takes a capability; `sendWithNonce` honours it |
-| `src/commands/trade/swap.ts:48`, `src/commands/wallet/send.ts:38`, `src/commands/defi/aave.ts:172`, `src/mcp/handlers/trade.ts:42`, `src/mcp/handlers/wallet.ts:64`, `src/mcp/handlers/defi.ts:20,88` | `await getWalletClient(...)` |
-| `src/index.ts` | Register `auth connect` |
-| `src/mcp/tools/auth.ts`, `src/mcp/handlers/auth.ts` | `connect_wallet`, `get_connect_status`; `get_auth_status` reports the session type |
-| `src/commands/auth/logout.ts` | Disconnect the wallet's side and remove the pairing store |
-| `package.json` | Six devDependencies: `@walletconnect/sign-client`, `@walletconnect/types`, `@walletconnect/keyvaluestorage`, `@walletconnect/utils`, `qrcode`, `@types/qrcode`. The three `@walletconnect` companions and `/utils` are transitive dependencies of `sign-client`, but pnpm does not hoist undeclared transitive dependencies — anything imported by name has to be declared or `tsc --noEmit` fails with TS2307 |
-| `README.md`, `MCP.md`, `server.json` | Document the third path and `FIBX_WC_PROJECT_ID` |
+| File                                                                                                                                                                                                  | Change                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/services/auth/session.ts`                                                                                                                                                                        | `type` enum gains `"walletconnect"`; add `wcTopic`                                                                                                                                                                                                                                                                                                                                                             |
+| `src/lib/config.ts`                                                                                                                                                                                   | Project id constant and accessor                                                                                                                                                                                                                                                                                                                                                                               |
+| `src/services/chain/client.ts`                                                                                                                                                                        | `getWalletClient()` becomes async; third branch; `managesOwnNonce()`                                                                                                                                                                                                                                                                                                                                           |
+| `src/services/defi/aave.ts`                                                                                                                                                                           | `setWalletClient` takes a capability; `sendWithNonce` honours it                                                                                                                                                                                                                                                                                                                                               |
+| `src/commands/trade/swap.ts:48`, `src/commands/wallet/send.ts:38`, `src/commands/defi/aave.ts:172`, `src/mcp/handlers/trade.ts:42`, `src/mcp/handlers/wallet.ts:64`, `src/mcp/handlers/defi.ts:20,88` | `await getWalletClient(...)`                                                                                                                                                                                                                                                                                                                                                                                   |
+| `src/index.ts`                                                                                                                                                                                        | Register `auth connect`                                                                                                                                                                                                                                                                                                                                                                                        |
+| `src/mcp/tools/auth.ts`, `src/mcp/handlers/auth.ts`                                                                                                                                                   | `connect_wallet`, `get_connect_status`; `get_auth_status` reports the session type                                                                                                                                                                                                                                                                                                                             |
+| `src/commands/auth/logout.ts`                                                                                                                                                                         | Disconnect the wallet's side and remove the pairing store                                                                                                                                                                                                                                                                                                                                                      |
+| `package.json`                                                                                                                                                                                        | Six devDependencies: `@walletconnect/sign-client`, `@walletconnect/types`, `@walletconnect/keyvaluestorage`, `@walletconnect/utils`, `qrcode`, `@types/qrcode`. The three `@walletconnect` companions and `/utils` are transitive dependencies of `sign-client`, but pnpm does not hoist undeclared transitive dependencies — anything imported by name has to be declared or `tsc --noEmit` fails with TS2307 |
+| `README.md`, `MCP.md`, `server.json`                                                                                                                                                                  | Document the third path and `FIBX_WC_PROJECT_ID`                                                                                                                                                                                                                                                                                                                                                               |
 
 ---
 
 ### Task 1: Session schema accepts a WalletConnect session
 
 **Files:**
+
 - Modify: `src/services/auth/session.ts:8-18`
 - Test: `src/services/auth/session.test.ts` (create)
 
 **Interfaces:**
+
 - Consumes: nothing
 - Produces: `Session.type` may be `"walletconnect"`; `Session.wcTopic?: string`
 
@@ -188,11 +190,13 @@ version parseable, so no migration runs."
 ### Task 2: File-backed SignClient storage
 
 **Files:**
+
 - Create: `src/services/walletconnect/storage.ts`
 - Test: `src/services/walletconnect/storage.test.ts`
 - Modify: `package.json`, `src/lib/config.ts`
 
 **Interfaces:**
+
 - Consumes: `paths` from `src/lib/config.ts`
 - Produces: `class FileKeyValueStorage implements IKeyValueStorage`, `getWcProjectId(): string`, `WC_STORAGE_FILE: string`
 
@@ -403,16 +407,18 @@ keeps secret pairing material with the other credentials instead."
 ### Task 3: CAIP-2 namespaces
 
 **Files:**
+
 - Create: `src/services/walletconnect/namespaces.ts`
 - Test: `src/services/walletconnect/namespaces.test.ts`
 
 **Interfaces:**
+
 - Consumes: `SUPPORTED_CHAINS`, `CHAIN_NAMES` from `src/services/chain/constants.ts`
 - Produces:
-  - `buildOptionalNamespaces(): { eip155: { chains: string[]; methods: string[]; events: string[] } }`
-  - `caip2(chainId: number): string`
-  - `firstAccountAddress(namespaces: Record<string, { accounts: string[] }>): string | null`
-  - `sessionHasChain(namespaces: Record<string, { accounts: string[] }>, chainId: number): boolean`
+    - `buildOptionalNamespaces(): { eip155: { chains: string[]; methods: string[]; events: string[] } }`
+    - `caip2(chainId: number): string`
+    - `firstAccountAddress(namespaces: Record<string, { accounts: string[] }>): string | null`
+    - `sessionHasChain(namespaces: Record<string, { accounts: string[] }>, chainId: number): boolean`
 
 `optionalNamespaces` rather than `requiredNamespaces` is load-bearing: a required namespace the wallet does not know fails the whole pairing, and most wallets do not have Monad or HyperEVM configured.
 
@@ -438,9 +444,7 @@ describe("caip2", () => {
 describe("buildOptionalNamespaces", () => {
 	it("covers every offered chain", () => {
 		const ns = buildOptionalNamespaces();
-		expect(ns.eip155.chains.sort()).toEqual(
-			["eip155:143", "eip155:8453", "eip155:999"].sort()
-		);
+		expect(ns.eip155.chains.sort()).toEqual(["eip155:143", "eip155:8453", "eip155:999"].sort());
 	});
 
 	// eth_signTransaction is deliberately absent: MetaMask does not implement it
@@ -569,16 +573,18 @@ and most wallets have no Monad or HyperEVM entry."
 ### Task 4: SignClient singleton and pairing
 
 **Files:**
+
 - Create: `src/services/walletconnect/client.ts`, `src/services/walletconnect/connect.ts`
 - Test: `src/services/walletconnect/connect.test.ts`
 
 **Interfaces:**
+
 - Consumes: `FileKeyValueStorage`, `getWcProjectId`, `WC_STORAGE_FILE`, `buildOptionalNamespaces`, `firstAccountAddress`
 - Produces:
-  - `getSignClient(): Promise<ISignClient>` — memoised per process
-  - `createPairing(): Promise<{ uri: string; approval: () => Promise<PairedSession> }>`
-  - `interface PairedSession { topic: string; address: string }`
-  - `getActiveSession(topic: string): Promise<SessionTypes.Struct>` — throws `SESSION_EXPIRED` when gone
+    - `getSignClient(): Promise<ISignClient>` — memoised per process
+    - `createPairing(): Promise<{ uri: string; approval: () => Promise<PairedSession> }>`
+    - `interface PairedSession { topic: string; address: string }`
+    - `getActiveSession(topic: string): Promise<SessionTypes.Struct>` — throws `SESSION_EXPIRED` when gone
 
 - [ ] **Step 1: Write the failing test**
 
@@ -842,10 +848,12 @@ each produce a typed error rather than a bare relay failure."
 ### Task 5: EIP-1193 provider over the session
 
 **Files:**
+
 - Create: `src/services/walletconnect/provider.ts`
 - Test: `src/services/walletconnect/provider.test.ts`
 
 **Interfaces:**
+
 - Consumes: `getSignClient`, `getActiveSession`, `caip2`, `sessionHasChain`, `SUPPORTED_CHAINS`
 - Produces: `createWalletConnectProvider(topic: string, chain: ChainConfig): { request(args: { method: string; params?: unknown[] }): Promise<unknown> }`
 
@@ -952,9 +960,7 @@ describe("walletconnect provider", () => {
 		const provider = createWalletConnectProvider("t", MONAD);
 		await provider.request({ method: "eth_sendTransaction", params: [{}] });
 
-		expect(request.mock.calls.map((c) => c[0].request.method)).toEqual([
-			"eth_sendTransaction",
-		]);
+		expect(request.mock.calls.map((c) => c[0].request.method)).toEqual(["eth_sendTransaction"]);
 	});
 });
 ```
@@ -1059,10 +1065,12 @@ opaque wallet error."
 ### Task 6: QR rendering
 
 **Files:**
+
 - Create: `src/services/walletconnect/qr.ts`
 - Test: `src/services/walletconnect/qr.test.ts`
 
 **Interfaces:**
+
 - Consumes: `qrcode`
 - Produces: `renderQrTerminal(text: string): Promise<string>`, `renderQrDataUri(text: string): Promise<string>`
 
@@ -1142,16 +1150,18 @@ git commit -m "feat: render the pairing code for a terminal and for HTML hosts"
 ### Task 7: The seam — async `getWalletClient` with a WalletConnect branch
 
 **Files:**
+
 - Modify: `src/services/chain/client.ts` (whole file)
 - Modify: `src/commands/trade/swap.ts:48`, `src/commands/wallet/send.ts:38`, `src/commands/defi/aave.ts:172`, `src/mcp/handlers/trade.ts:42`, `src/mcp/handlers/wallet.ts:64`, `src/mcp/handlers/defi.ts:20` and `:88`
 - Modify tests that mock it: `src/commands/trade/swap.test.ts:94`, `src/mcp/handlers/trade.test.ts:68`, `src/mcp/handlers/defi.test.ts:52`, `src/commands/defi/aave.test.ts:71`
 - Test: `src/services/chain/client.test.ts` (create)
 
 **Interfaces:**
+
 - Consumes: `createWalletConnectProvider`, `Session`
 - Produces:
-  - `getWalletClient(session: Session, chain: ChainConfig): Promise<WalletClient>` — **now async**
-  - `managesOwnNonce(session: Session): boolean`
+    - `getWalletClient(session: Session, chain: ChainConfig): Promise<WalletClient>` — **now async**
+    - `managesOwnNonce(session: Session): boolean`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1238,9 +1248,9 @@ describe("getWalletClient — walletconnect", () => {
 	});
 
 	it("refuses a walletconnect session with no topic", async () => {
-		await expect(
-			getWalletClient({ ...wcSession, wcTopic: undefined }, BASE)
-		).rejects.toThrow(/fibx auth connect/);
+		await expect(getWalletClient({ ...wcSession, wcTopic: undefined }, BASE)).rejects.toThrow(
+			/fibx auth connect/
+		);
 	});
 });
 
@@ -1390,11 +1400,13 @@ over WalletConnect."
 ### Task 8: Let the wallet own the nonce for Aave
 
 **Files:**
+
 - Modify: `src/services/defi/aave.ts:92-97` (`setWalletClient`), `:505-507` (`sendWithNonce`), and the eight `writeContract` calls at `:248, :278, :301, :323, :361, :407, :438, :474`
 - Modify: `src/commands/defi/aave.ts:172`, `src/mcp/handlers/defi.ts:20,88` — pass the capability
 - Test: `src/services/defi/aave.nonce.test.ts` (create)
 
 **Interfaces:**
+
 - Consumes: `managesOwnNonce` from `src/services/chain/client.ts`
 - Produces: `setWalletClient(client: WalletClient, opts?: { managesOwnNonce?: boolean }): void`
 
@@ -1412,11 +1424,8 @@ import type { WalletClient } from "viem";
 // network is flaky by construction, and nothing else in this suite touches it.
 const mocks = vi.hoisted(() => ({
 	withNonce: vi.fn(
-		async (
-			_address: string,
-			_client: unknown,
-			send: (nonce?: number) => Promise<unknown>
-		) => send(7)
+		async (_address: string, _client: unknown, send: (nonce?: number) => Promise<unknown>) =>
+			send(7)
 	),
 }));
 vi.mock("../chain/nonceManager.js", () => ({
@@ -1445,9 +1454,11 @@ describe("AaveService nonce ownership", () => {
 
 		// sendWithNonce is private; exercise it the way the service does.
 		const send = vi.fn().mockResolvedValue("0xhash");
-		await (service as unknown as {
-			sendWithNonce: (fn: (nonce?: number) => Promise<string>) => Promise<string>;
-		}).sendWithNonce(send);
+		await (
+			service as unknown as {
+				sendWithNonce: (fn: (nonce?: number) => Promise<string>) => Promise<string>;
+			}
+		).sendWithNonce(send);
 
 		expect(send).toHaveBeenCalledWith(undefined);
 	});
@@ -1458,9 +1469,11 @@ describe("AaveService nonce ownership", () => {
 		service.setWalletClient(client); // default: FibX broadcasts
 
 		const send = vi.fn().mockResolvedValue("0xhash");
-		await (service as unknown as {
-			sendWithNonce: (fn: (nonce?: number) => Promise<string>) => Promise<string>;
-		}).sendWithNonce(send);
+		await (
+			service as unknown as {
+				sendWithNonce: (fn: (nonce?: number) => Promise<string>) => Promise<string>;
+			}
+		).sendWithNonce(send);
 
 		expect(mocks.withNonce).toHaveBeenCalledTimes(1);
 		expect(send).toHaveBeenCalledWith(7);
@@ -1471,9 +1484,11 @@ describe("AaveService nonce ownership", () => {
 		const service = new AaveService(SUPPORTED_CHAINS.base!);
 		service.setWalletClient(client, { managesOwnNonce: true });
 
-		await (service as unknown as {
-			sendWithNonce: (fn: (nonce?: number) => Promise<string>) => Promise<string>;
-		}).sendWithNonce(vi.fn().mockResolvedValue("0xhash"));
+		await (
+			service as unknown as {
+				sendWithNonce: (fn: (nonce?: number) => Promise<string>) => Promise<string>;
+			}
+		).sendWithNonce(vi.fn().mockResolvedValue("0xhash"));
 
 		expect(mocks.withNonce).not.toHaveBeenCalled();
 	});
@@ -1555,16 +1570,16 @@ Update the constructor so the option survives that path too (line 72-81):
 In `src/commands/defi/aave.ts` around line 172:
 
 ```typescript
-		const { getWalletClient, managesOwnNonce } = await import("../../services/chain/client.js");
-		const walletClient = await getWalletClient(session, chainConfig);
-		service.setWalletClient(walletClient, { managesOwnNonce: managesOwnNonce(session) });
+const { getWalletClient, managesOwnNonce } = await import("../../services/chain/client.js");
+const walletClient = await getWalletClient(session, chainConfig);
+service.setWalletClient(walletClient, { managesOwnNonce: managesOwnNonce(session) });
 ```
 
 In `src/mcp/handlers/defi.ts`, at both `:20` and `:88`, after building the client:
 
 ```typescript
-		const walletClient = await getWalletClient(session, chainConfig);
-		service.setWalletClient(walletClient, { managesOwnNonce: managesOwnNonce(session) });
+const walletClient = await getWalletClient(session, chainConfig);
+service.setWalletClient(walletClient, { managesOwnNonce: managesOwnNonce(session) });
 ```
 
 Add `managesOwnNonce` to the existing import from `../../services/chain/client.js` in that file.
@@ -1589,11 +1604,13 @@ transactions. NonceManager keeps ownership everywhere else."
 ### Task 9: `fibx auth connect`
 
 **Files:**
+
 - Create: `src/commands/auth/connect.ts`
 - Modify: `src/index.ts` (import near line 10, command registration near line 232)
 - Modify: `README.md`
 
 **Interfaces:**
+
 - Consumes: `createPairing`, `renderQrTerminal`, `saveSession`
 - Produces: `authConnectCommand(opts: OutputOptions): Promise<void>`
 
@@ -1639,7 +1656,8 @@ export async function authConnectCommand(opts: OutputOptions): Promise<void> {
 			{
 				address: session.address,
 				type: "walletconnect",
-				message: "You're ready to go. Transactions will appear in your wallet for approval.",
+				message:
+					"You're ready to go. Transactions will appear in your wallet for approval.",
 			},
 			opts
 		);
@@ -1684,12 +1702,13 @@ Expected: `connect` listed with its description.
 In `README.md`, in the authentication section, add this beside the existing
 `auth login` and `auth import` entries:
 
-```markdown
+````markdown
 ### Connect your own wallet
 
 ```bash
 npx fibx auth connect
 ```
+````
 
 Pairs FibX with a wallet you already have — MetaMask, Rabby, Rainbow, Phantom —
 over WalletConnect. A QR code appears in the terminal; scan it with your phone.
@@ -1700,7 +1719,8 @@ wallet to add it and tells you what to do if the wallet declines.
 
 `auth login` (email OTP) and `auth import` (private key) are unchanged and remain
 available.
-```
+
+````
 
 - [ ] **Step 5: Commit**
 
@@ -1710,18 +1730,20 @@ git commit -m "feat: add fibx auth connect
 
 Prints a pairing QR, waits for approval, and stores the topic. The two
 existing auth paths are unchanged and still the default."
-```
+````
 
 ---
 
 ### Task 10: MCP tools
 
 **Files:**
+
 - Modify: `src/mcp/tools/auth.ts`, `src/mcp/handlers/auth.ts`
 - Modify: `MCP.md`
 - Test: `src/mcp/handlers/auth.test.ts` (create)
 
 **Interfaces:**
+
 - Consumes: `createPairing`, `renderQrDataUri`, `saveSession`, `loadSession`
 - Produces: handlers `handleConnectWallet()`, `handleGetConnectStatus({ pairingId })`
 
@@ -1783,7 +1805,10 @@ describe("get_connect_status", () => {
 	it("reports connected and saves the session once approved", async () => {
 		mocks.createPairing.mockResolvedValue({
 			uri: "wc:abc@2",
-			approval: async () => ({ topic: "t1", address: "0x1111111111111111111111111111111111111111" }),
+			approval: async () => ({
+				topic: "t1",
+				address: "0x1111111111111111111111111111111111111111",
+			}),
 		});
 		const { pairingId } = await handleConnectWallet();
 
@@ -1891,33 +1916,33 @@ export async function handleGetConnectStatus({
 Register both tools in `src/mcp/tools/auth.ts`, inside `registerAuthAndConfigTools`, following the shape of `get_auth_status` and returning the count correctly:
 
 ```typescript
-	server.registerTool(
-		"connect_wallet",
-		{
-			title: "Connect an External Wallet",
-			description:
-				"Start a WalletConnect pairing so the user can sign with their own wallet " +
-				"(MetaMask, Rabby, Rainbow, Phantom). Returns a URI and a QR image immediately — " +
-				"show the QR to the user, then poll get_connect_status until it reports connected.",
-			inputSchema: {},
-			annotations: { title: "Connect Wallet" },
-		},
-		withErrorHandling(async () => handleConnectWallet())
-	);
+server.registerTool(
+	"connect_wallet",
+	{
+		title: "Connect an External Wallet",
+		description:
+			"Start a WalletConnect pairing so the user can sign with their own wallet " +
+			"(MetaMask, Rabby, Rainbow, Phantom). Returns a URI and a QR image immediately — " +
+			"show the QR to the user, then poll get_connect_status until it reports connected.",
+		inputSchema: {},
+		annotations: { title: "Connect Wallet" },
+	},
+	withErrorHandling(async () => handleConnectWallet())
+);
 
-	server.registerTool(
-		"get_connect_status",
-		{
-			title: "Check Wallet Connection",
-			description:
-				"Poll a pairing started by connect_wallet. Returns pending, connected, failed, or unknown.",
-			inputSchema: {
-				pairingId: z.string().describe("The pairingId returned by connect_wallet"),
-			},
-			annotations: { title: "Connection Status" },
+server.registerTool(
+	"get_connect_status",
+	{
+		title: "Check Wallet Connection",
+		description:
+			"Poll a pairing started by connect_wallet. Returns pending, connected, failed, or unknown.",
+		inputSchema: {
+			pairingId: z.string().describe("The pairingId returned by connect_wallet"),
 		},
-		withErrorHandling(async (args: { pairingId: string }) => handleGetConnectStatus(args))
-	);
+		annotations: { title: "Connection Status" },
+	},
+	withErrorHandling(async (args: { pairingId: string }) => handleGetConnectStatus(args))
+);
 ```
 
 Update the count this function returns so the server's tool tally stays correct — it currently reports the number of tools registered here; add two.
@@ -1945,12 +1970,12 @@ format, and increase the stated tool count from 11 to 13:
 
 ```markdown
 connect_wallet
-Input:  { }
+Input: { }
 Output: { uri, qrDataUri, pairingId }
 Starts a WalletConnect pairing. Returns immediately — show the QR, then poll.
 
 get_connect_status
-Input:  { pairingId: string }
+Input: { pairingId: string }
 Output: { status: "pending" | "connected" | "failed" | "unknown", address?, error? }
 Polls a pairing started by connect_wallet.
 ```

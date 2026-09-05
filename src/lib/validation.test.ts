@@ -11,7 +11,7 @@ import {
 // nothing downstream can catch a bad one — `maxValue` in the signing policy
 // bounds native value only, so an ERC-20 swap reaches the router with
 // `value: 0n`. It lives here rather than in the MCP tool schema because the
-// CLI's `--slippage` passes through neither that schema nor the swap card.
+// CLI's `--slippage` passes through neither that schema nor the app's swap form.
 describe("validateSlippage", () => {
 	it("returns an ordinary slippage unchanged", () => {
 		expect(validateSlippage(0.5)).toBe(0.5);
