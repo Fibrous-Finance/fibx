@@ -1,6 +1,6 @@
 # Handoff — where the work stands
 
-**Last updated:** 2026-09-04
+**Last updated:** 2026-09-05
 
 This file exists so a new session can pick the work up without the previous
 conversation. It is committed on purpose: the SDD ledger under `.superpowers/`
@@ -101,15 +101,18 @@ context.
 
 ```
 Read CLAUDE.md and docs/superpowers/HANDOFF.md in this repo, in that order, then
-continue the MCP Apps panel work from where it stands.
+continue the FibX app widget work from where it stands.
 
-The branch is worktree-mcp-apps-panel. Both of its plans live in
-docs/superpowers/plans/ — 2026-08-30-mcp-apps-wallet-panel.md is complete, and
-2026-09-02-panel-buttons-and-swap-card.md is complete except for its Task 8,
-which is a human's. `git log --oneline main..HEAD` tells you what is done.
+The branch is worktree-mcp-apps-panel. Three plans have run on it, back to
+back; the first two are complete and superseded respectively (see "Read this
+first"). The third — docs/superpowers/plans/2026-09-05-fibx-app-widget.md,
+spec docs/superpowers/specs/2026-09-05-fibx-app-widget-design.md — has Tasks
+1-9 complete and reviewed. Task 10, manual verification against a real wallet
+in Claude Desktop, is a human's and is outstanding. `git log --oneline
+main..HEAD` tells you what is done.
 
-Do not attempt the three things HANDOFF.md lists under "Waiting on you" — they
-are mine. Tell me when you need one and I will run it.
+Do not attempt the things HANDOFF.md lists under "Waiting on you" — they are
+mine. Tell me when you need one and I will run it.
 
 Read the Landmines section before touching any test.
 ```
@@ -138,6 +141,8 @@ pnpm install && pnpm build
 | Plan 1               | `docs/superpowers/plans/2026-08-30-mcp-apps-wallet-panel.md`              |
 | Spec (plan 2)        | `docs/superpowers/specs/2026-09-02-panel-buttons-and-swap-card-design.md` |
 | Plan 2               | `docs/superpowers/plans/2026-09-02-panel-buttons-and-swap-card.md`        |
+| Spec (plan 3)        | `docs/superpowers/specs/2026-09-05-fibx-app-widget-design.md`             |
+| Plan 3               | `docs/superpowers/plans/2026-09-05-fibx-app-widget.md`                    |
 | Ledgers (gitignored) | `.superpowers/sdd/<plan-name>/progress.md`                                |
 
 If the worktree is gone, the branch is not — `git worktree add
@@ -148,11 +153,11 @@ If the worktree is gone, the branch is not — `git worktree add
 
 ## What is being built
 
-An interactive wallet panel that renders inside MCP hosts (MCP Apps, the
-`ui://` resource extension), covering pairing a wallet, seeing what is signing,
-and reading and editing the signing policy that bounds it — plus a swap card
-that renders in chat from a `get_quote`, showing the route Fibrous chose and
-offering Simulate and Swap.
+The FibX app widget: one interactive surface that renders inside MCP hosts
+(MCP Apps, the `ui://` resource extension), covering pairing a wallet, seeing
+what is signing, reading and editing the signing policy, picking a token pair,
+and swapping — pairing, policy and swap together in the one document a chat
+turn opens.
 
 The finding that shapes the whole design: **MCP Apps does not require a hosted
 server.** A local stdio server can serve a `ui://` resource. That is what lets
@@ -161,34 +166,46 @@ A hosted MCP server was the alternative and was rejected — it would have moved
 the WalletConnect session, and with it the signing policy, onto our
 infrastructure, which is the one property this product is built to avoid.
 
-### One document, two `ui://` URIs
+### One tool, one document
 
-The most load-bearing structural decision on this branch, and the one most
-likely to be undone by someone who does not know why it is there.
+**`open_fibx` is the only tool bound to a `ui://` resource.** It composes the
+handlers `get_auth_status`, `get_balance`, `get_policy` and, when the caller
+gave a pair and an amount, `get_quote` already expose headlessly — so one turn
+produces one widget instance, seeded consistently, rather than several tools
+each drawing their own fragment of it. Every other tool — `get_quote`,
+`get_auth_status`, `get_balance`, `get_policy`, `swap_tokens` — stays headless,
+exactly as the CLI and `fibx-telegram-bot` already call them. One new headless
+tool, `list_tokens`, feeds the picker. `ui/src/machine.ts` (see Landmines) is
+the only place the swap flow's transitions live; `ui/src/app.tsx` is the shell
+that lays out pairing, policy and the swap form as one surface.
 
-`vite-plugin-singlefile` inlines everything a document imports — including the
-SDK's `App` schema layer, ~330 KB by itself — into one self-contained HTML file
-that esbuild then inlines as text into the server bundle every `fibx`
-invocation loads. It is not built for multiple entry points, and on this repo's
-Vite 8 (Rolldown) toolchain a multi-input build with inlining enabled hard-fails
-outright.
+Why one document rather than a second `ui://` resource: `vite-plugin-
+singlefile` inlines everything a document imports — including the `ext-apps`
+SDK's `App` schema layer, ~330 KB by itself — into one self-contained HTML
+file that esbuild then inlines as text into the server bundle every `fibx`
+invocation loads. A second Vite entry pays for that layer a second time from
+scratch — measured, on this same repo, at 340 KB for a stub that did nothing
+but import `App`. Paying for that layer once is the only reason to keep
+everything behind one document, whatever sits on top of it.
 
-The two-entry design was therefore built, **measured, and rejected**: two
-independent builds cannot share anything by construction, so each carried its
-own copy of that schema layer — 351.80 KB for the panel plus 340.00 KB for a
-swap-card stub that did nothing but import `App`, 691.80 KB together.
+_History: plan 2 served this one document under **two** `ui://` URIs with
+different `_meta`, because the panel declared `clipboardWrite` and the swap
+card declared no permissions — one iframe must not carry a capability the
+other had no business holding. Plan 3 collapsed the panel and the card into
+one application, so there is now exactly one tool and one URI; the two-URI
+split has no reason left to exist._
 
-So there is exactly **one built document** (`ui/dist/index.html`), registered
-under **two `ui://` URIs** with different `_meta`: the panel declares
-`clipboardWrite`, the card declares no permissions at all — which is the whole
-reason two URIs still exist for one document, since one iframe must not carry a
-capability the other has no business holding. The document decides at runtime
-(`ui/src/main.tsx`) which surface to render, from the invoking tool's name or
-the payload's shape.
+### The dev host
 
-**The comment at the top of `src/mcp/ui.ts` explains this properly. Read it
-before touching the build.** `walletPanelHtml` and `swapCardHtml` are two names
-for the same string, not two files.
+`pnpm dev:ui` opens a local host against fixtures — every widget state
+(connected, a quote, a simulate that needs an approval, a confirmed and a
+reverted broadcast, an insufficient-funds error) is one click away, and its
+_grant clipboardWrite_ and _accept wc:_ checkboxes reproduce Claude Desktop's
+own refusals instead of guessing at them. `pnpm dev:ui:bridge` swaps the
+fixtures for a real `fibx mcp-start` process over stdio — **a Swap there is a
+real swap**, not a fixture; do not press it in bridge mode outside Task 10.
+
+See "Read this first" above for the DOM test environment and the byte guard.
 
 ---
 
@@ -214,18 +231,18 @@ for the same string, not two files.
 | 5-8 — the panel's real UI                               | all complete: 5 (`aa7fafb`), 6 (`182781c`), 7 (`ec0156c`), 8 (`1802499`); second whole-branch review passed after one fix round (`e42b460`, `930d6fc`)                    |
 | 9 — manual verification                                 | **done 2026-09-02** — disconnected/QR/shortcuts, re-pair, connected view, policy round trip all verified on a real wallet; the unreadable-file step was left to its tests |
 
-### Plan 2 — panel buttons and the swap card (Task 8 outstanding)
+### Plan 2 — panel buttons and the swap card (superseded before Task 8 ran)
 
-| Task                                                 | State                                                                                                         |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| 1 — the clipboard permission and the `wc:` URI       | complete (`56ddb2e`)                                                                                          |
-| 2 — Fibrous palette and rhythm                       | complete (`5c89121`)                                                                                          |
-| 3 — protocol ids resolved to names                   | complete (`3ad7690`)                                                                                          |
-| 4 — `get_quote` returns the route it already fetched | complete (`85135b8`, with `d02012b` isolating `quote.test.ts` from the real config directory)                 |
-| 5 — a second `ui://` entry                           | built (`6eb87f0`), **measured and reverted** to one document behind two URIs (`c567304`) — see above          |
-| 6-7 — the swap card                                  | complete (`ca8f57c`), then one review fix round (`99292a0`) and `updateModelContext` on the panel (`790a4d4`) |
-| whole-branch review fixes                            | complete (`2e04332`, `f1727d2`, and this commit) — the card's honesty, the slippage bound, housekeeping       |
-| 8 — manual verification                              | **outstanding — a human's, see below**                                                                        |
+| Task                                                 | State                                                                                                           |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| 1 — the clipboard permission and the `wc:` URI       | complete (`56ddb2e`)                                                                                            |
+| 2 — Fibrous palette and rhythm                       | complete (`5c89121`)                                                                                            |
+| 3 — protocol ids resolved to names                   | complete (`3ad7690`)                                                                                            |
+| 4 — `get_quote` returns the route it already fetched | complete (`85135b8`, with `d02012b` isolating `quote.test.ts` from the real config directory)                   |
+| 5 — a second `ui://` entry                           | built (`6eb87f0`), **measured and reverted** to one document behind two URIs (`c567304`) — see above            |
+| 6-7 — the swap card                                  | complete (`ca8f57c`), then one review fix round (`99292a0`) and `updateModelContext` on the panel (`790a4d4`)   |
+| whole-branch review fixes                            | complete (`2e04332`, `f1727d2`, and this commit) — the card's honesty, the slippage bound, housekeeping         |
+| 8 — manual verification                              | **superseded — never run.** No swap card is left to verify; see plan 3's Task 10 under "Waiting on you" instead |
 
 Test count moved 229 → 255 across plan 1, and 255 → 341 across plan 2.
 
@@ -237,9 +254,10 @@ Both surface through MCP and the CLI, so `fibx-server`, `fibx-telegram-bot` and
 - **`slippage` is bounded.** `get_quote` and `swap_tokens` take 0.01-50, and so
   do `fibx quote --slippage` and `fibx trade --slippage`. The bound has one
   definition, `slippageSchema` / `validateSlippage` in `src/lib/validation.ts`;
-  the tool schemas and both CLI commands call it. The swap card refuses above a
-  tighter 5% of its own, because a human typing into a box is a different risk
-  from a caller asking for a wide slippage on an illiquid pair.
+  the tool schemas and both CLI commands call it. The app's swap form
+  (`ui/src/quote.ts`'s `checkSlippage`) refuses above a tighter 5% of its own,
+  because a human typing into a box is a different risk from a caller asking
+  for a wide slippage on an illiquid pair.
 - **`usdIn`, `usdOut` and `priceImpact` are nullable.** A missing token price
   used to arrive as `0`, which rendered as "$0.00" beneath a real amount and, via
   price impact's zero branch, as a green "0.00%" — a fabricated safety signal on
@@ -255,54 +273,32 @@ Both surface through MCP and the CLI, so `fibx-server`, `fibx-telegram-bot` and
 
 ## Waiting on you
 
-### 1. Task 8 — verify the swap card by hand
+### 1. Task 10 — manual verification, on a real wallet in Claude Desktop
 
-**Nobody has done this.** The card puts a button in front of the same signing
-path `fibx trade` uses; no automated test proves a card renders in a real host,
-and none of plan 2's central claims — that the clipboard now works, that a `wc:`
-link reaches a wallet, that a swap goes through — can be checked without a
-person and a funded wallet. The plan has the full steps; in short:
+**Nobody has done this.** It is the gate on `npm publish`. Full steps are in
+`docs/superpowers/plans/2026-09-05-fibx-app-widget.md`'s Task 10; the five
+gates, one line each:
 
-1. `pnpm build`, then quit Claude Desktop **entirely** and reopen it so the
-   running `fibx-dev` process picks up the new build.
-2. Log out, ask for wallet status, press **Copy link** — the label should become
-   **Copied** and the `wc:` URI should paste. A button that is absent means the
-   host refused the permission, which is the designed fallback, not a failure.
-3. Press **Open in your wallet**. A wallet opens, **or** the button disappears
-   because the host refused a `wc:` URI. Either is a pass; a button that stays
-   and does nothing is a fail.
-4. Ask for a quote. Expect You Pay / You Receive, USD values, the rate, the
-   price impact and the route as named hops — compare the hops against the same
-   pair on the Fibrous interface.
-5. Press **Simulate**. Nothing should be sent, and on a token that needs an
-   allowance the card should say the swap takes two transactions.
-6. Press **Swap** on an amount you are willing to lose. The host prompts, the
-   wallet prompts, the card follows the hash to confirmed, and the explorer link
-   opens it. **Then read the model's next turn** — it should say the swap
-   confirmed, and it must not say so before the receipt arrives. This is the
-   step the last review round was about.
-7. `node dist/index.js policy set base.maxValue 0.00001`, swap again, expect a
-   refusal naming the cap — the card is a surface over the same signing path,
-   not a way around it. Then `node dist/index.js policy clear --yes`.
-8. `git commit --allow-empty -m "chore: verify the buttons and the swap card by hand"`
+1. **The model reaches for `open_fibx`** for a wallet-status question, a
+   what-would-I-get question and a swap request alike — all three should open
+   the same whole app, not prose from a headless tool.
+2. **The pairing buttons explain themselves or work** — Copy link either
+   copies a `wc:` URI or turns into the clipboard-refused sentence, Open in
+   your wallet either opens a wallet or turns into the wallet-links sentence;
+   a button that stays and does nothing is a fail.
+3. **Connect, and the model agrees** — after scanning the QR, the header shows
+   the address and the model's next sentence says the wallet is connected.
+4. **The form refuses a shortfall before any call, and unlocks Swap only
+   after Simulate** — an amount above balance shows "Insufficient balance"
+   with Simulate disabled; a valid amount quotes, simulates, then unlocks Swap.
+5. **A small real swap settles, and the model says so honestly** — the widget
+   follows the hash to settled and the model's next turn says the swap
+   _settled_, never "swapped X for Y" as fact before the receipt arrives; then
+   a tightened `base.maxValue` still refuses a swap and names the rule.
 
-**Already wired on this machine (2026-09-01):** `claude_desktop_config.json`
-carries an `mcpServers.fibx-dev` entry pointing at the worktree's
-`dist/index.js`, with a `.bak` of the pre-edit file beside it. If the entry is
-ever missing, this is what goes inside the outermost braces:
-
-```json
-"mcpServers": { "fibx-dev": { "command": "node", "args": ["/Users/ahmetenesdur/workspace/fibx/.claude/worktrees/mcp-apps-panel/dist/index.js", "mcp-start"] } }
+```bash
+git commit --allow-empty -m "chore: verify the app by hand on a real wallet"
 ```
-
-The gate that proved the pipeline (2026-09-01) is answered — "Widget from
-fibx-dev get_auth_status" appeared inline with the real JSON — so a blank
-result now is a regression, not the open question it once was. The four
-readings that made it diagnosable still apply: a panel with the heading and the
-JSON is a pass; a panel saying `connect failed: …` rendered but failed the
-`ui/initialize` handshake and the text is diagnosable; a panel stuck on
-"waiting for the host…" rendered but the host never answered; only plain text
-means the host is not rendering `ui://` resources at all.
 
 ### 2. Merge
 
@@ -310,10 +306,28 @@ means the host is not rendering `ui://` resources at all.
 checkout. Deliberately not done by an agent: a shared-branch side effect. After
 merging, the SDD workspaces under `.superpowers/` and the worktree can go.
 
-### 3. npm publish of 0.10.0
+### 3. Repoint the Claude Desktop config
+
+`claude_desktop_config.json`'s `mcpServers.fibx-dev` entry currently points at
+**this worktree's** `dist/index.js` (a `.bak` of the pre-edit file sits beside
+it). **It breaks the moment this worktree is removed.** Before that happens,
+point it at the main checkout instead and build there:
+
+```json
+"mcpServers": { "fibx-dev": { "command": "node", "args": ["/Users/ahmetenesdur/workspace/fibx/dist/index.js", "mcp-start"] } }
+```
+
+```bash
+pnpm build
+```
+
+(run from the main checkout, not this worktree)
+
+### 4. npm publish of 0.10.0 — gated on Task 10
 
 `main` is pushed and `origin/main` is current. npm is **not** logged in on this
-machine, so the release has to come from you:
+machine, so the release has to come from you, and only once Task 10 above has
+passed:
 
 ```bash
 npm login
@@ -333,6 +347,12 @@ your machine):
 `package.json` and `server.json` are already both at 0.10.0 — the registry
 rejects a publish whose manifest version does not match the npm package, so
 keep them in step on every future release.
+
+_History: the gate that proved the underlying pipeline — a local stdio server
+serving a `ui://` resource at all — passed on 2026-09-01, before either the
+swap card or the app existed: "Widget from fibx-dev get_auth_status" appeared
+inline with the real JSON. That question is answered; Task 10 above is the
+current one._
 
 ---
 
@@ -397,14 +417,15 @@ waits for its receipt, waits for the allowance, and only then sends the swap. An
 throw after that first `sendTransaction` — a policy refusal on the swap leg, a
 wallet rejection, a relay timeout — reaches the caller with no hash, while an
 approval is already on chain, has cost gas and has left a standing allowance to
-the router. The swap card's `failed` phase says so to the user; a comment there
-once claimed the opposite ("nothing left this machine") and that false invariant
-was the dangerous part. Nothing structural has changed in the handler.
+the router. The swap form's `failed` phase (`ui/src/swap-form.tsx`) says so to
+the user; a comment there once claimed the opposite ("nothing left this
+machine") and that false invariant was the dangerous part. Nothing structural
+has changed in the handler.
 
 **Open follow-up: promote `applyRule` / `removeRule` to `FibxError`.**
 They throw plain `Error`, so a bad rule name or chain reaches MCP callers with
 the right message but an uninformative `UNKNOWN_ERROR` code — not a break, since
-the message is what a caller reads, but a panel must not branch on the code for
+the message is what a caller reads, but a UI must not branch on the code for
 these paths. `ErrorCode.VALIDATION_ERROR` exists in `src/lib/errors.ts` and is
 now used by `validateSlippage`, so the precedent is set. The fix belongs at the
 one source of truth in `src/commands/policy/index.ts` and would improve the CLI
@@ -435,9 +456,10 @@ both already paid for once: `ui/src/rpc.ts` must throw on either shape (a client
 checking only `isError` decodes a failed `connect_wallet` as a pairing with
 undefined fields — `ui/src/rpc.test.ts` pins both), and the **host still renders
 the `ui://` resource bound to the tool**, so `ui/src/main.tsx` checks
-`success === false` before it picks a surface. Without that check a `get_quote`
-that could not resolve a token drew a swap card with blank amounts over a live
-Simulate button.
+`success === false` before rendering anything from the payload. Without that
+check, a `get_quote` that could not resolve a token once drew the old swap
+card with blank amounts over a live Simulate button; the current single-app
+document is the same class of surface and needs the same guard.
 
 **CLI-flavoured error text reaches MCP callers.** `set_policy_rule("allowedChains",
 "")` returns "Remove the rule with `fibx policy clear allowedChains` instead" —
@@ -446,12 +468,12 @@ policy refusals name `fibx policy show` and `fibx policy set expiry`. Harmless
 today (the message is still readable), but worth cleaning up whenever the
 `FibxError` promotion above happens, since both touch the same throw sites.
 
-**The wallet panel resource's metadata is thin.** `src/mcp/ui.ts` passes the
-`ui://` URI itself as the human-readable `name` argument to
-`registerAppResource`, so `resources/list` returns the URI string as the name,
-and there is no `description`. The explicit `{ mimeType: RESOURCE_MIME_TYPE }`
-passed alongside it is also redundant — `registerAppResource` already defaults
-`mimeType` to that same constant.
+**The app resource's metadata is thin.** `src/mcp/ui.ts`'s `registerApp` passes
+`APP_URI` itself as the human-readable `name` argument to `registerAppResource`,
+so `resources/list` returns the URI string as the name, and there is no
+`description`. The explicit `{ mimeType: RESOURCE_MIME_TYPE }` passed alongside
+it is also redundant — `registerAppResource` already defaults `mimeType` to
+that same constant.
 
 **The five-line logout comment is duplicated verbatim** between
 `src/commands/auth/logout.ts` and `src/mcp/handlers/auth.ts` ("The user asked
@@ -462,25 +484,32 @@ Worth factoring out if either surface's logout behavior changes.
 rest of the repo and its release recipe use pnpm. Works today because `npm run
 build` still resolves the same script, but it is the odd one out.
 
-**The panel costs ~430 KB in the published bundle.** `dist/index.js` is
-2,806,911 bytes as of this branch's head, and the one built document inlined
-into it (`ui/dist/index.html`) is **361,521 bytes** — roughly 90% zod and the
-MCP SDK's schema layer, pulled in transitively by `App` from
+**The Claude Desktop config points at this worktree, not `main`.**
+`claude_desktop_config.json`'s `mcpServers.fibx-dev` entry runs `node
+<this worktree>/dist/index.js mcp-start`. It breaks the moment this worktree is
+removed — repoint it at the main checkout's `dist/index.js` and `pnpm build`
+there before that happens. See "Waiting on you" above.
+
+**The app costs ~370 KB in the published bundle.** `dist/index.js` is
+2,816,847 bytes as of this commit, and the one built document inlined into it
+(`ui/dist/index.html`) is **369,082 bytes** — roughly 90% zod and the MCP SDK's
+schema layer, pulled in transitively by `App` from
 `@modelcontextprotocol/ext-apps`, not by Preact, which accounts for only ~4 KB.
 With `splitting: false` this sits in the single bundle every `fibx` invocation
 loads and `npx fibx` downloads — the startup-path cost commit `b7ee51d` was
-written to protect. The guard is `src/mcp/ui.test.ts`'s 400 KB ceiling, which
-measures **bytes** (`Buffer.byteLength`), not `String.length`'s UTF-16 code
-units — the document is 343,478 chars against those 361,521 bytes, and the char
-count was quietly reporting 18 KB of headroom that does not exist. Roughly
-38 KB of real headroom remains. Whether the lighter
-`@modelcontextprotocol/ext-apps/app-bridge` entry point (43 KB) would suffice
-is still unanswered, and is the one lever that would move this number.
+written to protect. The guard is `src/mcp/ui.test.ts`'s 400,000-byte ceiling,
+measured in **bytes** (`Buffer.byteLength`) — an earlier version of this same
+guard measured `String.length`'s UTF-16 code units instead and quietly
+reported headroom that did not exist, because chars and bytes diverge once the
+document holds any multi-byte content. Roughly 30,900 bytes of real headroom
+remains. Whether the lighter `@modelcontextprotocol/ext-apps/app-bridge` entry
+point (43 KB) would suffice is still unanswered, and is the one lever that
+would move this number.
 
-**The panel treats a failed handshake as fatal for the session.** `Root` in
+**The app treats a failed handshake as fatal for the session.** `Root` in
 `ui/src/main.tsx` shows `connect failed: …` and never retries; there is no
-reconnect flow. Deliberate for now — the message is what made the gate
-diagnosable — but a "try again" that re-runs `app.connect()` is a small,
+reconnect flow. Deliberate for now — the message is what made the original
+gate diagnosable — but a "try again" that re-runs `app.connect()` is a small,
 worthwhile follow-up.
 
 **MCP Apps do not push UI state to the model — every surface must push it
@@ -495,26 +524,30 @@ reverted, and the polling window running out. All fire-and-forget with a
 `.catch`, setting no state: telling the model is not part of the swap and must
 never break the card. If you add a terminal state, it needs one too.
 
-**Do not disturb the swap card's `unknown` phase.** A poll that runs out of
-attempts is terminal and disables Swap, Simulate, Refresh **and** the slippage
-input. Locking all four is what closes the duplicate-swap hole — either of the
-other controls would otherwise re-arm Swap on a transaction that may still be in
-flight — and it is deliberately not `failed`, which is the pre-broadcast case
-where retrying is safe.
+**Do not disturb the machine's `unknown` phase.** A poll that runs out of
+attempts is terminal (`ui/src/machine.ts`) and disables Swap, Simulate, Refresh
+**and** the slippage input in `ui/src/swap-form.tsx`. Locking all four is what
+closes the duplicate-swap hole — either of the other controls would otherwise
+re-arm Swap on a transaction that may still be in flight — and it is
+deliberately not `failed`, which is the pre-broadcast case where retrying is
+safe.
 
-**`ui/` has no component tests, and the reason once given was wrong.** The pure
-helpers (`status.ts`, `rpc.ts`, `wallets.ts`, `quote.ts`) are tested; the state
-machines in `panel.tsx` and `swap-card.tsx` that gate every write are not,
-because vitest runs with `environment: "node"`. An implementer claimed CLAUDE.md's
+**`ui/` now has component tests; an earlier round almost shipped without
+them.** The pure helpers (`status.ts`, `rpc.ts`, `quote.ts`, `tokens.ts`) were
+tested from the start; the interactive pieces were not, because vitest ran
+with `environment: "node"`. An implementer once claimed CLAUDE.md's
 zero-dependency rule forbids a DOM testing library. **That is a
 misreading — the rule is that `dependencies` stays empty; new packages go in
-`devDependencies`, which is where vitest itself lives.** So the recipe stands:
-`happy-dom` and `@testing-library/preact` as devDependencies, a vitest
-`environment` override for `ui/**`, and tests for the write gating (no tool call
-without a click), the two-step policy wipe, and the swap card's guard wiring —
-the simulate gate, the `unknown` lock, and an `updateModelContext` in every
-terminal branch. This is the top follow-up on the UI: every Important finding of
-every review so far was found by reading, not by a test.
+`devDependencies`, which is where vitest itself lives.** The recipe that
+followed: `happy-dom` as a devDependency, `// @vitest-environment happy-dom`
+per file, and `mount()`/`fakeApp()` in `ui/src/test-utils.ts` as the load-
+bearing helpers — no `@testing-library` package was needed. `app.tsx`,
+`pairing.tsx`, `picker.tsx`, `policy.tsx`, `swap-form.tsx` and `machine.ts`
+each have a test file beside them now, covering the write gating, the
+two-step policy wipe, the simulate gate and the `unknown` lock.
+`updateModelContext` itself is fire-and-forget by design and is not asserted
+against in any of them — reading the code is still how its terminal-state
+coverage gets checked.
 
 **Plan 1's Task 9 step 6 corrupts the real policy file on purpose — clean it
 up.** `echo '{ not json' > …/policy.json` is the right way to see the unreadable
