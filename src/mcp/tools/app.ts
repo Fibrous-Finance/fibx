@@ -16,11 +16,14 @@ export function registerAppTools(server: McpServer): number {
 		{
 			title: "Open FibX",
 			// The Telegram bot and every CLI agent see this tool too, and in
-			// those hosts nobody sees an app or acts from it. The description
-			// says which host it is for, and names the headless tools that
-			// answer the same questions in the other one.
+			// those hosts nobody sees an app. The description says which host
+			// it is for — but it must NOT tell the model to prefer other tools
+			// elsewhere: a model cannot tell whether its host renders UI, and
+			// the first hands-on test showed it reading "prefer get_quote" as a
+			// reason to skip the app in a host that does. The snapshot is
+			// readable JSON in every host, so the honest sentence is that one.
 			description:
-				"In a host that renders UI, open the FibX app: wallet, balances, signing policy, and a swap form with the Fibrous route. Call this for anything about the wallet, a balance, a quote, or a swap — the user sees the app and acts from it. Pass from/to/amount to open it pre-filled with a quote. Supported chains: Base, HyperEVM, Monad. In a text-only host, prefer get_auth_status, get_balance and get_quote.",
+				"Open the FibX app: wallet, balances, signing policy, and a swap form with the Fibrous route. In a host that renders MCP Apps UI this is the entry point for anything about the wallet, a balance, a quote, or a swap — it executes nothing; the user sees the app and presses Simulate and Swap themselves. Pass from/to/amount to open it pre-filled with a quote. Supported chains: Base, HyperEVM, Monad. If the host does not render UI, the result is still a complete JSON snapshot you can read and summarise.",
 			inputSchema: {
 				chain: ChainEnum.default("base").describe("Chain to open on"),
 				from: z.string().optional().describe("Source token symbol, to pre-fill a swap"),
