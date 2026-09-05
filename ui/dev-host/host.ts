@@ -1,4 +1,5 @@
 import { AppBridge, PostMessageTransport } from "@modelcontextprotocol/ext-apps/app-bridge";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 const iframe = document.getElementById("widget") as HTMLIFrameElement;
 const modelOut = document.getElementById("model")!;
@@ -31,7 +32,7 @@ function radio(name: string): string {
 	return (document.querySelector(`input[name=${name}]:checked`) as HTMLInputElement).value;
 }
 
-function wrap(entry: unknown): { content: [{ type: "text"; text: string }] } {
+function wrap(entry: unknown): CallToolResult {
 	return { content: [{ type: "text", text: JSON.stringify(entry) }] };
 }
 
@@ -43,7 +44,7 @@ function pick(entry: unknown, i: number): unknown {
 	return entry[Math.min(i, entry.length - 1)];
 }
 
-async function answer(name: string, args: Record<string, unknown>): Promise<unknown> {
+async function answer(name: string, args: Record<string, unknown>): Promise<CallToolResult> {
 	const mode = (document.getElementById("mode") as HTMLSelectElement).value;
 	if (mode === "live") {
 		const r = await fetch("http://localhost:7331/call", {
@@ -51,7 +52,22 @@ async function answer(name: string, args: Record<string, unknown>): Promise<unkn
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({ name, arguments: args }),
 		});
-		return r.json(); // the CallToolResult, verbatim
+		// Nothing about this body is guaranteed: the bridge refuses an
+		// unrelayable tool with a 403, and a dead bridge answers with
+		// whatever the browser makes of a failed request. Check for the one
+		// field the widget reads before passing it off as a CallToolResult.
+		const body: unknown = await r.json().catch(() => null);
+		if (
+			body !== null &&
+			typeof body === "object" &&
+			Array.isArray((body as CallToolResult).content)
+		) {
+			return body as CallToolResult; // the CallToolResult, verbatim
+		}
+		return wrap({
+			success: false,
+			error: `the dev bridge answered ${r.status} with no content`,
+		});
 	}
 	const table = (await resolveRefs(await fixture("tools"))) as Record<string, unknown>;
 	const outcome = radio("outcome");
@@ -127,7 +143,7 @@ async function boot() {
 
 	bridge.oncalltool = async (params) => {
 		callsOut.textContent += `${params.name} ${JSON.stringify(params.arguments ?? {})}\n`;
-		return (await answer(params.name, params.arguments ?? {})) as never;
+		return await answer(params.name, params.arguments ?? {});
 	};
 	bridge.onopenlink = async ({ url }) => {
 		const ok =

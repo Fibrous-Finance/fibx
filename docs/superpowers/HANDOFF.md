@@ -205,6 +205,15 @@ own refusals instead of guessing at them. `pnpm dev:ui:bridge` swaps the
 fixtures for a real `fibx mcp-start` process over stdio — **a Swap there is a
 real swap**, not a fixture; do not press it in bridge mode outside Task 10.
 
+Because that bridge holds a client to the real server, three things bound what
+can reach it while it runs. It listens on `127.0.0.1` only, so nothing on the
+LAN can reach it. It answers one exact origin — the Vite dev server's,
+`http://localhost:5173` or `http://127.0.0.1:5173` — and refuses every other
+with `403` and no CORS headers, so no other page the developer has open can
+preflight its way in. And it relays only the twelve tools `ui/src` itself
+calls, refusing anything else with `403`; `send_tokens` and `aave_action` are
+deliberately not among them.
+
 See "Read this first" above for the DOM test environment and the byte guard.
 
 ---
