@@ -11,36 +11,83 @@ lives here.
 
 ## Read this first
 
-**Two plans have run on this branch, back to back.**
+**Three plans have run on this branch, back to back.**
 
 The first — the MCP Apps wallet panel — is **complete**. The gate passed on
 2026-09-01 (Claude Desktop renders a `ui://` resource from a local stdio
 server; `ext-apps` issue #671 does not apply here), and its Task 9, verifying
 the finished panel by hand on a real wallet, passed on 2026-09-02.
 
-The second — panel buttons and the swap card — is **built and reviewed, but
-not verified by hand**. It fixed two dead buttons in the panel, restyled it,
-surfaced the Fibrous route data `get_quote` was already fetching and
-discarding, and added a swap card in chat with Simulate and Swap. A
-whole-branch review then found that the card told the model a swap had
-succeeded the moment a hash came back and never retracted it when the
-transaction reverted; that, and six other findings, are fixed.
+The second — panel buttons and the swap card — was **built and reviewed**: it
+fixed two dead buttons in the panel, restyled it, surfaced the Fibrous route
+data `get_quote` was already fetching and discarding, and added a swap card in
+chat with Simulate and Swap. It is now **superseded**. Its Task 8, verifying
+the swap card by hand, was never run — instead of running it, this branch
+replaced both chat surfaces with one application before anyone did. The panel
+and the card no longer exist: `ui/src/panel.tsx` and `ui/src/swap-card.tsx`
+are deleted, along with `ui/src/wallets.ts`, which had no importer left once
+the panel was gone.
+
+The third — the FibX app widget (spec
+`docs/superpowers/specs/2026-09-05-fibx-app-widget-design.md`, plan
+`docs/superpowers/plans/2026-09-05-fibx-app-widget.md`) — is what replaced
+them, and this commit is its last task. **One tool, `open_fibx`, bound to one
+document (`ui://fibx/app.html`).** Every other tool — `get_quote`,
+`get_auth_status`, `get_balance`, `get_policy`, `swap_tokens` — stays
+headless, exactly as the CLI and `fibx-telegram-bot` already call them.
+`open_fibx` composes their handlers into one snapshot, so one turn produces
+one widget instance, seeded consistently, rather than three tools each
+drawing their own fragment of it. One new headless tool, `list_tokens`, feeds
+the picker.
+
+Why one document rather than a second `ui://` resource: `vite-plugin-singlefile`
+inlines the `ext-apps` SDK's schema layer into whatever it builds, and a
+second Vite entry pays for that layer a second time from scratch — measured,
+on this same repo, at 340 KB for a stub that did nothing but import `App`.
+One document behind two URIs (plan 1 and 2's shape) or, now, one URI (plan
+3's) is the only way to pay for that layer once.
 
 **What that leaves:**
 
-1. **Task 8 of the second plan — manual verification — is outstanding.** Nobody
-   has exercised the swap card by hand. It puts a button in front of a real
-   signing path, so this is not optional before merging. The steps are in
-   `docs/superpowers/plans/2026-09-02-panel-buttons-and-swap-card.md`, Task 8,
-   and are summarised under **Waiting on you** below.
+1. **Task 10 of the third plan — manual verification — is outstanding.**
+   Nobody has run the app against a real wallet in Claude Desktop. This
+   supersedes plan 2's Task 8: there is no swap card left to verify by hand,
+   and the steps that matter now are the app's — build, restart Claude
+   Desktop, check that three different chat phrasings each open the same
+   whole app, work the pairing buttons, run a real swap, and confirm the
+   policy still refuses. The plan's Task 10 has the full steps. It is the
+   gate on `npm publish`.
 2. **Merge** — deliberately not done by an agent; a shared-branch side effect.
-3. **`npm publish` of 0.10.0** — built, tested, pushed, not released. It
-   carries a hotfix worth shipping: `get_portfolio` was dying on the withdrawn
-   Citrea chain in the published 0.9.0.
+3. **`npm publish`** — built, tested, pushed, not released.
+
+**The dev host** closes the "nobody could see it" gap the swap card shipped
+without. `pnpm dev:ui` opens a local host against fixtures — every widget
+state (connected, a quote, a simulate that needs an approval, a confirmed and
+a reverted broadcast, an insufficient-funds error) is one click away, and its
+_grant clipboardWrite_ and _accept wc:_ checkboxes reproduce Claude Desktop's
+own refusals instead of guessing at them. `pnpm dev:ui:bridge` swaps the
+fixtures for a real `fibx mcp-start` process over stdio — **a Swap there is a
+real swap**, not a fixture.
+
+`ui/` also has a DOM test environment now: `happy-dom`, loaded per file with a
+`// @vitest-environment happy-dom` docblock, and `mount()`/`fakeApp()` in
+`ui/src/test-utils.ts`. An earlier round of this work believed the
+zero-dependency rule forbade a DOM testing library; it does not — the rule is
+that `dependencies` in `package.json` stays empty, and `happy-dom` sits in
+`devDependencies` beside vitest itself.
+
+**The byte guard is 400,000 bytes, measured in bytes** (`Buffer.byteLength`),
+never raised. The document is at **369,082 bytes** as of this commit.
+
+**Before this worktree is removed:** `claude_desktop_config.json`'s
+`mcpServers.fibx-dev` entry points at _this worktree's_ `dist/index.js`.
+Merging and removing the worktree breaks it until that path is changed to the
+main checkout and `pnpm build` is run there.
 
 An earlier version of this file said the branch was "merge-ready at `930d6fc`".
-That was true of the first plan and is no longer true of the branch: thirteen
-commits have landed since, and they added a money path.
+That was true of the first plan and has not been true since: the second plan
+added a money path, and the third replaced both its chat surfaces before
+anyone verified either by hand.
 
 A status page covering the first plan's ground, in a form that is easier to
 hand to someone else: https://claude.ai/code/artifact/3f864c62-98bf-4579-b7d9-f4ba65a7ea7f
@@ -488,6 +535,20 @@ Citrea. Same class as the portfolio crash — a consumer reading the structural
 table as the offered list — but harmless (it stores an RPC URL nobody will
 use) and not fixed here. Switch those checks to `isOffered()` when next in
 those files.
+
+**`ui/src/machine.ts` is the only place the swap flow's transitions live.**
+Every control's `disabled` expression must derive from `isLocked`/`canSwap`,
+never from ad-hoc state — the panel and the swap card each grew their own
+gating logic once, and reconciling the two was most of a review round on the
+previous plan. One machine, one source of truth for what a click is allowed
+to do.
+
+**A brief's sample code can contradict the plan's Global Constraints — the
+constraint wins.** This happened three times while this plan was implemented:
+a brief's Vite config block, a brief's raw `e.message`, and a brief's
+unguarded `JSON.parse` each conflicted with a constraint (no raw error text
+to the user, no unhandled parse). The plan document is the higher authority
+than any one task's sample code; when they disagree, follow the plan.
 
 **Deferred, deliberately, with reasons in the ledgers:** the cap message omits
 the native symbol; `BigInt(tx.value)` throws a raw `SyntaxError` on malformed

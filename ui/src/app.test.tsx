@@ -80,6 +80,37 @@ describe("FibxApp", () => {
 		m.unmount();
 	});
 
+	it("flags a private key session as bounded by policy only", () => {
+		const snap = {
+			...BASE,
+			auth: {
+				...BASE.auth,
+				authenticated: true,
+				walletAddress: "0x0363000000000000000000000000000000003d44",
+				sessionType: "private-key" as const,
+			},
+		};
+		const m = mount(<FibxApp app={fakeApp({})} snapshot={snap} />);
+		expect(m.text()).toContain("bounded by policy only");
+		m.unmount();
+	});
+
+	it("flags a WalletConnect session as approving on the phone, not bounded by policy alone", () => {
+		const snap = {
+			...BASE,
+			auth: {
+				...BASE.auth,
+				authenticated: true,
+				walletAddress: "0x0363000000000000000000000000000000003d44",
+				sessionType: "walletconnect" as const,
+			},
+		};
+		const m = mount(<FibxApp app={fakeApp({})} snapshot={snap} />);
+		expect(m.text()).toContain("approves on your phone");
+		expect(m.text()).not.toContain("bounded by policy only");
+		m.unmount();
+	});
+
 	it("switches to the pairing view from Connect and back on cancel", async () => {
 		const m = mount(<FibxApp app={fakeApp({})} snapshot={BASE} />);
 		m.click("button[data-action=wallet]");

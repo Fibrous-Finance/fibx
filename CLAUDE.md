@@ -47,6 +47,7 @@ Anything that would move it server-side takes the argument with it.
 ```bash
 pnpm test          # vitest run
 pnpm build         # vite (the MCP Apps panel) then tsup
+pnpm dev:ui        # the widget in a local host, against fixtures
 pnpm typecheck     # tsc --noEmit
 pnpm lint          # eslint src/
 pnpm format:check  # prettier --check .

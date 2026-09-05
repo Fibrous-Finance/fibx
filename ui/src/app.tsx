@@ -2,7 +2,7 @@ import { useState } from "preact/hooks";
 import type { App } from "@modelcontextprotocol/ext-apps";
 import { callJson } from "./rpc.js";
 import { explainError } from "./errors.js";
-import { shortAddress } from "./status.js";
+import { describeSession, shortAddress } from "./status.js";
 import { Pairing } from "./pairing.js";
 import { PolicySection } from "./policy.js";
 import { SwapForm } from "./swap-form.js";
@@ -82,6 +82,8 @@ export function FibxApp({ app, snapshot }: { app: App; snapshot: Snapshot }) {
 		}
 	}
 
+	const session = describeSession(auth.sessionType ?? "walletconnect");
+
 	return (
 		<div data-fibx-app class="app">
 			<header class="row app-header">
@@ -99,14 +101,23 @@ export function FibxApp({ app, snapshot }: { app: App; snapshot: Snapshot }) {
 					))}
 				</select>
 				{auth.authenticated && auth.walletAddress ? (
-					<button
-						class="ghost mono"
-						data-action="wallet"
-						title={auth.walletAddress}
-						onClick={endSession}
-					>
-						{shortAddress(auth.walletAddress)} · end
-					</button>
+					<>
+						<button
+							class="ghost mono"
+							data-action="wallet"
+							title={auth.walletAddress}
+							onClick={endSession}
+						>
+							{shortAddress(auth.walletAddress)} · end
+						</button>
+						<span class="muted">{session.label}</span>
+						{session.approvesPerTransaction && (
+							<span class="pill">approves on your phone</span>
+						)}
+						{session.policyIsOnlyBound && (
+							<span class="pill warn">bounded by policy only</span>
+						)}
+					</>
 				) : (
 					<button data-action="wallet" onClick={() => setView({ kind: "pairing" })}>
 						Connect

@@ -1,3 +1,5 @@
+import type { Policy, SessionKind } from "./types.js";
+
 export type ConnectStatus = {
 	status: "pending" | "connected" | "failed" | "unknown";
 	address?: string;
@@ -40,8 +42,6 @@ export function shortAddress(address: string): string {
 	return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
-export type SessionKind = "walletconnect" | "privy" | "private-key";
-
 export function describeSession(kind: SessionKind): {
 	label: string;
 	approvesPerTransaction: boolean;
@@ -68,13 +68,6 @@ export function describeSession(kind: SessionKind): {
 			};
 	}
 }
-
-export type Policy = {
-	maxValue?: Record<string, string>;
-	allowedChains?: string[];
-	allowedDestinations?: Record<string, string[]>;
-	expiry?: string;
-};
 
 export type PolicyRow = { rule: string; value: string };
 

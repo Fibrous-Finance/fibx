@@ -12,11 +12,10 @@ import {
 } from "../../lib/validation.js";
 
 /**
- * Slippage is bounded here because the model calls these tools directly and
- * never passes through the swap card. The bound itself lives in
- * `src/lib/validation.ts` and is shared with the CLI's `--slippage` flag,
- * which passes through neither the schema nor the card — see the comment
- * there for why nothing downstream can catch a bad value.
+ * Slippage is bounded here because the model calls these tools directly. The
+ * bound itself lives in `src/lib/validation.ts` and is shared with the CLI's
+ * `--slippage` flag and the app's swap form — see the comment there for why
+ * nothing downstream can catch a bad value.
  *
  * This schema adds only the tool-facing parts: the default and the
  * description a model reads.
