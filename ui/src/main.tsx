@@ -5,14 +5,28 @@ import { FibxApp } from "./app.js";
 import { explainError, type Explained } from "./errors.js";
 import { FibxLockup } from "./logo.js";
 import { parseToolJson } from "./status.js";
+import { isDark } from "./theme.js";
 import type { Snapshot } from "./types.js";
 import "./tokens.css";
 
 const app = new App({ name: "FibX", version: "1.0.0" });
 
-if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
-	document.documentElement.classList.add("dark");
+/**
+ * `:root.dark` from the host context's theme, else from the OS. Run now, as a
+ * guess before the host has answered; again once `connect` has the host's
+ * initial context; and on every context change, after which getHostContext
+ * already holds the merged context, so a change that leaves the theme out
+ * keeps the last one.
+ */
+function applyTheme(): void {
+	const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
+	document.documentElement.classList.toggle(
+		"dark",
+		isDark(app.getHostContext()?.theme, prefersDark)
+	);
 }
+applyTheme();
+app.addEventListener("hostcontextchanged", applyTheme);
 
 /**
  * withErrorHandling (src/mcp/tools/error-handling.ts) returns a failure as an
@@ -50,7 +64,7 @@ function Root() {
 				setFailure(explainError(e, {}));
 			}
 		});
-		app.connect().catch((e: unknown) =>
+		app.connect().then(applyTheme, (e: unknown) =>
 			setFailure(explainError(new Error(`connect failed: ${String(e)}`), {}))
 		);
 		return () => {
