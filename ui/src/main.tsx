@@ -3,6 +3,7 @@ import { useEffect, useState } from "preact/hooks";
 import { App } from "@modelcontextprotocol/ext-apps";
 import { FibxApp } from "./app.js";
 import { explainError, type Explained } from "./errors.js";
+import { FibxLockup } from "./logo.js";
 import { parseToolJson } from "./status.js";
 import type { Snapshot } from "./types.js";
 import "./tokens.css";
@@ -60,7 +61,7 @@ function Root() {
 	if (failure) {
 		return (
 			<div data-fibx-app class="app">
-				<span class="brand">FibX</span>
+				<FibxLockup />
 				<p class="error">{failure.title}</p>
 				{failure.detail && <p class="muted">{failure.detail}</p>}
 				{failure.raw && (
@@ -75,7 +76,7 @@ function Root() {
 	if (!snapshot) {
 		return (
 			<div data-fibx-app class="app">
-				<span class="brand">FibX</span>
+				<FibxLockup />
 				<p class="muted">opening…</p>
 			</div>
 		);

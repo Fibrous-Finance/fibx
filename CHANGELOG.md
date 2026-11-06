@@ -9,9 +9,12 @@ contract.
 
 ### Changed
 
-- The app's Fibrous symbol follows the brand kit's logo refresh: the master
-  drawing, in Signal #22E6EE on dark hosts and #007E85 on light ones. Brand
-  teal was 2.4:1 on the light ground, below the kit's 3:1 floor.
+- The app's header, while it opens and on failure too, shows FibX by
+  Fibrous, the brand kit's endorsed lockup, in place of the Fibrous symbol
+  and the word FibX. It is 20 px tall, the kit's minimum, in the kit's duo
+  colours for the theme: the symbol Signal #22E6EE and the words white on
+  dark, #007E85 and navy #272D3E on light. Brand teal was 2.4:1 on the light
+  ground, below the kit's 3:1 floor for the symbol.
 
 ## [0.10.1] — 2026-09-05
 

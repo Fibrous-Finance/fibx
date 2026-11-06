@@ -8,6 +8,7 @@
 	--brand-primary: 17 178 186;
 	--brand-hover: 15 160 167;
 	--brand-logo: 0 126 133;
+	--brand-words: 39 45 62;
 	--status-success: 59 193 113;
 	--status-warning: 255 184 0;
 	--status-error: 255 100 124;
@@ -23,6 +24,7 @@
 	--text-secondary: 182 186 195;
 	--text-muted: 125 127 130;
 	--brand-logo: 34 230 238;
+	--brand-words: 255 255 255;
 }
 
 * {
@@ -60,22 +62,21 @@ h1 {
 	gap: 8px;
 }
 
+/* FibX by Fibrous in the brand kit's colours, as its duo-on-dark and
+   duo-on-light files draw it: the symbol Signal #22E6EE on dark and #007E85
+   on light, the words white on dark and navy #272D3E on light. Brand teal is
+   2.4:1 on the light ground, under the kit's 3:1 floor for the symbol. */
 .brand {
-	display: inline-flex;
-	align-items: center;
-	gap: 7px;
-	font-size: 1.1rem;
-	font-weight: 700;
-	letter-spacing: -0.01em;
+	flex: none;
 	margin-right: auto;
 }
 
-/* The symbol in the brand kit's logo colours, as in fibrous-interface's navbar:
-   Signal #22E6EE on dark, #007E85 on light. Brand teal is 2.4:1 on the light
-   ground, under the kit's 3:1 floor for the symbol. */
-.logo {
-	color: rgb(var(--brand-logo));
-	flex: none;
+.brand-symbol {
+	fill: rgb(var(--brand-logo));
+}
+
+.brand-words {
+	fill: rgb(var(--brand-words));
 }
 
 /* The header's chain and address pills: the navbar's own — a bg-secondary
