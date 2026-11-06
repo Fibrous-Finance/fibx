@@ -5,7 +5,7 @@ All notable changes to FibX. The format follows
 [SemVer](https://semver.org/) while below 1.0, where a minor bump may change a
 contract.
 
-## [Unreleased]
+## [0.10.2] — 2026-11-06
 
 ### Changed
 
@@ -15,6 +15,11 @@ contract.
   colours for the theme: the symbol Signal #22E6EE and the words white on
   dark, #007E85 and navy #272D3E on light. Brand teal was 2.4:1 on the light
   ground, below the kit's 3:1 floor for the symbol.
+- The app takes its light or dark theme from the host — the chat app it is
+  drawn in — and follows it when the host changes theme. It used to read only
+  the OS setting, once, so a dark chat on a light OS drew the light app and
+  the lockup's light colours. The OS setting is now only the fallback for a
+  host that sends no theme.
 
 ## [0.10.1] — 2026-09-05
 
@@ -93,5 +98,6 @@ contract.
 See the [git history](https://github.com/Fibrous-Finance/fibx/commits/main)
 and the [npm versions](https://www.npmjs.com/package/fibx?activeTab=versions).
 
+[0.10.2]: https://github.com/Fibrous-Finance/fibx/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/Fibrous-Finance/fibx/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/Fibrous-Finance/fibx/compare/v0.8.2...v0.10.0
