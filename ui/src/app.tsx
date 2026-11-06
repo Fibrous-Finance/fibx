@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import type { App } from "@modelcontextprotocol/ext-apps";
 import { callJson } from "./rpc.js";
-import { FibrousLogo } from "./logo.js";
+import { FibxLockup } from "./logo.js";
 import { explainError } from "./errors.js";
 import { describeSession, shortAddress } from "./status.js";
 import { Pairing } from "./pairing.js";
@@ -107,10 +107,7 @@ export function FibxApp({ app, snapshot }: { app: App; snapshot: Snapshot }) {
 	return (
 		<div data-fibx-app class="app">
 			<header class="row app-header">
-				<span class="brand">
-					<FibrousLogo />
-					FibX
-				</span>
+				<FibxLockup />
 				<select
 					class="hpill"
 					value={chain}
