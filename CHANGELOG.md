@@ -5,6 +5,14 @@ All notable changes to FibX. The format follows
 [SemVer](https://semver.org/) while below 1.0, where a minor bump may change a
 contract.
 
+## [Unreleased]
+
+### Changed
+
+- The app's Fibrous symbol follows the brand kit's logo refresh: the master
+  drawing, in Signal #22E6EE on dark hosts and #007E85 on light ones. Brand
+  teal was 2.4:1 on the light ground, below the kit's 3:1 floor.
+
 ## [0.10.1] — 2026-09-05
 
 ### Changed
