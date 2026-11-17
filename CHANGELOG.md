@@ -5,6 +5,24 @@ All notable changes to FibX. The format follows
 [SemVer](https://semver.org/) while below 1.0, where a minor bump may change a
 contract.
 
+## [Unreleased]
+
+### Changed
+
+- **Node.js 20.17+, 22.13+ or 24+.** `engines` said `>=18`, but the
+  dependencies bundled into FibX already required more — inquirer 13 and
+  mute-stream set the floor, and commander 14, ora 9 and the MCP Apps SDK need
+  20 or later. `engines`, the build target and the docs now state the real
+  floor.
+- The README, MCP.md, the policy tool's description and the help for
+  `fibx policy set` no longer say `allowedDestinations` bounds tokens. It
+  limits which addresses a transaction is sent to, and a token transfer is sent
+  to the token's contract, so it cannot limit who receives the tokens.
+- The docs no longer claim auto-slippage, a general preflight layer, `isError`
+  on tool failures, server-side signing for imported keys, or that fibx-server
+  must be running. They say which unit `estimatedGas` is in on each surface:
+  a native-token fee in the CLI, gas units in the MCP tools.
+
 ## [0.10.2] — 2026-11-06
 
 ### Changed
@@ -98,6 +116,7 @@ contract.
 See the [git history](https://github.com/Fibrous-Finance/fibx/commits/main)
 and the [npm versions](https://www.npmjs.com/package/fibx?activeTab=versions).
 
+[Unreleased]: https://github.com/Fibrous-Finance/fibx/compare/v0.10.2...HEAD
 [0.10.2]: https://github.com/Fibrous-Finance/fibx/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/Fibrous-Finance/fibx/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/Fibrous-Finance/fibx/compare/v0.8.2...v0.10.0
