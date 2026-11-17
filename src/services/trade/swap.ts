@@ -9,6 +9,7 @@ import {
 	getAllowance,
 	waitForAllowance,
 } from "../chain/erc20.js";
+import { waitForSuccess } from "../chain/receipt.js";
 import { resolveToken, type Token } from "../fibrous/tokens.js";
 import { encodeSwapCalldata, getRouteAndCallData } from "../fibrous/route.js";
 import { DEFAULT_SLIPPAGE } from "../../lib/config.js";
@@ -229,10 +230,10 @@ export async function executeSwap(req: SwapRequest): Promise<SwapOutcome> {
 			});
 
 			onProgress?.({ stage: "approval-sent", hash: approveTxHash });
-			await publicClient.waitForTransactionReceipt({
-				hash: approveTxHash,
-				confirmations: 1,
-			});
+			// Both surfaces wait here: the swap cannot be built until the
+			// allowance exists. A reverted approval stops now, not after
+			// waitForAllowance has polled for 30 seconds.
+			await waitForSuccess(publicClient, approveTxHash, "Approval");
 			await waitForAllowance(
 				publicClient,
 				tokenIn.address as Address,

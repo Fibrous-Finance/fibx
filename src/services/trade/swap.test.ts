@@ -81,6 +81,7 @@ beforeEach(() => {
 	mocks.getGasPrice.mockResolvedValue(1_000_000_000n);
 	mocks.getAllowance.mockResolvedValue(10n ** 30n);
 	mocks.sendTransaction.mockResolvedValue("0xhash");
+	mocks.waitForTransactionReceipt.mockResolvedValue({ status: "success", blockNumber: 1n });
 });
 
 const request = { amount: "1", from: "USDC", to: "DAI", chain: "base", slippage: 1 };

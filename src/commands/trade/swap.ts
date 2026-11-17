@@ -5,6 +5,8 @@ import {
 	type SwapOutcome,
 	type SwapProgress,
 } from "../../services/trade/swap.js";
+import { getPublicClient } from "../../services/chain/client.js";
+import { waitForSuccess } from "../../services/chain/receipt.js";
 import { DEFAULT_SLIPPAGE } from "../../lib/config.js";
 import {
 	createSpinner,
@@ -92,13 +94,18 @@ export async function tradeCommand(
 		if (outcome.simulated) {
 			done.succeed("Simulation complete");
 		} else {
-			done.succeed(
+			// "confirmed" is a claim about the chain, so it waits for the receipt
+			// and fails on a revert; swap_tokens returns the hash at once and
+			// leaves the polling to get_tx_status.
+			const label =
 				outcome.operation === "wrap"
-					? "Wrap confirmed"
+					? "Wrap"
 					: outcome.operation === "unwrap"
-						? "Unwrap confirmed"
-						: "Swap confirmed"
-			);
+						? "Unwrap"
+						: "Swap";
+			done.text = `Waiting for ${outcome.hash} to confirm...`;
+			await waitForSuccess(getPublicClient(outcome.chain), outcome.hash, label);
+			done.succeed(`${label} confirmed`);
 		}
 		outputResult(formatOutcome(outcome), opts);
 	} catch (error) {

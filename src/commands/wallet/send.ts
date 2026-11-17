@@ -4,6 +4,7 @@ import { getWalletClient, getPublicClient } from "../../services/chain/client.js
 import { getChainConfig } from "../../services/chain/constants.js";
 import { ERC20_ABI } from "../../services/chain/erc20.js";
 import { resolveToken } from "../../services/fibrous/tokens.js";
+import { waitForSuccess } from "../../services/chain/receipt.js";
 import { validateAddress, validateAmount } from "../../lib/validation.js";
 import { parseAmount } from "../../lib/parseAmount.js";
 import {
@@ -131,6 +132,10 @@ export async function sendCommand(
 			txHash = await walletClient.writeContract(request);
 		}
 
+		// send_tokens returns the hash at once; the CLI says "confirmed", so it
+		// waits for the receipt and fails on a revert.
+		spinner.text = `Waiting for ${txHash} to confirm...`;
+		await waitForSuccess(publicClient, txHash, "Transfer");
 		spinner.succeed("Transfer confirmed");
 
 		const explorerLink = chain.viemChain.blockExplorers?.default.url
