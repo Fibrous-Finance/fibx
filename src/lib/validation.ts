@@ -3,15 +3,35 @@ import { ErrorCode, FibxError } from "./errors.js";
 
 export const addressSchema = z.string().regex(/^0x[a-fA-F0-9]{40}$/, "Invalid EVM address");
 
-export const amountSchema = z.string().refine(
-	(v) => {
-		const clean = v.replace(/[$,]/g, "");
-		return !isNaN(Number(clean)) && Number(clean) > 0;
-	},
-	{
-		message: "Amount must be a positive number",
+/**
+ * A plain decimal in token units, with a dot as the decimal point.
+ *
+ * This used to strip `$` and `,` before parsing, so `1,5` — a decimal comma —
+ * traded 15, and `$100 ETH` traded 100 ETH. Neither can be read back safely:
+ * a comma is a decimal point in half the world and a thousands separator in the
+ * other half, and a `$` suggests a dollar value FibX never converts. Both are
+ * refused, with the spelling to use instead. So is anything else Number()
+ * would accept but viem's parseUnits would not read the same way (`1e3`,
+ * `0x10`, ` 1 `).
+ */
+const DECIMAL = /^(?:\d+(?:\.\d*)?|\.\d+)$/;
+
+function amountProblem(v: string): string | null {
+	if (v.includes(",")) {
+		return "Amounts take a dot as the decimal point and no thousands separators — write 1.5, not 1,5.";
 	}
-);
+	if (v.includes("$")) {
+		return "Amounts are in token units, not dollars — drop the $ (write 100, not $100).";
+	}
+	if (!DECIMAL.test(v)) return "Amount must be a plain decimal number, like 1.5 or 100.";
+	if (!(Number(v) > 0)) return "Amount must be a positive number";
+	return null;
+}
+
+export const amountSchema = z.string().superRefine((v, ctx) => {
+	const message = amountProblem(v);
+	if (message) ctx.addIssue({ code: "custom", message });
+});
 
 /**
  * The bound on slippage, defined once for every surface that takes one.
@@ -54,7 +74,10 @@ export function validateSlippage(slippage: number): number {
 export function validateAddress(addr: string): string {
 	const result = addressSchema.safeParse(addr);
 	if (!result.success) {
-		throw new FibxError(ErrorCode.INVALID_ADDRESS, result.error.message);
+		throw new FibxError(
+			ErrorCode.INVALID_ADDRESS,
+			result.error.issues[0]?.message ?? "Invalid EVM address"
+		);
 	}
 	return result.data;
 }
@@ -62,7 +85,11 @@ export function validateAddress(addr: string): string {
 export function validateAmount(amount: string): string {
 	const result = amountSchema.safeParse(amount);
 	if (!result.success) {
-		throw new FibxError(ErrorCode.INVALID_AMOUNT, result.error.message);
+		// zod 4's error.message is the issue list as JSON; the sentence is the issue's.
+		throw new FibxError(
+			ErrorCode.INVALID_AMOUNT,
+			result.error.issues[0]?.message ?? "Invalid amount"
+		);
 	}
 	return result.data;
 }
