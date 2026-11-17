@@ -15,7 +15,7 @@ export function registerWalletTools(server: McpServer): number {
 		{
 			title: "Get Wallet Balance",
 			description:
-				"Get native token and all ERC-20 token balances for the active wallet on a specific chain. Only returns tokens with non-zero balances.",
+				"Get the native token balance (always included) and the non-zero balances of the tokens Fibrous lists for a specific chain, for the active wallet.",
 			inputSchema: {
 				chain: ChainEnum.default("base").describe("Target blockchain network"),
 			},
@@ -34,7 +34,7 @@ export function registerWalletTools(server: McpServer): number {
 		{
 			title: "Send Tokens",
 			description:
-				"Send native tokens (ETH, cBTC, HYPE, MON) or ERC-20 tokens to a recipient address. If token is omitted, the chain's native token is used. Set simulate=true for a no-broadcast preview; a gas estimate is returned where available.",
+				"Send native tokens (ETH, HYPE, MON) or ERC-20 tokens to a recipient address. If token is omitted, the chain's native token is used. Set simulate=true for a no-broadcast preview; a gas estimate is returned where available.",
 			inputSchema: {
 				amount: z.string().describe("Amount to send (e.g. '0.1', '100')"),
 				recipient: z.string().describe("Recipient address (0x...)"),

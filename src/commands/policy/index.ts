@@ -294,8 +294,11 @@ export function registerPolicyCommands(program: Command) {
 				"  $ fibx policy set base.allowedDestinations 0xAbC...,0xDeF...\n" +
 				"  $ fibx policy set expiry 2026-12-31\n" +
 				"\nmaxValue caps the native value of one transaction. It does not bound\n" +
-				"token amounts — an ERC-20 transfer carries value 0 — so use\n" +
-				"allowedDestinations to bound where tokens may go.\n" +
+				"token amounts — an ERC-20 transfer carries value 0.\n" +
+				"\nallowedDestinations checks a transaction's `to` address. A token\n" +
+				"transfer's `to` is the token's contract, not the recipient, so it cannot\n" +
+				"limit who receives tokens. Swaps, approvals and Aave calls go to a router,\n" +
+				"pool or token contract, which must be listed too.\n" +
 				"\nA bare expiry date means UTC midnight at the START of that day:\n" +
 				"`expiry 2026-12-31` lapses as Dec 31 begins, not as it ends."
 		)

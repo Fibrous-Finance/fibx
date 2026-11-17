@@ -1,6 +1,6 @@
 # FibX
 
-A command-line tool and MCP server for DeFi operations on **Base, HyperEVM, and Monad**, powered by [Fibrous](https://fibrous.finance) aggregation. Sign with your own wallet over WalletConnect, with a [Privy](https://privy.io) server wallet, or with an imported key — every path bounded by a signing policy that lives on your machine.
+A command-line tool and MCP server for DeFi operations on **Base, HyperEVM, and Monad**, powered by [Fibrous](https://fibrous.finance) aggregation. Sign with your own wallet over WalletConnect, with a [Privy](https://privy.io) server wallet, or with an imported key — any of the three can be bounded by a signing policy that lives on your machine (none is in force until you set one with `fibx policy`).
 
 [![CI](https://github.com/Fibrous-Finance/fibx/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Fibrous-Finance/fibx/actions/workflows/ci.yml)
 [![npm version](https://badge.fury.io/js/fibx.svg)](https://badge.fury.io/js/fibx)
@@ -9,8 +9,8 @@ A command-line tool and MCP server for DeFi operations on **Base, HyperEVM, and 
 
 - **Multi-Chain Support**: Base, HyperEVM, and Monad
 - **Portfolio**: Cross-chain portfolio overview with USD valuations and DeFi positions
-- **Token Swaps**: Optimal routing via Fibrous aggregation with auto-slippage
-- **Transfers**: Send ETH or any ERC-20 token
+- **Token Swaps**: Optimal routing via Fibrous aggregation, with a 0.5% default slippage you can set per swap (`--slippage`, 0.01–50%)
+- **Transfers**: Send the chain's native token, or any ERC-20 on Fibrous's token list for that chain
 - **Aave V3**: Supply, borrow, repay, withdraw, and browse markets on Base
 - **MCP Server**: Built-in AI agent integration for Cursor, Claude Desktop, and Antigravity (19 tools)
 - **The FibX app, in the chat**: in hosts that render [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) UI such as Claude Desktop, `open_fibx` shows the wallet, balances, signing policy and a swap form with the Fibrous route inline — the model opens it, and you press Simulate and Swap
@@ -18,11 +18,11 @@ A command-line tool and MCP server for DeFi operations on **Base, HyperEVM, and 
 - **Your own wallet**: Pair over WalletConnect and approve every transaction on your phone
 - **Privy Server Wallets**: Server-side signing — the CLI receives signed transaction payloads or signatures, not Privy app credentials or raw keys
 - **Private Key Import**: Use an existing wallet with AES-256-GCM encrypted local storage
-- **Local signing policy**: A file you own — native value cap per chain, allowed chains, allowed destinations, expiry — enforced before every signature on all three paths (Privy adds its own server-side policy on top)
-- **Preflight Checks**: Transaction flows validate or estimate execution where the underlying RPC supports it
-- **Dry‑Run Mode**: `--simulate` previews write operations without broadcasting; gas estimates are included where available
+- **Local signing policy**: A file you own — native value cap per chain, allowed chains, allowed destinations, expiry — enforced before every transaction is signed or sent, on all three paths (Privy adds its own server-side policy on top)
+- **Checks before sending**: `send`, `trade` and Aave ask the RPC to estimate or dry-run the transaction before sending it, so one that would revert is stopped first. A live wrap/unwrap and `aave --simulate` skip this
+- **Dry‑Run Mode**: `--simulate` on `send`, `trade` and `aave` previews without broadcasting. `send` and `trade` print `estimatedGas` as an estimated network fee in the chain's native token (e.g. `0.00002 ETH`) when they can estimate one; the `aave` preview makes no chain call
 - **JSON Output**: `--json` flag for scripting and pipelines
-- **Zero-Dependency Install**: Single-file bundle via tsup — `npx fibx` runs near-instantly
+- **Zero-Dependency Install**: Ships as a single bundled file (via tsup) with no runtime dependencies
 
 ## Supported Chains
 
@@ -49,7 +49,7 @@ npm install -g fibx
 ## Requirements
 
 - Node.js 20.17+, 22.13+ or 24+
-- A running [fibx-server](https://github.com/Fibrous-Finance/fibx-server) instance (required for Privy wallet operations; not needed for private key imports)
+- [fibx-server](https://github.com/Fibrous-Finance/fibx-server) is used only by Privy (`auth login`). FibX talks to a hosted instance by default; set `FIBX_API_URL` to point it at your own. `auth connect` and `auth import` do not use it.
 
 ## Quick Start — First Swap in 3 Minutes
 
@@ -93,11 +93,11 @@ That's it. Three steps from zero to first swap.
 
 Run `fibx auth setup` and it will ask. The three paths differ on one thing:
 
-| Path           | Key held by     | Runs while you are away | Bounded by               |
-| -------------- | --------------- | ----------------------- | ------------------------ |
-| `auth connect` | your own wallet | no                      | you, on your phone       |
-| `auth login`   | Privy           | yes                     | Privy's signing policy   |
-| `auth import`  | this machine    | yes                     | the local policy you set |
+| Path           | Key held by     | Runs while you are away      | Bounded by               |
+| -------------- | --------------- | ---------------------------- | ------------------------ |
+| `auth connect` | your own wallet | no                           | you, on your phone       |
+| `auth login`   | Privy           | yes, until the login expires | Privy's signing policy   |
+| `auth import`  | this machine    | yes                          | the local policy you set |
 
 Keeping your own wallet _and_ having FibX act unattended needs ERC-7715, which
 wallets do not yet expose over WalletConnect. `fibx auth setup` explains the
@@ -125,9 +125,10 @@ for the whole run: the pairing URI prints first as `{"uri":"wc:..."}` so a
 script can act on it while it waits, then the result prints as its own compact
 JSON line once the wallet approves.
 
-`npx fibx auth logout` ends the connection on both sides: it tells your wallet to
-drop the session, so FibX stops appearing in its connected-apps list, and removes
-the pairing keys from disk along with the session.
+`npx fibx auth logout` asks your wallet to end the session, so FibX stops
+appearing in its connected-apps list, and removes the pairing keys from disk
+along with the session. If the wallet cannot be reached within a few seconds,
+FibX still removes its own pairing keys and session.
 
 A shared WalletConnect project id ships in the published bundle, so this works
 with no setup. It is public by necessity — a CLI has no origin to allowlist — so
@@ -136,8 +137,8 @@ failing on quota, create a free project at
 [cloud.reown.com](https://cloud.reown.com) and set `FIBX_WC_PROJECT_ID` to your
 own id.
 
-`auth login` (email OTP) and `auth import` (private key) are unchanged and remain
-available.
+`auth login` (email OTP) and `auth import` (private key) are also available;
+choosing one replaces the active session, ending any WalletConnect pairing.
 
 ### Signing policy
 
@@ -171,10 +172,13 @@ Know what each rule bounds, because they are not the same:
   `fibx send 50000 USDC 0xsomewhere`, on the token side of a trade, or on an
   Aave borrow. A token-value cap needs decimals and a token registry, and is
   not in this release.
-- `allowedDestinations` is the rule that bounds tokens, by bounding where
-  anything may go. It is the one to set if the worry is an agent moving your
-  holdings somewhere. Note that allowlisting a token's contract so a trade can
-  approve it also permits transfers of that token.
+- `allowedDestinations` limits which addresses a transaction may be sent to.
+  The policy sees a transaction's `to` address, and a token transfer's `to` is
+  the token's contract, not the person receiving the tokens — so this rule
+  cannot limit who receives tokens. If a token's contract is on the list, that
+  token can be sent to anyone; if it is not, FibX cannot move that token at
+  all. Swaps, approvals and Aave calls are sent to a router, pool or token
+  contract, which must be on the list too, or they are refused.
 - `allowedChains` and `expiry` do exactly what they say. A lapsed or
   unparseable policy refuses everything rather than permitting it.
 
@@ -201,7 +205,7 @@ npx fibx portfolio           # Table output across all chains
 npx fibx portfolio --json    # Structured JSON for scripting
 ```
 
-Shows all token holdings across Base, HyperEVM, and Monad with USD values. Includes DeFi positions (Aave V3 collateral/debt) and total portfolio net worth. Token prices are sourced live from Fibrous.
+Shows holdings of the tokens Fibrous lists on Base, HyperEVM, and Monad, valued with prices from Fibrous's token list (cached for up to 24 hours; a token with no price counts as $0). Includes DeFi positions (Aave V3 collateral/debt) and total portfolio net worth. A chain that fails to load is left out.
 
 ### Send
 
@@ -256,7 +260,7 @@ npx fibx wallets    # Show active wallet details
 
 ```bash
 npx fibx aave status               # Account health
-npx fibx aave markets              # List all active reserves with APY & TVL
+npx fibx aave markets              # Active reserves: APY, total supplied/borrowed, LTV
 npx fibx aave supply 1 ETH         # Auto-wraps ETH -> WETH and supplies
 npx fibx aave supply 100 USDC      # Supply ERC-20
 npx fibx aave borrow 50 USDC       # Borrow
@@ -292,7 +296,7 @@ fibx includes a built-in [MCP](https://modelcontextprotocol.io) server for AI ed
 npx fibx mcp-start
 ```
 
-The MCP server exposes **19 tools**: the FibX app (`open_fibx`, `list_tokens`), read-only queries, three transactional tools, and session and policy management. All write operations support a `simulate=true` preview that does not broadcast; gas estimates are returned only where available.
+The MCP server exposes **19 tools**: the FibX app (`open_fibx`, `list_tokens`), read-only queries, three transactional tools, and session and policy management. The three transactional tools (`swap_tokens`, `send_tokens`, `aave_action`) accept `simulate=true` for a preview that does not broadcast; gas estimates are returned only where available, in gas units — see [MCP.md](https://github.com/Fibrous-Finance/fibx/blob/main/MCP.md).
 
 In a host that renders MCP Apps UI — Claude Desktop today — `open_fibx` is the entry point: ask about your wallet, a balance, a price or a swap and the whole app opens inline, pre-filled from the conversation. It executes nothing on its own; Simulate and Swap are buttons you press. In a text-only host the same call returns a JSON snapshot the model can summarise, and the headless tools do the rest.
 
@@ -312,7 +316,7 @@ client configuration, and deployment policy remain part of the trust boundary:
 | Privy signing policy | The default policy allowlists configured chains, caps each transaction's native-token `value`, and denies key export. Privy evaluates the policy at signing time; fibx-server credentials and any custom policy remain critical trust boundaries. |
 | fibx-server schemas  | `/sign/*` accepts only the exact transaction shape the CLI produces — unknown fields, contract creation, and unserved chains are rejected before reaching Privy.                                                                                  |
 | MCP tool annotations | Every transactional tool advertises `destructiveHint: true`; compatible clients may use that hint to request confirmation, depending on client behavior and configuration.                                                                        |
-| Simulation           | `--simulate` previews write operations without broadcasting. Some paths also return a gas estimate; others return operation metadata only.                                                                                                        |
+| Simulation           | `--simulate` on `send`, `trade` and `aave` previews without broadcasting. `send` and `trade` also print an estimated network fee where they can; the `aave` preview returns the request only, with no chain call.                                 |
 | Local key storage    | Imported private keys are encrypted at rest with AES-256-GCM using a per-machine key stored `0600` in the OS config directory.                                                                                                                    |
 
 Wallet policy limits are configured per deployment — see the
@@ -335,14 +339,14 @@ the stack:
 
 ```
 src/
-├── commands/           # CLI commands (auth, policy, trade, send, aave, config)
+├── commands/           # CLI commands (auth, wallet, trade, defi, portfolio, chain, policy, config)
 ├── mcp/                # Modular MCP server
 │   ├── server.ts       # Entry point + MCP_INSTRUCTIONS
 │   ├── ui.ts           # The ui://fibx/app.html resource (the built widget, inlined)
 │   ├── tools/          # Tool registrations (app, auth, wallet, trade, defi, policy)
 │   └── handlers/       # Tool implementations
-├── services/           # Business logic (chain, fibrous, auth, policy, walletconnect, defi, portfolio)
-└── lib/                # Shared utilities (errors, fetch, format, crypto)
+├── services/           # Business logic (api, auth, chain, config, defi, fibrous, policy, portfolio, privy, trade, walletconnect)
+└── lib/                # Shared utilities (errors, fetch, format, validation, cache)
 ui/
 ├── src/                # The FibX app widget — Preact, one document, no network
 └── dev-host/           # A local MCP Apps host for the widget: fixtures, or a bridge to the real server
@@ -356,9 +360,9 @@ runtime dependencies.
 
 ```bash
 pnpm install
-pnpm dev          # run the CLI from source
+pnpm dev          # run the CLI from source (loads .env — create it first; see .env.example)
 pnpm test         # vitest unit tests
-pnpm typecheck    # tsc --noEmit
+pnpm typecheck    # tsc --noEmit, for src/ and ui/
 pnpm lint         # eslint
 pnpm format:check # prettier
 pnpm build        # vite (the app widget) then tsup, to dist/

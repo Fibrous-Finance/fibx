@@ -82,10 +82,14 @@ later found reading their real `policy.json`.
 **Do not run `auth connect`, `auth login` or `auth setup` while testing.** Two
 of them open a real WalletConnect pairing or send a real OTP email.
 
-**`maxValue` bounds native value only.** An ERC-20 transfer reaches the policy
-as `{ to: <the token contract>, value: 0n }`, so the cap never sees the amount.
-`allowedDestinations` is what bounds where tokens may go. The README claimed
-otherwise once and it had to be corrected; do not reintroduce the claim.
+**The policy sees `{ chain, to, value }` and nothing else.** An ERC-20
+transfer reaches it as `{ to: <the token contract>, value: 0n }`, so
+`maxValue` never sees a token amount, and `allowedDestinations` never sees a
+token's recipient: listing a token's contract lets that token go to anyone,
+and not listing it blocks the token entirely. Swaps, approvals and Aave calls
+go to a router, pool or token contract, which must be listed too. The docs
+have claimed twice that one rule or the other bounds tokens; do not
+reintroduce either claim.
 
 **`loadPolicy()` returns three states, not two:** `Policy | null | "unreadable"`.
 "Absent" permits everything; "unreadable" refuses everything. Collapsing them is

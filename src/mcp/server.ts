@@ -21,9 +21,9 @@ const MCP_INSTRUCTIONS = `fibx is a multi-chain EVM DeFi toolkit for Base, Hyper
 - Query native and ERC-20 token balances on any supported chain
 - View cross-chain portfolio with USD values and Aave V3 DeFi positions
 - Execute token swaps via Fibrous DEX aggregator with optimal routing
-- Send native and ERC-20 tokens across chains
+- Send native and ERC-20 tokens to an address on any supported chain (one chain per transfer)
 - Supply, borrow, repay, withdraw on Aave V3 (Base only)
-- Monitor Aave V3 health factors and market rates (APY, TVL, LTV)
+- Monitor Aave V3 health factors and market rates (APY, total supplied and borrowed, LTV)
 
 RULES:
 1. For anything about the wallet, a balance, a quote or a swap, call open_fibx FIRST — before get_auth_status, get_balance, get_policy or get_quote. One call returns all of them in one snapshot, and in a host that renders MCP Apps UI it shows the user the FibX app, where they press Simulate and Swap themselves. It executes nothing, so call it even when you would decline to execute a swap yourself. Pass from/to/amount to open it pre-filled. Use the single-value tools below only for something the snapshot does not carry, or after the user has asked you to act headlessly.

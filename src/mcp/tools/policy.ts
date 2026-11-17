@@ -32,8 +32,10 @@ export function registerPolicyTools(server: McpServer): number {
 				"Set one rule on the local signing policy. Rules: expiry, allowedChains, " +
 				"<chain>.maxValue, <chain>.allowedDestinations. Lists are comma-separated. " +
 				"maxValue caps the native value of one transaction and does not bound token " +
-				"amounts — an ERC-20 transfer carries value 0 — so use allowedDestinations " +
-				"to bound where tokens may go.",
+				"amounts — an ERC-20 transfer carries value 0. allowedDestinations checks a " +
+				"transaction's `to` address; a token transfer's `to` is the token's contract, " +
+				"not the recipient, so it cannot limit who receives tokens. Swaps, approvals " +
+				"and Aave calls go to a router, pool or token contract, which must be listed too.",
 			inputSchema: {
 				rule: z
 					.string()
