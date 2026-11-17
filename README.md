@@ -2,6 +2,7 @@
 
 A command-line tool and MCP server for DeFi operations on **Base, HyperEVM, and Monad**, powered by [Fibrous](https://fibrous.finance) aggregation. Sign with your own wallet over WalletConnect, with a [Privy](https://privy.io) server wallet, or with an imported key — every path bounded by a signing policy that lives on your machine.
 
+[![CI](https://github.com/Fibrous-Finance/fibx/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Fibrous-Finance/fibx/actions/workflows/ci.yml)
 [![npm version](https://badge.fury.io/js/fibx.svg)](https://badge.fury.io/js/fibx)
 
 ## Features

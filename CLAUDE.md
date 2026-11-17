@@ -66,6 +66,11 @@ dependencies on this repo that vitest passed straight through — esbuild elides
 `import type`, so a package missing from `package.json` only surfaces in the
 type check.
 
+CI (`.github/workflows/ci.yml`) runs those checks and the build on Node 22.13.0
+and the current LTS, then starts the built bundle with `scripts/smoke.mjs` —
+`--version` and an MCP `initialize` + `tools/list` — on the lowest release of
+every supported Node line. A bundle that builds can still crash on start.
+
 ## Landmines
 
 **Never let a test touch the real config directory.** `policyPath()` and

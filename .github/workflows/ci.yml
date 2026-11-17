@@ -1,0 +1,81 @@
+name: CI
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+
+permissions:
+    contents: read
+
+# Actions are pinned to full commit SHAs, with the release in a comment, as in
+# Fiberscope: a moved tag cannot change what runs here.
+
+# A new push to a pull request supersedes the run before it. Runs on main are
+# never cancelled, so every commit there keeps a result.
+concurrency:
+    group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+    verify:
+        name: verify (Node ${{ matrix.node }})
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        strategy:
+            fail-fast: false
+            matrix:
+                # The toolchain (Vite 8, rolldown) needs ^20.19.0 || >=22.12.0, above
+                # the bundle's 20.17.0 floor, so the suite runs on the lowest 22 the
+                # bundle supports and on the current LTS. The runtime job below starts
+                # the built CLI on every supported floor, 20 included.
+                node: ["22.13.0", "lts/*"]
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+            - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: ${{ matrix.node }}
+                  cache: pnpm
+            - run: pnpm install --frozen-lockfile
+            - run: pnpm typecheck
+            - run: pnpm lint
+            - run: pnpm format:check
+            - run: pnpm test
+            - run: pnpm build
+            - run: node dist/index.js --version
+            - run: node scripts/smoke.mjs
+            - if: matrix.node == '22.13.0'
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  name: dist
+                  path: dist/index.js
+                  if-no-files-found: error
+                  retention-days: 3
+
+    runtime:
+        name: runtime (Node ${{ matrix.node }})
+        needs: verify
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        strategy:
+            fail-fast: false
+            matrix:
+                # The lowest release of each supported LTS line, from engines.node
+                # (^20.17.0 || ^22.13.0 || >=23.5.0), plus the current LTS.
+                node: ["20.17.0", "22.13.0", "24.0.0", "26.0.0", "lts/*"]
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: ${{ matrix.node }}
+            - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+              with:
+                  name: dist
+                  path: dist
+            - run: node dist/index.js --version
+            - run: node scripts/smoke.mjs
