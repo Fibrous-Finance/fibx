@@ -4,7 +4,7 @@ import { getWalletClient, getPublicClient } from "../../services/chain/client.js
 import { getChainConfig } from "../../services/chain/constants.js";
 import { ERC20_ABI } from "../../services/chain/erc20.js";
 import { resolveToken } from "../../services/fibrous/tokens.js";
-import { waitForSuccess } from "../../services/chain/receipt.js";
+import { isUnconfirmed, waitForSuccess } from "../../services/chain/receipt.js";
 import { validateAddress, validateAmount } from "../../lib/validation.js";
 import { parseAmount } from "../../lib/parseAmount.js";
 import {
@@ -154,7 +154,9 @@ export async function sendCommand(
 			opts
 		);
 	} catch (error) {
-		spinner.fail("Transfer failed");
+		// Sent without a receipt yet may still succeed; the error carries the hash.
+		if (isUnconfirmed(error)) spinner.warn("Sent, but not confirmed yet");
+		else spinner.fail("Transfer failed");
 		outputError(error, opts);
 	}
 }

@@ -56,3 +56,11 @@ export async function waitForSuccess(
 	}
 	return receipt;
 }
+
+/**
+ * True for a transaction that was sent but has no receipt yet. A command must
+ * not label that a failure: the transaction may still succeed.
+ */
+export function isUnconfirmed(error: unknown): boolean {
+	return error instanceof FibxError && error.code === ErrorCode.TX_UNCONFIRMED;
+}

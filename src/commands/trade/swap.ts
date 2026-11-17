@@ -6,7 +6,7 @@ import {
 	type SwapProgress,
 } from "../../services/trade/swap.js";
 import { getPublicClient } from "../../services/chain/client.js";
-import { waitForSuccess } from "../../services/chain/receipt.js";
+import { isUnconfirmed, waitForSuccess } from "../../services/chain/receipt.js";
 import { DEFAULT_SLIPPAGE } from "../../lib/config.js";
 import {
 	createSpinner,
@@ -109,9 +109,16 @@ export async function tradeCommand(
 		}
 		outputResult(formatOutcome(outcome), opts);
 	} catch (error) {
-		if (error instanceof SwapSimulationError) step?.fail("Simulation failed");
-		else step?.stop();
-		spinner.fail("Swap failed");
+		if (isUnconfirmed(error)) {
+			// Sent, no receipt within the bound: it may still succeed, so the
+			// line must not say it failed. The error carries the hash.
+			(step ?? spinner).warn("Sent, but not confirmed yet");
+			if (step) spinner.stop();
+		} else {
+			if (error instanceof SwapSimulationError) step?.fail("Simulation failed");
+			else step?.stop();
+			spinner.fail("Swap failed");
+		}
 		outputError(error, opts);
 	}
 }

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
 		start: vi.fn(),
 		succeed: vi.fn(),
 		fail: vi.fn(),
+		warn: vi.fn(),
 	},
 }));
 
@@ -39,6 +40,9 @@ vi.mock("../../lib/format.js", () => ({
 }));
 
 import { sendCommand } from "./send.js";
+import { WaitForTransactionReceiptTimeoutError } from "viem";
+import { outputError } from "../../lib/format.js";
+import { ErrorCode } from "../../lib/errors.js";
 
 const RECIPIENT = "0x2222222222222222222222222222222222222222";
 const previousExitCode = process.exitCode;
@@ -85,6 +89,23 @@ describe("sendCommand", () => {
 
 		expect(mocks.spinner.succeed).not.toHaveBeenCalledWith("Transfer confirmed");
 		expect(mocks.outputResult).not.toHaveBeenCalled();
+		expect(process.exitCode).toBe(1);
+	});
+
+	// A timeout says nothing about the outcome; the line must not call it failed.
+	it("labels a transfer with no receipt yet as unconfirmed, not failed", async () => {
+		mocks.waitForTransactionReceipt.mockRejectedValue(
+			new WaitForTransactionReceiptTimeoutError({ hash: "0xsend" })
+		);
+
+		await sendCommand("0.1", RECIPIENT, "", { json: true });
+
+		expect(mocks.spinner.warn).toHaveBeenCalledWith("Sent, but not confirmed yet");
+		expect(mocks.spinner.fail).not.toHaveBeenCalledWith("Transfer failed");
+		expect(vi.mocked(outputError)).toHaveBeenCalledWith(
+			expect.objectContaining({ code: ErrorCode.TX_UNCONFIRMED }),
+			{ json: true }
+		);
 		expect(process.exitCode).toBe(1);
 	});
 });

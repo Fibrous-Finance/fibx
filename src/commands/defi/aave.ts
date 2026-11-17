@@ -10,6 +10,7 @@ import {
 } from "../../services/defi/constants.js";
 import { createSpinner, outputResult, formatResult, outputError } from "../../lib/format.js";
 import { ErrorCode, FibxError } from "../../lib/errors.js";
+import { isUnconfirmed } from "../../services/chain/receipt.js";
 import { validateAmount } from "../../lib/validation.js";
 import { MINT } from "../../lib/brand.js";
 
@@ -149,7 +150,9 @@ export const aaveCommand = async (
 				break;
 		}
 	} catch (error) {
-		spinner.fail("Aave operation failed");
+		// Sent without a receipt yet may still succeed; the error carries the hash.
+		if (isUnconfirmed(error)) spinner.warn("Sent, but not confirmed yet");
+		else spinner.fail("Aave operation failed");
 		outputError(error, { json: !!opts.json });
 	}
 };
