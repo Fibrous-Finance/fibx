@@ -56,6 +56,9 @@ export const monad = defineChain({
 	testnet: false,
 });
 
+/** The same deployment on every chain Fibrous serves here. */
+const FIBROUS_ROUTER = "0x274602a953847d807231d2370072f5f4e4594b44";
+
 export interface ChainConfig {
 	id: number;
 	name: string;
@@ -66,6 +69,14 @@ export interface ChainConfig {
 	wrappedNativeAddress: string;
 	fibrousNetwork: string;
 	routerAbi: typeof baseRouterAbi | typeof standardRouterAbi;
+	/**
+	 * The Fibrous router this chain's swaps go to. The route API names a
+	 * router in every response, and that address becomes both the ERC-20
+	 * spender (unlimited with --approve-max) and the transaction target, so a
+	 * response naming any other address is refused rather than trusted.
+	 * Matches Fibrous's own trading app and the live API on 2026-11-17.
+	 */
+	routerAddress: string;
 }
 
 /**
@@ -105,6 +116,7 @@ export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
 		wrappedNativeAddress: "0x4200000000000000000000000000000000000006",
 		fibrousNetwork: "base",
 		routerAbi: baseRouterAbi,
+		routerAddress: FIBROUS_ROUTER,
 	},
 	citrea: {
 		id: 4114,
@@ -116,6 +128,7 @@ export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
 		wrappedNativeAddress: "0x3100000000000000000000000000000000000006",
 		fibrousNetwork: "citrea",
 		routerAbi: standardRouterAbi,
+		routerAddress: FIBROUS_ROUTER,
 	},
 	hyperevm: {
 		id: 999,
@@ -127,6 +140,7 @@ export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
 		wrappedNativeAddress: "0x5555555555555555555555555555555555555555",
 		fibrousNetwork: "hyperevm",
 		routerAbi: standardRouterAbi,
+		routerAddress: FIBROUS_ROUTER,
 	},
 	monad: {
 		id: 143,
@@ -138,6 +152,7 @@ export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
 		wrappedNativeAddress: "0x3bd359c1119da7da1d913d1c4d2b7c461115433a",
 		fibrousNetwork: "monad",
 		routerAbi: standardRouterAbi,
+		routerAddress: FIBROUS_ROUTER,
 	},
 };
 

@@ -15,6 +15,7 @@ export enum ErrorCode {
 	DECRYPTION_FAILED = "DECRYPTION_FAILED",
 	TX_REVERTED = "TX_REVERTED",
 	TX_UNCONFIRMED = "TX_UNCONFIRMED",
+	ROUTE_REJECTED = "ROUTE_REJECTED",
 }
 
 export class FibxError extends Error {

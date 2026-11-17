@@ -1,50 +1,74 @@
 import type { Address } from "viem";
 import { encodeFunctionData } from "viem";
+import { z } from "zod";
 import { FIBROUS_BASE_URL, DEFAULT_SLIPPAGE } from "../../lib/config.js";
 import type { ChainConfig } from "../chain/constants.js";
 import { ErrorCode, FibxError } from "../../lib/errors.js";
 import { withRetry } from "../../lib/retry.js";
 import { fetchWithTimeout } from "../../lib/fetch.js";
 
-export interface RouteToken {
-	name: string;
-	address: string;
-	decimals: number;
-	price: number;
-}
+/**
+ * The route API's response, as far as FibX reads it.
+ *
+ * FibX signs what this response says — the router it names is the approval's
+ * spender and the transaction's target, and its calldata is the swap — so the
+ * shape is checked before anything is read, and a response that does not fit
+ * is refused, not coerced. Keys FibX does not use are ignored.
+ */
+const address = z.string().regex(/^0x[0-9a-fA-F]{40}$/, "not an address");
+const uint = z.string().regex(/^\d+$/, "not an unsigned integer string");
+// Hop fields arrive as strings today; a number would encode the same.
+const uintLike = z.union([uint, z.number().int().nonnegative()]).transform((v) => String(v));
 
-export interface SwapParameter {
-	token_in: string;
-	token_out: string;
-	rate: string;
-	protocol_id: string;
-	pool_address: string;
-	swap_type: number;
-	extra_data: string;
-}
+const routeTokenSchema = z.object({
+	name: z.string().optional(),
+	address,
+	decimals: z.number().int().nonnegative(),
+	// Absent or null when the router has no price; quote.ts reports that as
+	// unknown rather than as zero.
+	price: z.number().nullable().optional(),
+});
 
-export interface RouteAndCallDataResponse {
-	route: {
-		success: boolean;
-		inputToken: RouteToken;
-		outputToken: RouteToken;
-		inputAmount: string;
-		outputAmount: string;
-	};
-	calldata: {
-		route: {
-			token_in: string;
-			token_out: string;
-			amount_in: string;
-			amount_out: string;
-			min_received: string;
-			destination: string;
-			swap_type: number;
-		};
-		swap_parameters: SwapParameter[];
-	};
-	router_address: string;
-}
+const swapParameterSchema = z.object({
+	token_in: address,
+	token_out: address,
+	rate: uintLike,
+	protocol_id: uintLike,
+	pool_address: address,
+	swap_type: z.number().int(),
+	extra_data: z
+		.string()
+		.regex(/^0x[0-9a-fA-F]*$/, "not hex")
+		.nullable()
+		.optional(),
+});
+
+const routeAndCallDataSchema = z.object({
+	route: z.object({
+		success: z.literal(true),
+		inputToken: routeTokenSchema,
+		outputToken: routeTokenSchema,
+		inputAmount: uint,
+		outputAmount: uint,
+	}),
+	calldata: z.object({
+		route: z.object({
+			token_in: address,
+			token_out: address,
+			amount_in: uint,
+			amount_out: uint,
+			min_received: uint,
+			destination: address,
+			swap_type: z.number().int().min(0).max(2),
+		}),
+		swap_parameters: z.array(swapParameterSchema).min(1),
+	}),
+	router_address: address,
+});
+
+export type RouteAndCallDataResponse = z.infer<typeof routeAndCallDataSchema>;
+export type RouteToken = RouteAndCallDataResponse["route"]["inputToken"];
+export type SwapParameter = RouteAndCallDataResponse["calldata"]["swap_parameters"][number];
 
 export interface RouteParams {
 	amount: string;
@@ -52,6 +76,38 @@ export interface RouteParams {
 	tokenOutAddress: string;
 	slippage?: number;
 	destination: string;
+}
+
+function rejected(reason: string): FibxError {
+	return new FibxError(
+		ErrorCode.ROUTE_REJECTED,
+		`The route API's response was refused: ${reason} Nothing was signed.`
+	);
+}
+
+/**
+ * Parses a response and refuses one FibX should not sign.
+ *
+ * Exported for tests; getRouteAndCallData is the only production caller.
+ */
+export function verifyRoute(json: unknown, chain: ChainConfig): RouteAndCallDataResponse {
+	const parsed = routeAndCallDataSchema.safeParse(json);
+	if (!parsed.success) {
+		const issue = parsed.error.issues[0];
+		const where = issue?.path.join(".") || "response";
+		// A wrap or unwrap pair comes back with an empty calldata.route; the swap
+		// and quote paths handle those before asking for a route.
+		throw rejected(`${where} is ${issue?.message ?? "malformed"}.`);
+	}
+	const data = parsed.data;
+
+	if (data.router_address.toLowerCase() !== chain.routerAddress.toLowerCase()) {
+		throw rejected(
+			`it names ${data.router_address} as the router, not the Fibrous router for ${chain.name} (${chain.routerAddress}).`
+		);
+	}
+
+	return data;
 }
 
 export async function getRouteAndCallData(
@@ -77,7 +133,7 @@ export async function getRouteAndCallData(
 					throw new Error(`HTTP ${res.status}: ${body}`);
 				}
 
-				const json = (await res.json()) as RouteAndCallDataResponse;
+				const json = (await res.json()) as { route?: { success?: unknown } };
 
 				if (!json.route?.success) {
 					throw new FibxError(
@@ -86,13 +142,19 @@ export async function getRouteAndCallData(
 					);
 				}
 
-				return json;
+				return verifyRoute(json, chain);
 			},
 			{
 				maxRetries: 2,
 				baseDelayMs: 500,
+				// Neither answer changes on a retry: no route is no route, and a
+				// response FibX refuses to sign is not made safer by asking again.
 				shouldRetry: (err) =>
-					!(err instanceof FibxError && err.code === ErrorCode.ROUTE_NOT_FOUND),
+					!(
+						err instanceof FibxError &&
+						(err.code === ErrorCode.ROUTE_NOT_FOUND ||
+							err.code === ErrorCode.ROUTE_REJECTED)
+					),
 			}
 		);
 
