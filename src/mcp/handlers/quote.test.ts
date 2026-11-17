@@ -206,3 +206,20 @@ describe("get_quote when the route carries no price for a token", () => {
 		expect(q.priceImpact).toBeNull();
 	});
 });
+
+// The handler is reached without the tool schema; a quote at 90% slippage
+// would show a min_received floor no swap path would accept.
+describe("get_quote's slippage bound", () => {
+	it.each([0, 90])("refuses a slippage of %s before asking for a route", async (slippage) => {
+		await expect(
+			handleGetQuote({
+				amount: "1",
+				from_token: "ETH",
+				to_token: "USDC",
+				chain: "base",
+				slippage,
+			})
+		).rejects.toThrow(/Slippage must be between/);
+		expect(mocks.getRouteAndCallData).not.toHaveBeenCalled();
+	});
+});

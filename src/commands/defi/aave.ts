@@ -33,16 +33,17 @@ export const aaveCommand = async (
 
 		const aave = new AaveService(chainConfig);
 
-		try {
-			await attemptSessionLogin(aave, chainConfig);
-		} catch {
-			// No session = read-only
-		}
+		// Markets need no wallet, so a session that cannot produce one is not
+		// fatal yet — but status and every write must report why, not claim
+		// there is no session. `fibx aave supply` with a damaged key file said
+		// "No active session found" while swap_tokens named the real error.
+		const walletError = await attemptSessionLogin(aave, chainConfig);
 
 		const userAddress = aave.getAccountAddress();
 
 		if (action === "status") {
 			if (!userAddress) {
+				if (walletError) throw walletError;
 				spinner.fail(`No wallet connected. ${AUTH_HINT}`);
 				process.exitCode = 1;
 				return;
@@ -58,6 +59,7 @@ export const aaveCommand = async (
 
 		// Write operations require an active wallet session
 		if (!userAddress) {
+			if (walletError) throw walletError;
 			spinner.fail("No active session found. Please login or import a private key.");
 			process.exitCode = 1;
 			return;
@@ -163,18 +165,22 @@ function getExplorerLink(txHash: string): string | undefined {
 	return baseUrl ? `${baseUrl}/tx/${txHash}` : undefined;
 }
 
-async function attemptSessionLogin(aave: AaveService, chainConfig: ChainConfig) {
-	try {
-		const { loadSession } = await import("../../services/auth/session.js");
-		const { getWalletClient, managesOwnNonce } = await import("../../services/chain/client.js");
+/** Connects the session's wallet if there is one; returns why it could not, if it failed. */
+async function attemptSessionLogin(
+	aave: AaveService,
+	chainConfig: ChainConfig
+): Promise<unknown | undefined> {
+	const { loadSession } = await import("../../services/auth/session.js");
+	const { getWalletClient, managesOwnNonce } = await import("../../services/chain/client.js");
 
-		const session = loadSession();
-		if (session) {
-			const walletClient = await getWalletClient(session, chainConfig);
-			aave.setWalletClient(walletClient, { managesOwnNonce: managesOwnNonce(session) });
-		}
-	} catch {
-		// No session
+	const session = loadSession();
+	if (!session) return undefined;
+	try {
+		const walletClient = await getWalletClient(session, chainConfig);
+		aave.setWalletClient(walletClient, { managesOwnNonce: managesOwnNonce(session) });
+		return undefined;
+	} catch (error) {
+		return error;
 	}
 }
 

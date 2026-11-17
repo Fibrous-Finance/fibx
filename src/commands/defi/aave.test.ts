@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Address } from "viem";
 import { aaveCommand } from "./aave.js";
+import { getWalletClient } from "../../services/chain/client.js";
+import { ErrorCode, FibxError } from "../../lib/errors.js";
 
 const USER_ADDRESS = "0x1111111111111111111111111111111111111111" as Address;
 const USDC_ADDRESS = "0x2222222222222222222222222222222222222222" as Address;
@@ -71,6 +73,7 @@ vi.mock("../../services/chain/client.js", () => ({
 	getWalletClient: vi.fn(async () => ({
 		account: { address: USER_ADDRESS },
 	})),
+	managesOwnNonce: vi.fn(() => false),
 }));
 
 vi.mock("../../lib/format.js", () => ({
@@ -157,6 +160,32 @@ describe("aaveCommand --simulate", () => {
 		expect(mocks.outputResult).not.toHaveBeenCalled();
 		expect(mocks.resolveToken).not.toHaveBeenCalled();
 		expect(mocks.aave.supplyWithAutoWrap).not.toHaveBeenCalled();
+		expect(process.exitCode).toBe(1);
+	});
+});
+
+// The wallet-client failure used to be swallowed, and a write then reported
+// "No active session found" — for a user whose session exists and whose key
+// file needs restoring. aave_action names the real error; so must the CLI.
+describe("aaveCommand with a session that cannot produce a wallet", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mocks.spinner.start.mockReturnValue(mocks.spinner);
+		mocks.aave.getAccountAddress.mockReturnValue(undefined);
+		process.exitCode = undefined;
+		vi.spyOn(console, "error").mockImplementation(() => {});
+	});
+
+	it.each(["supply", "status"])("%s reports the wallet error itself", async (action) => {
+		const error = new FibxError(ErrorCode.DECRYPTION_FAILED, "cannot be decrypted");
+		vi.mocked(getWalletClient).mockRejectedValueOnce(error);
+
+		await aaveCommand(action, "1", "USDC", { json: false });
+
+		expect(console.error).toHaveBeenCalledWith(String(error));
+		expect(mocks.spinner.fail).not.toHaveBeenCalledWith(
+			expect.stringMatching(/No active session|No wallet connected/)
+		);
 		expect(process.exitCode).toBe(1);
 	});
 });
