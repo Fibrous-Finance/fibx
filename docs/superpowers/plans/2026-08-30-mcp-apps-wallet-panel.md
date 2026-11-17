@@ -971,7 +971,7 @@ Expected: PASS, 9 tests.
 
 - [ ] **Step 5: Write the tool-call wrapper**
 
-`ui/src/rpc.ts`. One place turns a tool call into typed JSON and turns `isError` into a thrown `Error` carrying the tool's own message — the panel never branches on an error _code_ for policy tools (their validation errors arrive as `UNKNOWN_ERROR` with the right message; see `HANDOFF.md`).
+`ui/src/rpc.ts`. One place turns a tool call into typed JSON and turns `isError` into a thrown `Error` carrying the tool's own message — the panel never branches on an error _code_ for policy tools (their validation errors arrive as `UNKNOWN_ERROR` with the right message; see the policy-commands landmine in `CLAUDE.md`).
 
 This listing was brought in line with the shipped file after the fix round: fix round `aa7fafb` added the `{ success: false }` body handling below, because that is the shape FibX's `withErrorHandling` (`src/mcp/tools/error-handling.ts`) actually returns for most tool failures, and the plan's original listing only handled `isError`.
 

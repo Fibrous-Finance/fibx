@@ -302,6 +302,10 @@ that adds UI and after every task thereafter; if the guard is crossed, the
 guard is not raised — the options are a spike on tree-shaking the unused
 schema surface of `App`, or a smaller picker.
 
+Still open: whether the lighter `@modelcontextprotocol/ext-apps/app-bridge`
+entry (about 43 KB) covers what `App` is used for. It is the one lever that
+would move the number, and it has not been tried.
+
 ## Out of scope
 
 - Aave, transfers, portfolio — the widget is a swap surface; those stay

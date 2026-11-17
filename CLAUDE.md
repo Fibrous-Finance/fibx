@@ -5,9 +5,6 @@ and Monad — swaps and quotes through Fibrous aggregation, transfers, portfolio
 Aave V3. One published artifact serves both surfaces: `fibx <command>` for
 people, `fibx mcp-start` for agents.
 
-**Start here when resuming work:** `docs/superpowers/HANDOFF.md` — what is in
-flight, what is blocked on a human, and how to pick it up.
-
 ## Three signing paths, and why that matters
 
 Every design decision in this repo comes back to this. A user signs through one
@@ -113,19 +110,41 @@ empty throwaway wallet cannot demonstrate a policy refusal through the CLI.
 repo's pnpm workspace. They carry their own `.npmrc`; `--ignore-workspace` may
 be needed.
 
+**A failed tool call is a normal result, not `isError`.** `withErrorHandling`
+(`src/mcp/tools/error-handling.ts`) returns `{ success: false, error, code,
+rawMessage }`; the SDK sets `isError` only for what it raises itself, such as
+input validation. So `ui/src/rpc.ts` throws on either shape, and because the
+host still renders the `ui://` document bound to the tool, `ui/src/main.tsx`
+checks `success === false` before drawing anything from the payload.
+
+**Do not bump `@modelcontextprotocol/sdk` to meet `ext-apps`' peer range.**
+`ext-apps` asks for a newer SDK than the `^1.27.1` pinned here, but
+`registerAppTool`/`registerAppResource` are passthroughs to
+`registerTool`/`registerResource`, and the `ui/initialize` handshake is
+`ext-apps`' own postMessage protocol, so the stdio SDK version is independent. A
+bump is an untested migration of every tool for no evidenced gain.
+
+**The policy commands still throw plain `Error`.** `applyRule`/`removeRule`
+(`src/commands/policy/index.ts`) do, so over MCP a bad rule name arrives as
+`UNKNOWN_ERROR`, and `parseEvmError` can rewrite its text (`Unknown chain: 429`
+reads as "RPC rate limited"). Promoting them to `FibxError(VALIDATION_ERROR)`
+fixes both but changes the CLI's output at each throw site, so it is its own
+change. The same file's messages tell MCP callers to run `fibx policy clear`.
+
 ## How work is done here
 
 Design and planning artifacts live in git and are meant to be read:
 
 - `docs/superpowers/specs/` — designs, one per phase, written before code
 - `docs/superpowers/plans/` — implementation plans, task by task
-- `docs/superpowers/HANDOFF.md` — the live state
+- `CHANGELOG.md` — what each release changed, for users
 
 Substantial work goes through the superpowers skills: brainstorming to a spec,
 `writing-plans` to a plan, `subagent-driven-development` to execute it — one
 implementer subagent per task, a review after each. A run's ledger lives at
 `.superpowers/sdd/<plan-name>/progress.md`, which is **gitignored scratch and
-dies with its worktree**; anything that must survive belongs in `HANDOFF.md`.
+dies with its worktree**; anything that must survive belongs in this file, the
+spec or plan it concerns, or a code comment beside what it explains.
 
 Isolated work happens in `.claude/worktrees/`, also gitignored.
 
@@ -166,4 +185,7 @@ Citrea was delisted by Fibrous on 2026-08-10 and withdrawn from all four on
 2026-08-29. The pattern to follow for a delisting: the code stays, the offer is
 withdrawn — `CHAIN_NAMES` is a literal (zod's `z.enum` needs a tuple type),
 `SUPPORTED_CHAINS` keeps every row, and `getChainConfig` gates on what is
-offered.
+offered. One leak remains: `fibx config set-rpc` and the `config_action` tool
+still test `SUPPORTED_CHAINS[chain]`, so they accept and list Citrea
+(`src/commands/config/index.ts`, `src/mcp/handlers/auth.ts`); they should use
+`isOffered()`.
