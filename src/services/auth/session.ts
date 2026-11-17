@@ -113,14 +113,14 @@ export function requireSession(): Session {
 /**
  * Get the decrypted private key from session.
  * Handles both legacy plaintext and new encrypted formats.
+ *
+ * A decryption failure propagates as DECRYPTION_FAILED. It used to return
+ * null, and the wallet-client path then fell through to the Privy branch — so
+ * a user whose key file was damaged was told to log in by email.
  */
 export function getPrivateKey(session: Session): string | null {
 	if (session.encryptedPrivateKey) {
-		try {
-			return decryptPrivateKey(session.encryptedPrivateKey);
-		} catch {
-			return null;
-		}
+		return decryptPrivateKey(session.encryptedPrivateKey);
 	}
 	return session.privateKey ?? null;
 }
