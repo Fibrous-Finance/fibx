@@ -212,3 +212,110 @@ describe("approval", () => {
 		expect(mocks.encodeApprove).toHaveBeenCalledWith(ROUTER, maxUint256);
 	});
 });
+
+/**
+ * The broadcast path, end to end through mocked clients. Every other test in
+ * this repo stopped at simulate: true, so nothing pinned what is actually
+ * signed — who the approval names as spender, where the swap goes, and with
+ * how much value.
+ */
+describe("execution", () => {
+	const ROUTE_CALLDATA = { route: { token_in: USDC.address }, swap_parameters: [] };
+
+	beforeEach(() => {
+		mocks.getRouteAndCallData.mockResolvedValue({
+			route: { outputAmount: "500000000000000000" },
+			calldata: ROUTE_CALLDATA,
+			router_address: ROUTER,
+		});
+		mocks.encodeApprove.mockReturnValue("0xapprove");
+		mocks.encodeSwapCalldata.mockReturnValue("0xswapdata");
+		mocks.sendTransaction
+			.mockReset()
+			.mockResolvedValueOnce("0xapprovehash")
+			.mockResolvedValueOnce("0xswaphash");
+	});
+
+	it("approves the router for the exact amount, waits, then swaps through the router", async () => {
+		mocks.getAllowance.mockResolvedValue(0n);
+
+		const outcome = await executeSwap(request);
+
+		expect(mocks.getRouteAndCallData).toHaveBeenCalledWith(
+			{
+				amount: "1000000",
+				tokenInAddress: USDC.address,
+				tokenOutAddress: DAI.address,
+				slippage: 1,
+				destination: WALLET,
+			},
+			expect.anything()
+		);
+		expect(mocks.encodeApprove).toHaveBeenCalledWith(ROUTER, 1_000_000n);
+		expect(mocks.sendTransaction).toHaveBeenNthCalledWith(1, {
+			to: USDC.address,
+			data: "0xapprove",
+			value: 0n,
+		});
+		// The swap is built only after the approval's receipt succeeded and
+		// the allowance is visible.
+		expect(mocks.waitForTransactionReceipt).toHaveBeenCalledWith(
+			expect.objectContaining({ hash: "0xapprovehash" })
+		);
+		expect(mocks.waitForTransactionReceipt.mock.invocationCallOrder[0]).toBeLessThan(
+			mocks.sendTransaction.mock.invocationCallOrder[1]
+		);
+		expect(mocks.waitForAllowance).toHaveBeenCalledWith(
+			expect.anything(),
+			USDC.address,
+			WALLET,
+			ROUTER,
+			1_000_000n
+		);
+		expect(mocks.encodeSwapCalldata).toHaveBeenCalledWith(ROUTE_CALLDATA, expect.anything());
+		expect(mocks.sendTransaction).toHaveBeenNthCalledWith(2, {
+			to: ROUTER,
+			data: "0xswapdata",
+			value: 0n,
+		});
+		// The service does not wait for the swap's own receipt: swap_tokens
+		// returns the hash at once, and `fibx trade` waits in the command.
+		expect(mocks.waitForTransactionReceipt).toHaveBeenCalledTimes(1);
+		expect(outcome).toMatchObject({ simulated: false, hash: "0xswaphash", router: ROUTER });
+	});
+
+	it("stops at a reverted approval and sends no swap", async () => {
+		mocks.getAllowance.mockResolvedValue(0n);
+		mocks.waitForTransactionReceipt.mockResolvedValue({ status: "reverted", blockNumber: 2n });
+
+		await expect(executeSwap(request)).rejects.toMatchObject({
+			code: ErrorCode.TX_REVERTED,
+			details: { txHash: "0xapprovehash" },
+		});
+		expect(mocks.waitForAllowance).not.toHaveBeenCalled();
+		expect(mocks.sendTransaction).toHaveBeenCalledTimes(1);
+	});
+
+	it("sends a native-input swap with the amount as value and no approval", async () => {
+		tokens(ETH, USDC);
+		mocks.sendTransaction.mockReset().mockResolvedValueOnce("0xswaphash");
+
+		const outcome = await executeSwap({ ...request, from: "ETH", to: "USDC" });
+
+		expect(mocks.getAllowance).not.toHaveBeenCalled();
+		expect(mocks.encodeApprove).not.toHaveBeenCalled();
+		expect(mocks.estimateGas).toHaveBeenCalledWith({
+			account: WALLET,
+			to: ROUTER,
+			data: "0xswapdata",
+			value: 10n ** 18n,
+		});
+		expect(mocks.sendTransaction).toHaveBeenCalledOnce();
+		expect(mocks.sendTransaction).toHaveBeenCalledWith({
+			to: ROUTER,
+			data: "0xswapdata",
+			value: 10n ** 18n,
+		});
+		expect(outcome).toMatchObject({ simulated: false, hash: "0xswaphash" });
+	});
+});
