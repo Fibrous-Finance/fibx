@@ -23,6 +23,18 @@ contract.
   must be running. They say which unit `estimatedGas` is in on each surface:
   a native-token fee in the CLI, gas units in the MCP tools.
 
+### Fixed
+
+- **The encryption key file is never replaced.** When it did not hold a valid
+  key — a truncated write, an editor's damage, the wrong file — FibX silently
+  wrote a new one over it, and every key imported with `auth import` became
+  undecryptable with the old file gone. It is now created only when absent,
+  0600, and an existing one is re-tightened to 0600.
+- An imported key that cannot be decrypted — a damaged or missing key file, or
+  `FIBX_SESSION_SECRET` set on one run and not the next — fails with
+  `DECRYPTION_FAILED`, naming the key file and how to recover, and deletes
+  nothing. It used to surface as "Session JWT missing. Run `fibx auth login`".
+
 ## [0.10.2] — 2026-11-06
 
 ### Changed
