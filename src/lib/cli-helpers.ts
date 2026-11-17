@@ -1,4 +1,4 @@
-import { createSpinner, formatError } from "./format.js";
+import { createSpinner, outputError } from "./format.js";
 
 type Spinner = ReturnType<typeof createSpinner>;
 
@@ -12,7 +12,8 @@ export async function runCommand<T>(
 	successText: string,
 	failText: string,
 	fn: (spinner: Spinner) => Promise<T>,
-	render: (data: T) => void
+	render: (data: T) => void,
+	opts: { json?: boolean } = {}
 ): Promise<void> {
 	const spinner = createSpinner(spinnerText).start();
 	try {
@@ -21,7 +22,6 @@ export async function runCommand<T>(
 		render(result);
 	} catch (error) {
 		spinner.fail(failText);
-		console.error(formatError(error));
-		process.exitCode = 1;
+		outputError(error, opts);
 	}
 }

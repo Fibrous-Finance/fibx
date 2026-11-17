@@ -1,7 +1,7 @@
 import {
 	createSpinner,
 	outputResult,
-	formatError,
+	outputError,
 	warn,
 	type OutputOptions,
 } from "../../lib/format.js";
@@ -55,10 +55,10 @@ export async function authImportCommand(opts: OutputOptions): Promise<void> {
 			opts
 		);
 
-		console.log(warn("Your private key is stored locally in session.json."));
-		console.log(warn("Make sure your machine is secure."));
+		// stderr, so `--json` leaves stdout holding only the result.
+		console.error(warn("Your private key is stored locally in session.json."));
+		console.error(warn("Make sure your machine is secure."));
 	} catch (error) {
-		console.error(formatError(error));
-		process.exitCode = 1;
+		outputError(error, opts);
 	}
 }

@@ -1,5 +1,5 @@
 import { AUTH_HINT, loadSession } from "../../services/auth/session.js";
-import { outputResult, formatError, type OutputOptions } from "../../lib/format.js";
+import { outputResult, outputError, type OutputOptions } from "../../lib/format.js";
 
 export async function walletsCommand(opts: OutputOptions): Promise<void> {
 	try {
@@ -20,7 +20,6 @@ export async function walletsCommand(opts: OutputOptions): Promise<void> {
 			opts
 		);
 	} catch (error) {
-		console.error(formatError(error));
-		process.exitCode = 1;
+		outputError(error, opts);
 	}
 }

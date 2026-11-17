@@ -18,6 +18,7 @@ export async function authLoginCommand(email: string, opts: OutputOptions): Prom
 					message: `OTP sent to ${email}. Run: fibx auth verify ${email} <code>`,
 				},
 				opts
-			)
+			),
+		opts
 	);
 }

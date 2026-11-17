@@ -11,7 +11,7 @@ import { DEFAULT_SLIPPAGE } from "../../lib/config.js";
 import {
 	createSpinner,
 	outputResult,
-	formatError,
+	outputError,
 	type OutputOptions,
 	type GlobalOptions,
 } from "../../lib/format.js";
@@ -112,8 +112,7 @@ export async function tradeCommand(
 		if (error instanceof SwapSimulationError) step?.fail("Simulation failed");
 		else step?.stop();
 		spinner.fail("Swap failed");
-		console.error(formatError(error));
-		process.exitCode = 1;
+		outputError(error, opts);
 	}
 }
 

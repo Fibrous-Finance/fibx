@@ -3,6 +3,7 @@ import type { Address } from "viem";
 import { aaveCommand } from "./aave.js";
 import { getWalletClient } from "../../services/chain/client.js";
 import { ErrorCode, FibxError } from "../../lib/errors.js";
+import { outputError } from "../../lib/format.js";
 
 const USER_ADDRESS = "0x1111111111111111111111111111111111111111" as Address;
 const USDC_ADDRESS = "0x2222222222222222222222222222222222222222" as Address;
@@ -81,6 +82,9 @@ vi.mock("../../lib/format.js", () => ({
 	outputResult: mocks.outputResult,
 	formatResult: vi.fn(),
 	formatError: vi.fn((error: unknown) => String(error)),
+	outputError: vi.fn(() => {
+		process.exitCode = 1;
+	}),
 }));
 
 describe("aaveCommand --simulate", () => {
@@ -182,9 +186,10 @@ describe("aaveCommand with a session that cannot produce a wallet", () => {
 
 		await aaveCommand(action, "1", "USDC", { json: false });
 
-		expect(console.error).toHaveBeenCalledWith(String(error));
-		expect(mocks.spinner.fail).not.toHaveBeenCalledWith(
-			expect.stringMatching(/No active session|No wallet connected/)
+		expect(vi.mocked(outputError)).toHaveBeenCalledWith(error, { json: false });
+		expect(vi.mocked(outputError)).not.toHaveBeenCalledWith(
+			expect.objectContaining({ code: ErrorCode.NOT_AUTHENTICATED }),
+			expect.anything()
 		);
 		expect(process.exitCode).toBe(1);
 	});

@@ -1,7 +1,7 @@
 import { apiVerify } from "../../services/api/client.js";
 import { saveSession } from "../../services/auth/session.js";
 import { releaseWalletConnectSession } from "../../services/auth/release.js";
-import { createSpinner, outputResult, formatError, type OutputOptions } from "../../lib/format.js";
+import { createSpinner, outputResult, outputError, type OutputOptions } from "../../lib/format.js";
 
 export async function authVerifyCommand(
 	email: string,
@@ -40,7 +40,6 @@ export async function authVerifyCommand(
 		);
 	} catch (error) {
 		spinner.fail("Verification failed");
-		console.error(formatError(error));
-		process.exitCode = 1;
+		outputError(error, opts);
 	}
 }

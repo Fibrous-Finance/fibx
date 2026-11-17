@@ -10,7 +10,7 @@ import { parseAmount } from "../../lib/parseAmount.js";
 import {
 	createSpinner,
 	outputResult,
-	formatError,
+	outputError,
 	type OutputOptions,
 	type GlobalOptions,
 } from "../../lib/format.js";
@@ -155,7 +155,6 @@ export async function sendCommand(
 		);
 	} catch (error) {
 		spinner.fail("Transfer failed");
-		console.error(formatError(error));
-		process.exitCode = 1;
+		outputError(error, opts);
 	}
 }

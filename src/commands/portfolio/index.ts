@@ -4,7 +4,7 @@ import {
 	createSpinner,
 	formatResult,
 	formatTable,
-	formatError,
+	outputError,
 	type OutputOptions,
 } from "../../lib/format.js";
 import { MINT } from "../../lib/brand.js";
@@ -82,7 +82,6 @@ export async function portfolioCommand(opts: OutputOptions): Promise<void> {
 		}
 	} catch (error) {
 		spinner.fail("Failed to load portfolio");
-		console.error(formatError(error));
-		process.exitCode = 1;
+		outputError(error, opts);
 	}
 }

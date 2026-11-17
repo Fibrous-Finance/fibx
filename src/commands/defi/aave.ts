@@ -8,7 +8,8 @@ import {
 	HEALTH_FACTOR_WARNING_THRESHOLD,
 	HEALTH_FACTOR_CRITICAL_THRESHOLD,
 } from "../../services/defi/constants.js";
-import { createSpinner, outputResult, formatResult, formatError } from "../../lib/format.js";
+import { createSpinner, outputResult, formatResult, outputError } from "../../lib/format.js";
+import { ErrorCode, FibxError } from "../../lib/errors.js";
 import { validateAmount } from "../../lib/validation.js";
 import { MINT } from "../../lib/brand.js";
 
@@ -44,9 +45,10 @@ export const aaveCommand = async (
 		if (action === "status") {
 			if (!userAddress) {
 				if (walletError) throw walletError;
-				spinner.fail(`No wallet connected. ${AUTH_HINT}`);
-				process.exitCode = 1;
-				return;
+				throw new FibxError(
+					ErrorCode.NOT_AUTHENTICATED,
+					`No wallet connected. ${AUTH_HINT}`
+				);
 			}
 			await handleStatus(aave, userAddress, opts, spinner);
 			return;
@@ -60,29 +62,27 @@ export const aaveCommand = async (
 		// Write operations require an active wallet session
 		if (!userAddress) {
 			if (walletError) throw walletError;
-			spinner.fail("No active session found. Please login or import a private key.");
-			process.exitCode = 1;
-			return;
+			throw new FibxError(ErrorCode.NOT_AUTHENTICATED, `No active session. ${AUTH_HINT}`);
 		}
 
 		if (!isValidAction(action)) {
-			spinner.fail(`Unknown action: ${action}`);
-			console.log(
-				chalk.gray("Available actions: status, markets, supply, borrow, repay, withdraw")
+			throw new FibxError(
+				ErrorCode.VALIDATION_ERROR,
+				`Unknown action: ${action}. Available actions: status, markets, supply, borrow, repay, withdraw.`
 			);
-			process.exitCode = 1;
-			return;
 		}
 
 		if (!tokenSymbol) {
-			spinner.fail(`Token is required for action: ${action}`);
-			process.exitCode = 1;
-			return;
+			throw new FibxError(
+				ErrorCode.VALIDATION_ERROR,
+				`Token is required for action: ${action}`
+			);
 		}
 		if (!amount) {
-			spinner.fail(`Amount is required for action: ${action}`);
-			process.exitCode = 1;
-			return;
+			throw new FibxError(
+				ErrorCode.VALIDATION_ERROR,
+				`Amount is required for action: ${action}`
+			);
 		}
 
 		const isMax = amount === "-1" || amount.toLowerCase() === "max";
@@ -150,8 +150,7 @@ export const aaveCommand = async (
 		}
 	} catch (error) {
 		spinner.fail("Aave operation failed");
-		console.error(formatError(error));
-		process.exitCode = 1;
+		outputError(error, { json: !!opts.json });
 	}
 };
 

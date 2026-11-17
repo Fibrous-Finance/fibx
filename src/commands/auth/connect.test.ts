@@ -71,14 +71,19 @@ describe("auth connect --json", () => {
 	});
 
 	// The human path must keep its confirmation — the fix guards the spinner,
-	// it does not delete it.
+	// it does not delete it. Status lines go to stderr, as ora's always did;
+	// the pairing URI stays on stdout.
 	it("still confirms the connection on the human path", async () => {
 		process.stdout.isTTY = false;
 		const lines = captureStdout();
+		const status: string[] = [];
+		vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+			status.push(args.map(String).join(" "));
+		});
 
 		await authConnectCommand({ json: false });
 
-		expect(lines.join("\n")).toContain("Wallet connected");
+		expect(status.join("\n")).toContain("Wallet connected");
 		expect(lines.join("\n")).toContain(URI);
 	});
 });

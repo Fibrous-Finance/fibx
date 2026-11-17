@@ -53,6 +53,9 @@ vi.mock("../../lib/format.js", () => ({
 	createSpinner: mocks.createSpinner,
 	outputResult: mocks.outputResult,
 	formatError: vi.fn((error: unknown) => String(error)),
+	outputError: vi.fn(() => {
+		process.exitCode = 1;
+	}),
 }));
 
 import { tradeCommand } from "./swap.js";

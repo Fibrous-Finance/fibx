@@ -5,11 +5,12 @@ import { getChainConfig } from "../../services/chain/constants.js";
 import { getTokens, type Token } from "../../services/fibrous/tokens.js";
 import { getBalances, type BalanceResponse } from "../../services/fibrous/balances.js";
 import { formatAmount } from "../../lib/parseAmount.js";
+import { ErrorCode, FibxError } from "../../lib/errors.js";
 import {
 	createSpinner,
 	outputResult,
 	formatTable,
-	formatError,
+	outputError,
 	type OutputOptions,
 	type GlobalOptions,
 } from "../../lib/format.js";
@@ -51,8 +52,9 @@ export async function balanceCommand(opts: OutputOptions): Promise<void> {
 	try {
 		const session = loadSession();
 		if (!session) {
-			spinner.fail(`No active session. ${AUTH_HINT}`);
-			return;
+			// This returned with exit code 0 and no JSON, as if there were simply
+			// nothing to show.
+			throw new FibxError(ErrorCode.NOT_AUTHENTICATED, `No active session. ${AUTH_HINT}`);
 		}
 
 		const globalOpts = opts as unknown as GlobalOptions;
@@ -115,7 +117,6 @@ export async function balanceCommand(opts: OutputOptions): Promise<void> {
 		console.log();
 	} catch (error) {
 		spinner.fail("Failed to fetch balances");
-		console.error(formatError(error));
-		process.exitCode = 1;
+		outputError(error, opts);
 	}
 }
