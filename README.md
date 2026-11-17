@@ -21,7 +21,7 @@ A command-line tool and MCP server for DeFi operations on **Base, HyperEVM, and 
 - **Local signing policy**: A file you own — native value cap per chain, allowed chains, allowed destinations, expiry — enforced before every transaction is signed or sent, on all three paths (Privy adds its own server-side policy on top)
 - **Checks before sending**: `send`, `trade` and Aave ask the RPC to estimate or dry-run the transaction before sending it, so one that would revert is stopped first. A live wrap/unwrap and `aave --simulate` skip this
 - **Dry‑Run Mode**: `--simulate` on `send`, `trade` and `aave` previews without broadcasting. `send` and `trade` print `estimatedGas` as an estimated network fee in the chain's native token (e.g. `0.00002 ETH`) when they can estimate one; the `aave` preview makes no chain call
-- **JSON Output**: `--json` flag for scripting and pipelines
+- **JSON Output**: `--json` prints the result as JSON on stdout, and a failure as `{ "error": true, "code", "message" }` with exit code 1; status lines go to stderr
 - **Zero-Dependency Install**: Ships as a single bundled file (via tsup) with no runtime dependencies
 
 ## Supported Chains
@@ -160,8 +160,12 @@ npx fibx policy clear                   # Remove the whole policy (asks first)
 
 A local policy guarding a local key is advisory: anything that can read the
 key can edit the policy, so this is worth nothing against malware. What it
-does bound is the agent — a model that misbehaves, or a prompt injection
-telling it to.
+bounds is what FibX will sign while the policy is in place — including for an
+agent. But an agent connected over MCP can also change or remove the policy:
+`set_policy_rule` and `clear_policy_rule` are MCP tools like any other, and the
+only thing between a model and "clear the policy, then send" is your MCP
+client asking you before it runs them. Keep that confirmation on for those two
+tools, or the policy does not bound the agent.
 
 Know what each rule bounds, because they are not the same:
 
@@ -216,6 +220,14 @@ npx fibx send 1 0xRecipient --chain monad # Send MON on Monad
 npx fibx send 0.1 0xRecipient --simulate  # Preview without sending
 ```
 
+Amounts are plain decimals in token units with a dot: `1.5`, not `1,5`, and no
+`$`. Both used to be stripped silently, so `1,5` sent 15; they are refused now.
+
+`send` and `trade` wait for the transaction's receipt (up to 180 seconds)
+before printing "confirmed", and `aave` checks the receipts it already waited
+for. A reverted transaction is reported as a failure with exit code 1; one with
+no receipt yet is reported as unconfirmed, with its hash, and also exits 1.
+
 ### Quote
 
 Get swap prices without authentication:
@@ -239,6 +251,13 @@ npx fibx trade 0.1 ETH USDC --simulate   # Preview without broadcasting
 ```
 
 Options: `--slippage <n>` (default: 0.5%), `--approve-max`, `--simulate`, `--json`
+
+Before anything is signed, FibX checks the route Fibrous returns: the router
+must be the Fibrous router pinned for the chain, and the swap must sell the
+requested token and amount, buy the requested token, pay your wallet, and set
+a minimum received no lower than the quote less your slippage. A response that
+fails any check is refused. This proves the swap is the one you asked for, not
+that the quoted price is fair: the quote comes from the same response.
 
 > **Note:** The `trade` command automatically detects **Wrap** (Native -> Wrapped) and **Unwrap** (Wrapped -> Native) operations and executes them directly via contract calls, bypassing aggregator routing to save gas.
 
@@ -317,6 +336,7 @@ client configuration, and deployment policy remain part of the trust boundary:
 | fibx-server schemas  | `/sign/*` accepts only the exact transaction shape the CLI produces — unknown fields, contract creation, and unserved chains are rejected before reaching Privy.                                                                                  |
 | MCP tool annotations | Every transactional tool advertises `destructiveHint: true`; compatible clients may use that hint to request confirmation, depending on client behavior and configuration.                                                                        |
 | Simulation           | `--simulate` on `send`, `trade` and `aave` previews without broadcasting. `send` and `trade` also print an estimated network fee where they can; the `aave` preview returns the request only, with no chain call.                                 |
+| Route verification   | Every route response is parsed and checked before signing: the router is pinned per chain, and the input token, amount, output token, destination and minimum received must match the request. It does not prove the quote is a fair price.       |
 | Local key storage    | Imported private keys are encrypted at rest with AES-256-GCM using a per-machine key stored `0600` in the OS config directory.                                                                                                                    |
 
 Wallet policy limits are configured per deployment — see the
