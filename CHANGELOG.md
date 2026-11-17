@@ -22,6 +22,23 @@ contract.
   on tool failures, server-side signing for imported keys, or that fibx-server
   must be running. They say which unit `estimatedGas` is in on each surface:
   a native-token fee in the CLI, gas units in the MCP tools.
+- **`fibx send` and `fibx trade` wait for the receipt** (up to 180 seconds)
+  before printing "confirmed", and exit 1 when the transaction reverts or has
+  no receipt in time. They printed "Swap confirmed", "Transfer confirmed" and
+  the like as soon as the hash came back. `swap_tokens` and `send_tokens` still
+  return the hash at once.
+- **An amount with a comma or a `$` is refused** on every command and tool,
+  with the spelling to use. Both were stripped, so `1,5` traded 15 and
+  `$100 ETH` traded 100 ETH. An amount with more decimal places than the token
+  has is refused rather than rounded.
+- **`--json` failures are JSON**: `{ "error": true, "code", "message" }` on
+  stdout with exit code 1, in the same shape and code the MCP tools use. A
+  piped run's status lines (`✔ Swap confirmed`) go to stderr, not ahead of the
+  JSON. `fibx balance` without a session now exits 1.
+- `swap_tokens` refuses a swap from a token to itself and bounds slippage
+  itself, as `fibx trade` did; `fibx trade` now refuses the same-token swap
+  too. A simulated wrap or unwrap estimates gas on both surfaces, and
+  `swap_tokens` adds `estimatedGas` to that preview.
 
 ### Fixed
 
@@ -34,6 +51,24 @@ contract.
   `FIBX_SESSION_SECRET` set on one run and not the next — fails with
   `DECRYPTION_FAILED`, naming the key file and how to recover, and deletes
   nothing. It used to surface as "Session JWT missing. Run `fibx auth login`".
+- `fibx aave` reverted on chain but printed "Supply confirmed" (and the like):
+  every Aave write and approval now reads its receipt, and a revert is an
+  error. `aave_action` returns `TX_REVERTED` where it returned a `txHash`.
+- `fibx aave` with a session that cannot produce a wallet — a damaged key file,
+  say — reports that error instead of "No active session found".
+- A reverted ERC-20 approval stops the swap at once, instead of after 30
+  seconds of waiting for an allowance that will never appear.
+
+### Security
+
+- **FibX no longer signs whatever the route API returns.** The response is
+  parsed and checked before anything is signed: the router must be the Fibrous
+  router pinned for the chain (it becomes the approval's spender and the
+  transaction's target), and the swap must sell the requested token and
+  amount, buy the requested token, pay the requesting wallet, and set a
+  minimum received no lower than the quote less the requested slippage.
+  Anything else is refused with `ROUTE_REJECTED`. This proves the swap is the
+  one asked for, not that the quoted price is fair.
 
 ## [0.10.2] — 2026-11-06
 
