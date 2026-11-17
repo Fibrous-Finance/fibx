@@ -14,12 +14,15 @@ const USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
 const WETH = "0x4200000000000000000000000000000000000006";
 const NATIVE = "0x0000000000000000000000000000000000000000";
 
+type Overrides = { calldataRoute?: object; route?: object; top?: object };
+
 /**
  * A native → USDC response in the shape the live Base API returns: the native
- * input appears as WETH in the calldata with swap_type 0, and keys FibX never
- * reads (meta, routeId, symbol…) ride along.
+ * input appears as WETH in the calldata with swap_type 0, the destination is
+ * echoed in the request's letter case, and keys FibX never reads (meta,
+ * routeId, symbol…) ride along.
  */
-function response(overrides: { calldataRoute?: object; top?: object } = {}) {
+function response(overrides: Overrides = {}) {
 	return {
 		routeId: "r-1",
 		meta: { apiVersion: "x" },
@@ -35,6 +38,7 @@ function response(overrides: { calldataRoute?: object; top?: object } = {}) {
 			outputToken: { address: USDC, name: "USDC", symbol: "USDC", decimals: 6, price: 1 },
 			inputAmount: "1000000000000000",
 			outputAmount: "1786442",
+			...overrides.route,
 		},
 		calldata: {
 			route: {
@@ -43,7 +47,9 @@ function response(overrides: { calldataRoute?: object; top?: object } = {}) {
 				amount_in: "1000000000000000",
 				amount_out: "1786442",
 				min_received: "1777510",
-				destination: WALLET.toUpperCase().replace("0X", "0x"),
+				destination: "0x1111111111111111111111111111111111111111"
+					.toUpperCase()
+					.replace("0X", "0x"),
 				swap_type: 0,
 				...overrides.calldataRoute,
 			},
@@ -64,9 +70,28 @@ function response(overrides: { calldataRoute?: object; top?: object } = {}) {
 	};
 }
 
+/** The request response() answers: 0.001 ETH → USDC at 0.5%, paid to WALLET. */
+const PARAMS = {
+	amount: "1000000000000000",
+	tokenInAddress: NATIVE,
+	tokenOutAddress: USDC,
+	slippage: 0.5,
+	destination: WALLET,
+};
+
+const verify = (overrides: Overrides = {}, params: object = {}) =>
+	verifyRoute(response(overrides), BASE, { ...PARAMS, ...params });
+
+function refuses(overrides: Overrides, params: object, message: RegExp | string) {
+	expect(() => verify(overrides, params)).toThrow(message);
+	expect(() => verify(overrides, params)).toThrow(
+		expect.objectContaining({ code: ErrorCode.ROUTE_REJECTED })
+	);
+}
+
 describe("the route response's shape", () => {
 	it("accepts the live shape and ignores keys it does not read", () => {
-		const data = verifyRoute(response(), BASE);
+		const data = verify();
 
 		expect(data.router_address).toBe(ROUTER);
 		expect(data).not.toHaveProperty("meta");
@@ -78,9 +103,7 @@ describe("the route response's shape", () => {
 		["a destination that is not an address", { calldataRoute: { destination: "me" } }],
 		["an unknown swap_type", { calldataRoute: { swap_type: 7 } }],
 	])("refuses %s", (_name, overrides) => {
-		expect(() => verifyRoute(response(overrides), BASE)).toThrow(
-			expect.objectContaining({ code: ErrorCode.ROUTE_REJECTED })
-		);
+		refuses(overrides, {}, /Nothing was signed/);
 	});
 
 	// A wrap pair (native → wrapped native) comes back successful with no
@@ -89,7 +112,7 @@ describe("the route response's shape", () => {
 	it("refuses a wrap-pair response that carries no calldata", () => {
 		const wrap = { ...response(), calldata: undefined };
 
-		expect(() => verifyRoute(wrap, BASE)).toThrow(/calldata is .*Nothing was signed/);
+		expect(() => verifyRoute(wrap, BASE, PARAMS)).toThrow(/calldata is .*Nothing was signed/);
 	});
 });
 
@@ -97,7 +120,9 @@ describe("the router", () => {
 	it("refuses a response that names any router but the pinned one", () => {
 		const other = "0x9999999999999999999999999999999999999999";
 
-		expect(() => verifyRoute(response({ top: { router_address: other } }), BASE)).toThrow(
+		refuses(
+			{ top: { router_address: other } },
+			{},
 			`it names ${other} as the router, not the Fibrous router for base`
 		);
 	});
@@ -109,6 +134,84 @@ describe("the router", () => {
 	});
 });
 
+/**
+ * The calldata must be the swap that was asked for. Native tokens are carried
+ * as the chain's wrapped native with a matching swap_type, as the live API
+ * returns them; everything else is compared literally (case-insensitively).
+ */
+describe("the calldata against the request", () => {
+	it("accepts a native input carried as WETH with swap_type 0", () => {
+		expect(() => verify()).not.toThrow();
+	});
+
+	it("accepts a native output carried as WETH with swap_type 1", () => {
+		expect(() =>
+			verify(
+				{ calldataRoute: { token_in: USDC, token_out: WETH, swap_type: 1 } },
+				{ tokenInAddress: USDC, tokenOutAddress: NATIVE }
+			)
+		).not.toThrow();
+	});
+
+	it("accepts token to token, literally and case-insensitively, with swap_type 2", () => {
+		expect(() =>
+			verify(
+				{ calldataRoute: { token_in: USDC, token_out: WETH, swap_type: 2 } },
+				{ tokenInAddress: USDC.toUpperCase().replace("0X", "0x"), tokenOutAddress: WETH }
+			)
+		).not.toThrow();
+	});
+
+	it("refuses another input token", () => {
+		refuses({ calldataRoute: { token_in: USDC } }, {}, /it sells/);
+	});
+
+	it("refuses another output token", () => {
+		refuses({ calldataRoute: { token_out: WETH } }, {}, /it buys/);
+	});
+
+	it("refuses a swap_type that does not match the pair", () => {
+		refuses({ calldataRoute: { swap_type: 2 } }, {}, /swap_type is 2, where this pair needs 0/);
+	});
+
+	it("refuses a different input amount", () => {
+		refuses({ calldataRoute: { amount_in: "2000000000000000" } }, {}, /it spends/);
+	});
+
+	it("refuses a different destination", () => {
+		refuses(
+			{ calldataRoute: { destination: "0x2222222222222222222222222222222222222222" } },
+			{},
+			/it pays/
+		);
+	});
+
+	// The API rounds its floor up; FibX refuses only below the exact value
+	// rounded down (less a unit), so these pairs from the live API must pass.
+	it.each([
+		["1786442", "1777510", 0.5],
+		["1784676", "1766830", 1],
+		["15", "15", 0.5],
+	])("accepts the API's floor for a quote of %s (min %s at %s%%)", (out, min, slippage) => {
+		expect(() =>
+			verify(
+				{
+					route: { outputAmount: out },
+					calldataRoute: { amount_out: out, min_received: min },
+				},
+				{ slippage }
+			)
+		).not.toThrow();
+	});
+
+	it("refuses a minimum received below the quote less the slippage", () => {
+		// 1786442 less 0.5% is 1777509.79; 1777000 would let 0.53% go.
+		refuses({ calldataRoute: { min_received: "1777000" } }, {}, /minimum received/);
+		// A floor of zero is the case this check exists for.
+		refuses({ calldataRoute: { min_received: "0" } }, {}, /minimum received/);
+	});
+});
+
 describe("getRouteAndCallData", () => {
 	beforeEach(() => vi.clearAllMocks());
 
@@ -116,18 +219,10 @@ describe("getRouteAndCallData", () => {
 		mocks.fetchWithTimeout.mockResolvedValue({ ok: true, json: async () => body });
 	}
 
-	const params = {
-		amount: "1000000000000000",
-		tokenInAddress: NATIVE,
-		tokenOutAddress: USDC,
-		slippage: 0.5,
-		destination: WALLET,
-	};
-
 	it("returns a verified response", async () => {
 		respond(response());
 
-		await expect(getRouteAndCallData(params, BASE)).resolves.toMatchObject({
+		await expect(getRouteAndCallData(PARAMS, BASE)).resolves.toMatchObject({
 			router_address: ROUTER,
 		});
 	});
@@ -138,7 +233,7 @@ describe("getRouteAndCallData", () => {
 			response({ top: { router_address: "0x9999999999999999999999999999999999999999" } })
 		);
 
-		await expect(getRouteAndCallData(params, BASE)).rejects.toMatchObject({
+		await expect(getRouteAndCallData(PARAMS, BASE)).rejects.toMatchObject({
 			code: ErrorCode.ROUTE_REJECTED,
 		});
 		expect(mocks.fetchWithTimeout).toHaveBeenCalledTimes(1);

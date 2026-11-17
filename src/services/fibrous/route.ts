@@ -90,7 +90,11 @@ function rejected(reason: string): FibxError {
  *
  * Exported for tests; getRouteAndCallData is the only production caller.
  */
-export function verifyRoute(json: unknown, chain: ChainConfig): RouteAndCallDataResponse {
+export function verifyRoute(
+	json: unknown,
+	chain: ChainConfig,
+	params: RouteParams
+): RouteAndCallDataResponse {
 	const parsed = routeAndCallDataSchema.safeParse(json);
 	if (!parsed.success) {
 		const issue = parsed.error.issues[0];
@@ -107,7 +111,75 @@ export function verifyRoute(json: unknown, chain: ChainConfig): RouteAndCallData
 		);
 	}
 
+	verifyMatchesRequest(data, chain, params);
 	return data;
+}
+
+const SLIPPAGE_SCALE = 100_000_000n; // slippage percent × 10⁶, over 100 × 10⁶
+
+/**
+ * Checks, locally, that the calldata is the swap that was asked for.
+ *
+ * The router contract takes `amount_in` of `token_in` from the sender and
+ * reverts unless at least `min_received` of `token_out` reaches
+ * `destination` (the field names in its ABI, src/services/fibrous/abi/). So:
+ *
+ * - token_in / token_out equal the request, except that a native token is
+ *   carried as the chain's wrapped native address: the API sends swap_type 0
+ *   for a native input and 1 for a native output, 2 for token to token. A
+ *   literal comparison would refuse every native swap.
+ * - amount_in equals the requested amount, and destination the requested one
+ *   (case-insensitively; the API echoes the request's letter case).
+ * - min_received is not below the quoted output less the requested slippage.
+ *   The API computes outputAmount × (1 − slippage/100) rounded up (1786442 at
+ *   0.5% gives 1777510); this refuses only below the exact value rounded down,
+ *   less one base unit for float error in the slippage, never on inequality.
+ *
+ * What this does not prove: that the quoted output is a fair price.
+ * outputAmount comes from the same response, so a response that quotes low
+ * and floors low is consistent and passes. The slippage bound and the user's
+ * own reading of the quote are the defence there.
+ */
+function verifyMatchesRequest(
+	data: RouteAndCallDataResponse,
+	chain: ChainConfig,
+	params: RouteParams
+): void {
+	const r = data.calldata.route;
+	const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+	const nativeIn = same(params.tokenInAddress, chain.nativeTokenAddress);
+	const nativeOut = same(params.tokenOutAddress, chain.nativeTokenAddress);
+	const expectedIn = nativeIn ? chain.wrappedNativeAddress : params.tokenInAddress;
+	const expectedOut = nativeOut ? chain.wrappedNativeAddress : params.tokenOutAddress;
+	const expectedType = nativeIn ? 0 : nativeOut ? 1 : 2;
+
+	if (!same(r.token_in, expectedIn)) {
+		throw rejected(`it sells ${r.token_in}, not the requested ${params.tokenInAddress}.`);
+	}
+	if (!same(r.token_out, expectedOut)) {
+		throw rejected(`it buys ${r.token_out}, not the requested ${params.tokenOutAddress}.`);
+	}
+	if (r.swap_type !== expectedType) {
+		throw rejected(
+			`its swap_type is ${r.swap_type}, where this pair needs ${expectedType} (0 native in, 1 native out, 2 token to token).`
+		);
+	}
+	if (BigInt(r.amount_in) !== BigInt(params.amount)) {
+		throw rejected(`it spends ${r.amount_in} base units, not the requested ${params.amount}.`);
+	}
+	if (!same(r.destination, params.destination)) {
+		throw rejected(`it pays ${r.destination}, not ${params.destination}.`);
+	}
+
+	const slippage = params.slippage ?? DEFAULT_SLIPPAGE;
+	const quoted = BigInt(data.route.outputAmount);
+	const slip = BigInt(Math.round(slippage * 1_000_000));
+	const floor = (quoted * (SLIPPAGE_SCALE - slip)) / SLIPPAGE_SCALE - 1n;
+	if (BigInt(r.min_received) < floor) {
+		throw rejected(
+			`its minimum received, ${r.min_received}, is below the quoted ${quoted} less ${slippage}% slippage.`
+		);
+	}
 }
 
 export async function getRouteAndCallData(
@@ -142,7 +214,7 @@ export async function getRouteAndCallData(
 					);
 				}
 
-				return verifyRoute(json, chain);
+				return verifyRoute(json, chain, params);
 			},
 			{
 				maxRetries: 2,
