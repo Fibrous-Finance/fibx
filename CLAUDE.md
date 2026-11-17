@@ -41,6 +41,12 @@ Anything that would move it server-side takes the argument with it.
 - **Tests are vitest**, colocated as `<name>.test.ts` beside the source.
 - **`package.json` and `server.json` versions move together.** The MCP registry
   rejects a publish whose manifest version does not match the npm package.
+- **Node floor is the bundle's.** `engines.node` is
+  `^20.17.0 || ^22.13.0 || >=23.5.0`: the intersection of the `engines` of
+  every package tsup bundles, read from `pnpm-lock.yaml` — inquirer 13 and
+  mute-stream set it. Raise it, the tsup `target` and the docs together when a
+  bundled dependency raises its own. Developing needs more: Vite 8 and rolldown
+  want `^20.19.0 || >=22.12.0`.
 
 ## Commands
 

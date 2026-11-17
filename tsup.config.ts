@@ -7,7 +7,10 @@ export default defineConfig({
 	entry: ["src/index.ts"],
 	format: ["esm"],
 	platform: "node",
-	target: "node18",
+	// The floor in package.json's engines. The bundle carries its dependencies'
+	// own floors with it — inquirer 13 and mute-stream set them — so this target
+	// cannot sit lower than theirs.
+	target: "node20",
 	outDir: "dist",
 
 	bundle: true,

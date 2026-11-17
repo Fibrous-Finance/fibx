@@ -47,7 +47,7 @@ npm install -g fibx
 
 ## Requirements
 
-- Node.js >= 18
+- Node.js 20.17+, 22.13+ or 24+
 - A running [fibx-server](https://github.com/Fibrous-Finance/fibx-server) instance (required for Privy wallet operations; not needed for private key imports)
 
 ## Quick Start — First Swap in 3 Minutes

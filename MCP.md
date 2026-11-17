@@ -480,13 +480,13 @@ If using Privy authentication, ensure [fibx-server](https://github.com/Fibrous-F
 
 ## Troubleshooting
 
-| Problem                    | Solution                                                                       |
-| -------------------------- | ------------------------------------------------------------------------------ |
-| Server won't start         | Ensure Node.js >= 18 is installed and `npx fibx --version` works               |
-| "Not authenticated" errors | Run `fibx auth setup` (or `auth connect` / `auth login` / `auth import`) first |
-| Wallet operations fail     | Ensure `fibx-server` is running (not needed for private key imports)           |
-| Rate limit errors          | Use `config_action` tool to set a custom RPC URL                               |
-| Editor can't connect       | Verify the MCP config JSON syntax and restart the editor                       |
-| Stale tool responses       | Config changes are auto-detected via hot-reload — no restart needed            |
-| The app does not appear    | The host does not render MCP Apps; the model gets `open_fibx`'s JSON instead   |
-| The app is out of date     | Quit the host fully (`Cmd+Q`) — the server process only starts at app launch   |
+| Problem                    | Solution                                                                         |
+| -------------------------- | -------------------------------------------------------------------------------- |
+| Server won't start         | Ensure Node.js 20.17+, 22.13+ or 24+ is installed and `npx fibx --version` works |
+| "Not authenticated" errors | Run `fibx auth setup` (or `auth connect` / `auth login` / `auth import`) first   |
+| Wallet operations fail     | Ensure `fibx-server` is running (not needed for private key imports)             |
+| Rate limit errors          | Use `config_action` tool to set a custom RPC URL                                 |
+| Editor can't connect       | Verify the MCP config JSON syntax and restart the editor                         |
+| Stale tool responses       | Config changes are auto-detected via hot-reload — no restart needed              |
+| The app does not appear    | The host does not render MCP Apps; the model gets `open_fibx`'s JSON instead     |
+| The app is out of date     | Quit the host fully (`Cmd+Q`) — the server process only starts at app launch     |
