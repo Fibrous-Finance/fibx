@@ -38,6 +38,7 @@ export async function txStatusCommand(hash: string, opts: OutputOptions): Promis
 				chain: chain.name,
 			};
 		},
-		(data) => outputResult(data, opts)
+		(data) => outputResult(data, opts),
+		opts
 	);
 }

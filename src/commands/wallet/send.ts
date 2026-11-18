@@ -4,12 +4,13 @@ import { getWalletClient, getPublicClient } from "../../services/chain/client.js
 import { getChainConfig } from "../../services/chain/constants.js";
 import { ERC20_ABI } from "../../services/chain/erc20.js";
 import { resolveToken } from "../../services/fibrous/tokens.js";
+import { isUnconfirmed, waitForSuccess } from "../../services/chain/receipt.js";
 import { validateAddress, validateAmount } from "../../lib/validation.js";
 import { parseAmount } from "../../lib/parseAmount.js";
 import {
 	createSpinner,
 	outputResult,
-	formatError,
+	outputError,
 	type OutputOptions,
 	type GlobalOptions,
 } from "../../lib/format.js";
@@ -131,6 +132,10 @@ export async function sendCommand(
 			txHash = await walletClient.writeContract(request);
 		}
 
+		// send_tokens returns the hash at once; the CLI says "confirmed", so it
+		// waits for the receipt and fails on a revert.
+		spinner.text = `Waiting for ${txHash} to confirm...`;
+		await waitForSuccess(publicClient, txHash, "Transfer");
 		spinner.succeed("Transfer confirmed");
 
 		const explorerLink = chain.viemChain.blockExplorers?.default.url
@@ -149,8 +154,9 @@ export async function sendCommand(
 			opts
 		);
 	} catch (error) {
-		spinner.fail("Transfer failed");
-		console.error(formatError(error));
-		process.exitCode = 1;
+		// Sent without a receipt yet may still succeed; the error carries the hash.
+		if (isUnconfirmed(error)) spinner.warn("Sent, but not confirmed yet");
+		else spinner.fail("Transfer failed");
+		outputError(error, opts);
 	}
 }

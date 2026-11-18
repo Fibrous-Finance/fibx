@@ -1,24 +1,17 @@
-import type { Address } from "viem";
-import { formatUnits, maxUint256 } from "viem";
-import { requireSession } from "../../services/auth/session.js";
-import { getWalletClient, getPublicClient } from "../../services/chain/client.js";
-import { getChainConfig } from "../../services/chain/constants.js";
+import { formatUnits } from "viem";
 import {
-	getAllowance,
-	encodeApprove,
-	encodeDeposit,
-	encodeWithdraw,
-	waitForAllowance,
-} from "../../services/chain/erc20.js";
-import { resolveToken } from "../../services/fibrous/tokens.js";
-import { getRouteAndCallData, encodeSwapCalldata } from "../../services/fibrous/route.js";
+	executeSwap,
+	SwapSimulationError,
+	type SwapOutcome,
+	type SwapProgress,
+} from "../../services/trade/swap.js";
+import { getPublicClient } from "../../services/chain/client.js";
+import { isUnconfirmed, waitForSuccess } from "../../services/chain/receipt.js";
 import { DEFAULT_SLIPPAGE } from "../../lib/config.js";
-import { validateAmount, validateSlippage } from "../../lib/validation.js";
-import { parseAmount, formatAmount } from "../../lib/parseAmount.js";
 import {
 	createSpinner,
 	outputResult,
-	formatError,
+	outputError,
 	type OutputOptions,
 	type GlobalOptions,
 } from "../../lib/format.js";
@@ -29,6 +22,10 @@ interface TradeOptions extends OutputOptions {
 	simulate?: boolean;
 }
 
+type Spinner = ReturnType<typeof createSpinner>;
+
+const SIMULATION = "SIMULATION (no TX sent)";
+
 export async function tradeCommand(
 	amount: string,
 	from: string,
@@ -36,292 +33,143 @@ export async function tradeCommand(
 	opts: TradeOptions
 ): Promise<void> {
 	const spinner = createSpinner("Resolving tokens...").start();
+	// The step in flight, so a failure stops the spinner that is actually
+	// turning rather than leaving it running under the error.
+	let step = null as Spinner | null;
+
+	const onProgress = (event: SwapProgress) => {
+		switch (event.stage) {
+			case "resolving":
+				spinner.text = `Resolving tokens on ${event.chain.name}...`;
+				break;
+			case "wrapping":
+			case "unwrapping":
+				spinner.text = `${event.stage === "wrapping" ? "Wrapping" : "Unwrapping"} ${amount} ${event.tokenIn.symbol} → ${event.tokenOut.symbol}...`;
+				break;
+			case "routing":
+				spinner.text = "Finding best route...";
+				break;
+			case "routed":
+				if (!opts.json) {
+					spinner.stop();
+					console.log(
+						`\n  Route: ${amount} ${event.tokenIn.symbol} → ~${event.amountOut} ${event.tokenOut.symbol}`
+					);
+					console.log(`  Slippage: ${event.slippage}%\n`);
+				}
+				break;
+			case "approving":
+				step = createSpinner("Approving token spend...").start();
+				break;
+			case "approval-sent":
+				if (step) step.text = "Waiting for approval confirmation...";
+				break;
+			case "approved":
+				step?.succeed("Token approved");
+				step = null;
+				break;
+			case "swapping":
+				step = createSpinner(
+					`Swapping ${amount} ${event.tokenIn.symbol} → ${event.tokenOut.symbol}...`
+				).start();
+				break;
+		}
+	};
 
 	try {
-		validateAmount(amount);
-		// The same bound the MCP tool schema enforces (src/lib/validation.ts).
-		// `--slippage` reaches here as a bare parseFloat from src/index.ts, so
-		// without this the CLI walks straight past every other wall.
-		const slippage = validateSlippage(opts.slippage ?? DEFAULT_SLIPPAGE);
-
 		const globalOpts = opts as unknown as GlobalOptions;
-		const chainName = globalOpts.chain || "base";
-		const chain = getChainConfig(chainName);
-
-		const session = requireSession();
-		const walletClient = await getWalletClient(session, chain);
-		const publicClient = getPublicClient(chain);
-		const wallet = session.walletAddress as Address;
-
-		spinner.text = `Resolving tokens on ${chain.name}...`;
-		const [tokenIn, tokenOut] = await Promise.all([
-			resolveToken(from, chain),
-			resolveToken(to, chain),
-		]);
-
-		const amountBaseUnits = parseAmount(amount, tokenIn.decimals);
-		const isNativeInput =
-			tokenIn.address.toLowerCase() === chain.nativeTokenAddress.toLowerCase();
-		const isNativeOutput =
-			tokenOut.address.toLowerCase() === chain.nativeTokenAddress.toLowerCase();
-		const isWrappedInput =
-			tokenIn.address.toLowerCase() === chain.wrappedNativeAddress.toLowerCase();
-		const isWrappedOutput =
-			tokenOut.address.toLowerCase() === chain.wrappedNativeAddress.toLowerCase();
-
-		if (isNativeInput && isWrappedOutput) {
-			if (opts.simulate) {
-				const gasEstimate = await publicClient.estimateGas({
-					account: wallet,
-					to: chain.wrappedNativeAddress as Address,
-					data: encodeDeposit(),
-					value: amountBaseUnits,
-				});
-				const gasPrice = await publicClient.getGasPrice();
-				const feeEth = formatUnits(gasEstimate * gasPrice, 18);
-
-				spinner.succeed("Simulation complete");
-				outputResult(
-					{
-						mode: "SIMULATION (no TX sent)",
-						action: "Wrap",
-						input: `${amount} ${tokenIn.symbol}`,
-						output: `${amount} ${tokenOut.symbol}`,
-						estimatedGas: `${feeEth} ${chain.nativeSymbol}`,
-						chain: chain.name,
-					},
-					opts
-				);
-				return;
-			}
-
-			spinner.text = `Wrapping ${amount} ${tokenIn.symbol} → ${tokenOut.symbol}...`;
-			const hash = await walletClient.sendTransaction({
-				to: chain.wrappedNativeAddress as Address,
-				data: encodeDeposit(),
-				value: amountBaseUnits,
-			});
-			spinner.succeed("Wrap confirmed");
-
-			const explorerLink = chain.viemChain.blockExplorers?.default.url
-				? `${chain.viemChain.blockExplorers.default.url}/tx/${hash}`
-				: undefined;
-
-			outputResult(
-				{
-					action: "Wrap",
-					input: `${amount} ${tokenIn.symbol}`,
-					output: `${amount} ${tokenOut.symbol}`,
-					txHash: hash,
-					...(explorerLink ? { explorer: explorerLink } : {}),
-					chain: chain.name,
-				},
-				opts
-			);
-			return;
-		}
-
-		if (isWrappedInput && isNativeOutput) {
-			if (opts.simulate) {
-				const gasEstimate = await publicClient.estimateGas({
-					account: wallet,
-					to: chain.wrappedNativeAddress as Address,
-					data: encodeWithdraw(amountBaseUnits),
-					value: 0n,
-				});
-				const gasPrice = await publicClient.getGasPrice();
-				const feeEth = formatUnits(gasEstimate * gasPrice, 18);
-
-				spinner.succeed("Simulation complete");
-				outputResult(
-					{
-						mode: "SIMULATION (no TX sent)",
-						action: "Unwrap",
-						input: `${amount} ${tokenIn.symbol}`,
-						output: `${amount} ${tokenOut.symbol}`,
-						estimatedGas: `${feeEth} ${chain.nativeSymbol}`,
-						chain: chain.name,
-					},
-					opts
-				);
-				return;
-			}
-
-			spinner.text = `Unwrapping ${amount} ${tokenIn.symbol} → ${tokenOut.symbol}...`;
-			const hash = await walletClient.sendTransaction({
-				to: chain.wrappedNativeAddress as Address,
-				data: encodeWithdraw(amountBaseUnits),
-				value: 0n,
-			});
-			spinner.succeed("Unwrap confirmed");
-
-			const explorerLink = chain.viemChain.blockExplorers?.default.url
-				? `${chain.viemChain.blockExplorers.default.url}/tx/${hash}`
-				: undefined;
-
-			outputResult(
-				{
-					action: "Unwrap",
-					input: `${amount} ${tokenIn.symbol}`,
-					output: `${amount} ${tokenOut.symbol}`,
-					txHash: hash,
-					...(explorerLink ? { explorer: explorerLink } : {}),
-					chain: chain.name,
-				},
-				opts
-			);
-			return;
-		}
-
-		spinner.text = "Finding best route...";
-		const routeData = await getRouteAndCallData(
-			{
-				amount: amountBaseUnits.toString(),
-				tokenInAddress: tokenIn.address,
-				tokenOutAddress: tokenOut.address,
-				slippage,
-				destination: wallet,
-			},
-			chain
-		);
-
-		const outputAmount = formatAmount(BigInt(routeData.route.outputAmount), tokenOut.decimals);
-		const routerAddress = routeData.router_address as Address;
-
-		// Route preview
-		if (!opts.json) {
-			spinner.stop();
-			console.log(
-				`\n  Route: ${amount} ${tokenIn.symbol} → ~${outputAmount} ${tokenOut.symbol}`
-			);
-			console.log(`  Slippage: ${slippage}%\n`);
-		}
-
-		let requiresApproval = false;
-		if (!isNativeInput) {
-			const currentAllowance = await getAllowance(
-				publicClient,
-				tokenIn.address as Address,
-				wallet,
-				routerAddress
-			);
-
-			requiresApproval = currentAllowance < amountBaseUnits;
-
-			if (requiresApproval && !opts.simulate) {
-				const approveSpinner = createSpinner("Approving token spend...").start();
-				const amountToApprove = opts.approveMax ? maxUint256 : amountBaseUnits;
-				const approveData = encodeApprove(routerAddress, amountToApprove);
-				const approveTxHash = await walletClient.sendTransaction({
-					to: tokenIn.address as Address,
-					data: approveData,
-					value: 0n,
-				});
-
-				approveSpinner.text = "Waiting for approval confirmation...";
-				await publicClient.waitForTransactionReceipt({
-					hash: approveTxHash,
-					confirmations: 1,
-				});
-
-				await waitForAllowance(
-					publicClient,
-					tokenIn.address as Address,
-					wallet,
-					routerAddress,
-					amountToApprove
-				);
-				approveSpinner.succeed("Token approved");
-			}
-		}
-
-		const swapSpinner = createSpinner(
-			`Swapping ${amount} ${tokenIn.symbol} → ${tokenOut.symbol}...`
-		).start();
-
-		const swapData = encodeSwapCalldata(routeData.calldata, chain);
-		const value = isNativeInput ? amountBaseUnits : 0n;
-
-		// Without allowance, an eth_estimateGas call for the swap would normally
-		// revert. A dry run must not broadcast an approval just to make that
-		// estimate possible, so report the prerequisite without inventing a fee.
-		if (opts.simulate && requiresApproval) {
-			swapSpinner.succeed("Simulation complete");
-			outputResult(
-				{
-					mode: "SIMULATION (no TX sent)",
-					input: `${amount} ${tokenIn.symbol}`,
-					output: `~${outputAmount} ${tokenOut.symbol}`,
-					requiresApproval: true,
-					router: routerAddress,
-					chain: chain.name,
-				},
-				opts
-			);
-			return;
-		}
-
-		try {
-			const gasEstimate = await publicClient.estimateGas({
-				account: wallet,
-				to: routerAddress,
-				data: swapData,
-				value: value,
-			});
-
-			if (opts.simulate) {
-				const gasPrice = await publicClient.getGasPrice();
-				const feeWei = gasEstimate * gasPrice;
-				const feeEth = formatUnits(feeWei, 18);
-
-				swapSpinner.succeed("Simulation complete");
-				outputResult(
-					{
-						mode: "SIMULATION (no TX sent)",
-						input: `${amount} ${tokenIn.symbol}`,
-						output: `~${outputAmount} ${tokenOut.symbol}`,
-						estimatedGas: `${feeEth} ${chain.nativeSymbol}`,
-						requiresApproval: false,
-						router: routerAddress,
-						chain: chain.name,
-					},
-					opts
-				);
-				return;
-			}
-		} catch (error) {
-			swapSpinner.fail("Simulation failed");
-			throw new Error(
-				`Simulation failed: ${error instanceof Error ? error.message : String(error)}`
-			);
-		}
-
-		const hash = await walletClient.sendTransaction({
-			to: routerAddress,
-			data: swapData,
-			value: value,
+		const outcome = await executeSwap({
+			amount,
+			from,
+			to,
+			chain: globalOpts.chain || "base",
+			slippage: opts.slippage ?? DEFAULT_SLIPPAGE,
+			simulate: opts.simulate,
+			approveMax: opts.approveMax,
+			quoteFee: true,
+			onProgress,
 		});
 
-		swapSpinner.succeed("Swap confirmed");
-
-		const explorerLink = chain.viemChain.blockExplorers?.default.url
-			? `${chain.viemChain.blockExplorers.default.url}/tx/${hash}`
-			: undefined;
-
-		outputResult(
-			{
-				input: `${amount} ${tokenIn.symbol}`,
-				output: `~${outputAmount} ${tokenOut.symbol}`,
-				txHash: hash,
-				...(explorerLink ? { explorer: explorerLink } : {}),
-				router: routerAddress,
-				chain: chain.name,
-			},
-			opts
-		);
+		const done: Spinner = step ?? spinner;
+		if (outcome.simulated) {
+			done.succeed("Simulation complete");
+		} else {
+			// "confirmed" is a claim about the chain, so it waits for the receipt
+			// and fails on a revert; swap_tokens returns the hash at once and
+			// leaves the polling to get_tx_status.
+			const label =
+				outcome.operation === "wrap"
+					? "Wrap"
+					: outcome.operation === "unwrap"
+						? "Unwrap"
+						: "Swap";
+			done.text = `Waiting for ${outcome.hash} to confirm...`;
+			await waitForSuccess(getPublicClient(outcome.chain), outcome.hash, label);
+			done.succeed(`${label} confirmed`);
+		}
+		outputResult(formatOutcome(outcome), opts);
 	} catch (error) {
-		spinner.fail("Swap failed");
-		console.error(formatError(error));
-		process.exitCode = 1;
+		if (isUnconfirmed(error)) {
+			// Sent, no receipt within the bound: it may still succeed, so the
+			// line must not say it failed. The error carries the hash.
+			(step ?? spinner).warn("Sent, but not confirmed yet");
+			if (step) spinner.stop();
+		} else {
+			if (error instanceof SwapSimulationError) step?.fail("Simulation failed");
+			else step?.stop();
+			spinner.fail("Swap failed");
+		}
+		outputError(error, opts);
 	}
+}
+
+/**
+ * `estimatedGas` here is a fee in the chain's native token (gas × gas price),
+ * where the `swap_tokens` tool reports gas units — each surface keeps the unit
+ * it has always printed.
+ */
+function formatOutcome(outcome: SwapOutcome): Record<string, unknown> {
+	const { chain, tokenIn, tokenOut, amountIn, amountOut } = outcome;
+	const input = `${amountIn} ${tokenIn.symbol}`;
+	const fee =
+		outcome.simulated && outcome.feeWei !== undefined
+			? { estimatedGas: `${formatUnits(outcome.feeWei, 18)} ${chain.nativeSymbol}` }
+			: {};
+
+	if (outcome.operation !== "swap") {
+		const action = outcome.operation === "wrap" ? "Wrap" : "Unwrap";
+		const output = `${amountOut} ${tokenOut.symbol}`;
+		if (outcome.simulated) {
+			return { mode: SIMULATION, action, input, output, ...fee, chain: chain.name };
+		}
+		return {
+			action,
+			input,
+			output,
+			txHash: outcome.hash,
+			...(outcome.explorer ? { explorer: outcome.explorer } : {}),
+			chain: chain.name,
+		};
+	}
+
+	const output = `~${amountOut} ${tokenOut.symbol}`;
+	if (outcome.simulated) {
+		return {
+			mode: SIMULATION,
+			input,
+			output,
+			...fee,
+			requiresApproval: outcome.requiresApproval,
+			router: outcome.router,
+			chain: chain.name,
+		};
+	}
+	return {
+		input,
+		output,
+		txHash: outcome.hash,
+		...(outcome.explorer ? { explorer: outcome.explorer } : {}),
+		router: outcome.router,
+		chain: chain.name,
+	};
 }

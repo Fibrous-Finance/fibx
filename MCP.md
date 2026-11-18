@@ -110,6 +110,10 @@ caller.
 
 These tools advertise `destructiveHint: true`; confirmation behavior depends on the MCP client and its configuration. All support `simulate=true` for a no-broadcast preview, with gas estimates returned only where available.
 
+Amounts are plain decimals in token units with a dot (`"1.5"`). An amount with
+a comma or a `$` is refused with `INVALID_AMOUNT`; both used to be stripped, so
+`"1,5"` meant 15.
+
 | Tool          | Description                                             | Simulate |
 | ------------- | ------------------------------------------------------- | -------- |
 | `swap_tokens` | Swap tokens via Fibrous aggregator with optimal routing | ✅       |
@@ -121,7 +125,9 @@ These tools advertise `destructiveHint: true`; confirmation behavior depends on 
 These change local state rather than chain state, and all advertise
 `readOnlyHint: false`. `set_policy_rule`, `clear_policy_rule`, and `logout`
 also advertise `destructiveHint: true` — each can remove a bound that was
-protecting the wallet, or end the active session outright.
+protecting the wallet, or end the active session outright. The model can call
+them like any other tool: the host's confirmation prompt is the only thing
+between a model and a cleared policy.
 
 | Tool                | Description                                                                  |
 | ------------------- | ---------------------------------------------------------------------------- |
@@ -262,14 +268,20 @@ Execute a token swap through Fibrous. Handles approvals and routing automaticall
 ```
 Input:  { amount, from_token, to_token, chain?, slippage?, simulate? }
 Execution output: { txHash, amountIn, amountOut, tokenIn, tokenOut, router, chain, explorer? }
-Preview output:   { success, mode, amountIn, amountOut, tokenIn, tokenOut, router?, chain, estimatedGas?, requiresApproval? }
+Preview output:   { success, mode, amountIn, amountOut?, tokenIn, tokenOut, router?, chain, operation?, estimatedGas?, requiresApproval? }
 ```
 
 `estimatedGas` is gas units (a decimal string), not a fee. An ERC-20 preview
 with insufficient allowance reports
 `requiresApproval: true` without broadcasting an approval; in that case it
-does not claim a swap gas estimate. Wrap/unwrap previews are request metadata
-only.
+does not claim a swap gas estimate. A wrap/unwrap preview returns `operation:
+"wrap"` or `"unwrap"` and an `estimatedGas`, with no `amountOut` or `router`; a
+failed estimate is reported as `Simulation failed: …`. A swap from a token to
+itself is refused. Before a swap is signed, the route Fibrous returns is
+checked: pinned router, and the requested tokens, amount, destination and a
+minimum received no lower than the quote less the slippage; a response that
+fails is refused with `ROUTE_REJECTED`. The tool returns the hash as soon as the
+swap is sent — poll `get_tx_status` for the outcome.
 
 **Example prompt:** "Swap 0.1 ETH to USDC on Base" or "Simulate swapping 100 USDC to DAI"
 
@@ -339,6 +351,10 @@ requested operation. It does not run an on-chain simulation or gas estimate.
 `txHash` is absent, and `status` present, only when no transaction was needed:
 `status` is then the sentence "No transaction sent — debt was already
 cleared", not a transaction status.
+
+`aave_action` waits for each transaction's receipt, as it always has, and now
+reads it: a reverted transaction comes back as `TX_REVERTED` with the hash in
+`details`, where it used to be returned as an ordinary `txHash`.
 
 **Example prompt:** "Supply 0.5 ETH to Aave" or "Repay max USDC on Aave"
 
@@ -447,7 +463,9 @@ configuration:
 - **A local policy bounds all three signing paths.** `fibx policy` writes a file
   on the user's machine that is evaluated before every transaction is signed —
   local key, Privy, or WalletConnect alike — so it applies on this surface,
-  where a misbehaving model is the threat it exists for. It bounds the native
+  where a misbehaving model is the threat it exists for — as long as the host
+  asks before running `set_policy_rule` or `clear_policy_rule`, because a model
+  can call those too. It bounds the native
   value per transaction (`maxValue`), which chains may be used
   (`allowedChains`), which addresses a transaction may be sent to
   (`allowedDestinations`), and for how long the whole policy stands

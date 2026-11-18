@@ -53,6 +53,9 @@ vi.mock("../../lib/format.js", () => ({
 	createSpinner: mocks.createSpinner,
 	outputResult: mocks.outputResult,
 	formatError: vi.fn((error: unknown) => String(error)),
+	outputError: vi.fn(() => {
+		process.exitCode = 1;
+	}),
 }));
 
 import { tradeCommand } from "./swap.js";
@@ -173,5 +176,47 @@ describe("tradeCommand simulation", () => {
 		expect(mocks.sendTransaction).not.toHaveBeenCalled();
 		expect(mocks.estimateGas).toHaveBeenCalledOnce();
 		expect(process.exitCode).toBeUndefined();
+	});
+});
+
+// "Swap confirmed" used to print as soon as sendTransaction returned a hash,
+// and the command exited 0 for a swap that then reverted.
+describe("tradeCommand broadcast", () => {
+	const opts = { slippage: 1, json: true, chain: "base" };
+	const spinnerTexts = (method: "succeed" | "fail") =>
+		mocks.createSpinner.mock.results.flatMap((r) =>
+			(r.value[method] as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0])
+		);
+
+	beforeEach(() => {
+		mocks.getAllowance.mockResolvedValue(1_000_000n);
+		mocks.sendTransaction.mockResolvedValue("0xswap");
+	});
+
+	it("waits for the receipt before saying confirmed", async () => {
+		mocks.waitForTransactionReceipt.mockResolvedValue({ status: "success", blockNumber: 9n });
+
+		await tradeCommand("1", "USDC", "WETH", opts);
+
+		expect(mocks.waitForTransactionReceipt).toHaveBeenCalledWith(
+			expect.objectContaining({ hash: "0xswap" })
+		);
+		expect(spinnerTexts("succeed")).toContain("Swap confirmed");
+		expect(mocks.outputResult).toHaveBeenCalledWith(
+			expect.objectContaining({ txHash: "0xswap" }),
+			opts
+		);
+		expect(process.exitCode).toBeUndefined();
+	});
+
+	it("reports a reverted swap as a failure and exits non-zero", async () => {
+		mocks.waitForTransactionReceipt.mockResolvedValue({ status: "reverted", blockNumber: 9n });
+		vi.spyOn(console, "error").mockImplementation(() => {});
+
+		await tradeCommand("1", "USDC", "WETH", opts);
+
+		expect(spinnerTexts("succeed")).not.toContain("Swap confirmed");
+		expect(mocks.outputResult).not.toHaveBeenCalled();
+		expect(process.exitCode).toBe(1);
 	});
 });

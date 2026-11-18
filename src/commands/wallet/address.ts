@@ -14,6 +14,7 @@ export async function addressCommand(opts: OutputOptions): Promise<void> {
 				walletId: session.walletId ?? "N/A",
 			};
 		},
-		(data) => outputResult(data, opts)
+		(data) => outputResult(data, opts),
+		opts
 	);
 }

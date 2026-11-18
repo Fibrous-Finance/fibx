@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { FibxError } from "./errors.js";
+import { ErrorCode, FibxError } from "./errors.js";
 import {
 	MAX_SLIPPAGE_PERCENT,
 	MIN_SLIPPAGE_PERCENT,
 	slippageSchema,
+	validateAddress,
+	validateAmount,
 	validateSlippage,
 } from "./validation.js";
+import { parseAmount } from "./parseAmount.js";
 
 // The bound exists because slippage is the floor on what a user receives and
 // nothing downstream can catch a bad one — `maxValue` in the signing policy
@@ -59,5 +62,49 @@ describe("slippageSchema", () => {
 		expect(slippageSchema.safeParse(MAX_SLIPPAGE_PERCENT).success).toBe(true);
 		expect(slippageSchema.safeParse(MAX_SLIPPAGE_PERCENT + 0.1).success).toBe(false);
 		expect(slippageSchema.safeParse(0).success).toBe(false);
+	});
+});
+
+/**
+ * Every surface that takes an amount — trade, send, aave, quote and their MCP
+ * tools — validates it here. `,` and `$` used to be stripped before parsing,
+ * so a decimal comma traded ten times the amount written.
+ */
+describe("validateAmount", () => {
+	it.each(["1", "1.5", "0.001", ".5", "100"])("accepts %s", (amount) => {
+		expect(validateAmount(amount)).toBe(amount);
+	});
+
+	it("refuses a decimal comma and says to write a dot", () => {
+		expect(() => validateAmount("1,5")).toThrow("write 1.5, not 1,5");
+		expect(() => validateAmount("1,000")).toThrow(
+			expect.objectContaining({ code: ErrorCode.INVALID_AMOUNT })
+		);
+	});
+
+	it("refuses a dollar sign rather than reading $100 as 100 tokens", () => {
+		expect(() => validateAmount("$100")).toThrow("not dollars");
+	});
+
+	it.each(["1e3", "0x10", " 1", "Infinity", "-1", "0", "abc", ""])("refuses %j", (amount) => {
+		expect(() => validateAmount(amount)).toThrow(FibxError);
+	});
+
+	// zod 4's error.message is the issue list serialised as JSON.
+	it("throws the sentence, not zod's JSON", () => {
+		expect(() => validateAmount("abc")).toThrow(/^Amount must be/);
+		expect(() => validateAddress("0x12")).toThrow(/^Invalid EVM address$/);
+	});
+});
+
+describe("parseAmount", () => {
+	it("converts to base units", () => {
+		expect(parseAmount("1.5", 6)).toBe(1_500_000n);
+	});
+
+	it("refuses what it used to rewrite", () => {
+		expect(() => parseAmount("1,5", 18)).toThrow(FibxError);
+		// parseUnits would round this to 1.000001 USDC.
+		expect(() => parseAmount("1.0000005", 6)).toThrow("more decimal places");
 	});
 });

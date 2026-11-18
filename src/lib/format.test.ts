@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { formatError } from "./format.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createSpinner, formatError, outputError } from "./format.js";
 import { ErrorCode, FibxError } from "./errors.js";
 
 /**
@@ -62,5 +62,64 @@ describe("formatError", () => {
 		(first as { cause?: unknown }).cause = second;
 
 		expect(() => formatError(first)).not.toThrow();
+	});
+});
+
+/**
+ * `--json` is for scripts, and a script reads stdout. Failures used to print
+ * the human line there instead of JSON, and a piped run's spinner wrote
+ * "✔ Swap confirmed" to stdout ahead of the result.
+ */
+describe("--json output", () => {
+	const previousExitCode = process.exitCode;
+	afterEach(() => {
+		vi.restoreAllMocks();
+		process.exitCode = previousExitCode;
+	});
+
+	function captureStdout(run: () => void): string {
+		let out = "";
+		vi.spyOn(process.stdout, "write").mockImplementation((chunk) => {
+			out += String(chunk);
+			return true;
+		});
+		run();
+		return out;
+	}
+
+	it("prints a typed failure as JSON, even from inside viem's wrapping", () => {
+		const typed = new FibxError(ErrorCode.TX_REVERTED, "Swap reverted", { txHash: "0xh" });
+		const out = captureStdout(() =>
+			outputError(new Error("wrapped", { cause: typed }), { json: true })
+		);
+
+		expect(JSON.parse(out)).toEqual({
+			error: true,
+			code: "TX_REVERTED",
+			message: "Swap reverted",
+			details: { txHash: "0xh" },
+		});
+		expect(process.exitCode).toBe(1);
+	});
+
+	it("gives an untyped failure the same shape", () => {
+		const out = captureStdout(() => outputError(new Error("boom"), { json: true }));
+
+		expect(JSON.parse(out)).toEqual({ error: true, code: "UNKNOWN_ERROR", message: "boom" });
+	});
+
+	it("keeps a piped spinner's lines off stdout", () => {
+		const isTTY = process.stdout.isTTY;
+		Object.defineProperty(process.stdout, "isTTY", { value: false, configurable: true });
+		const stderr = vi.spyOn(console, "error").mockImplementation(() => {});
+		try {
+			const out = captureStdout(() => {
+				createSpinner("x").start().succeed("Swap confirmed");
+			});
+			expect(out).toBe("");
+			expect(stderr).toHaveBeenCalledWith(expect.stringContaining("Swap confirmed"));
+		} finally {
+			Object.defineProperty(process.stdout, "isTTY", { value: isTTY, configurable: true });
+		}
 	});
 });

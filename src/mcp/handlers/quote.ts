@@ -3,7 +3,7 @@ import { resolveToken } from "../../services/fibrous/tokens.js";
 import { getRouteAndCallData } from "../../services/fibrous/route.js";
 import { getProtocolNames } from "../../services/fibrous/protocols.js";
 import { DEFAULT_SLIPPAGE } from "../../lib/config.js";
-import { validateAmount } from "../../lib/validation.js";
+import { validateAmount, validateSlippage } from "../../lib/validation.js";
 import { parseAmount, formatAmount } from "../../lib/parseAmount.js";
 import { jsonResult } from "./utils.js";
 
@@ -44,6 +44,9 @@ export async function handleGetQuote({
 	slippage: number;
 }) {
 	validateAmount(amount);
+	// The tool schema bounds this, but the handler is also reached without it
+	// (open_fibx composes it); `fibx quote` and swap_tokens check the same bound.
+	const boundedSlippage = validateSlippage(slippage ?? DEFAULT_SLIPPAGE);
 
 	if (fromToken.toLowerCase() === toToken.toLowerCase()) {
 		throw new Error("Source and destination tokens cannot be the same.");
@@ -95,7 +98,7 @@ export async function handleGetQuote({
 				amount: amountBaseUnits.toString(),
 				tokenInAddress: tokenIn.address,
 				tokenOutAddress: tokenOut.address,
-				slippage: slippage ?? DEFAULT_SLIPPAGE,
+				slippage: boundedSlippage,
 				destination: QUOTE_DESTINATION,
 			},
 			chainConfig
@@ -139,7 +142,7 @@ export async function handleGetQuote({
 		input: `${amount} ${tokenIn.symbol}`,
 		output: `~${outputAmount} ${tokenOut.symbol}`,
 		rate: `1 ${tokenIn.symbol} ≈ ${rate} ${tokenOut.symbol}`,
-		slippage: `${slippage ?? DEFAULT_SLIPPAGE}%`,
+		slippage: `${boundedSlippage}%`,
 		router: routeData.router_address,
 		chain: chainConfig.name,
 		// Everything a card needs to draw the route, nested so no existing
@@ -150,7 +153,7 @@ export async function handleGetQuote({
 			inputAmount: amount,
 			outputAmount,
 			minReceived,
-			slippage: slippage ?? DEFAULT_SLIPPAGE,
+			slippage: boundedSlippage,
 			usdIn,
 			usdOut,
 			priceImpact,

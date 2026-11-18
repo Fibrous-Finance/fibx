@@ -1,21 +1,13 @@
-import type { Address } from "viem";
-import { requireSession } from "../../services/auth/session.js";
-import { getChainConfig } from "../../services/chain/constants.js";
-import { getPublicClient, getWalletClient } from "../../services/chain/client.js";
-import { resolveToken } from "../../services/fibrous/tokens.js";
-import { getRouteAndCallData, encodeSwapCalldata } from "../../services/fibrous/route.js";
-import {
-	getAllowance,
-	encodeApprove,
-	encodeDeposit,
-	encodeWithdraw,
-	waitForAllowance,
-} from "../../services/chain/erc20.js";
-import { formatAmount, parseAmount } from "../../lib/parseAmount.js";
-import { validateAmount } from "../../lib/validation.js";
-import { DEFAULT_SLIPPAGE } from "../../lib/config.js";
+import { executeSwap } from "../../services/trade/swap.js";
 import { jsonResult } from "./utils.js";
 
+const SIMULATION = "SIMULATION (no TX sent)";
+
+/**
+ * The tool result is a contract: the FibX app and fibx-telegram-bot read these
+ * fields. `estimatedGas` is gas units as a decimal string, where `fibx trade`
+ * prints a fee in the native token.
+ */
 export async function handleSwapTokens({
 	amount,
 	from_token: fromToken,
@@ -31,211 +23,50 @@ export async function handleSwapTokens({
 	slippage: number;
 	simulate?: boolean;
 }) {
-	validateAmount(amount);
+	const outcome = await executeSwap({
+		amount,
+		from: fromToken,
+		to: toToken,
+		chain,
+		slippage,
+		simulate,
+	});
+	const tokens = { tokenIn: outcome.tokenIn.symbol, tokenOut: outcome.tokenOut.symbol };
+	const chainName = outcome.chain.name;
 
-	if (fromToken.toLowerCase() === toToken.toLowerCase()) {
-		throw new Error("Source and destination tokens cannot be the same.");
-	}
-
-	const chainConfig = getChainConfig(chain);
-	const session = requireSession();
-	const walletClient = await getWalletClient(session, chainConfig);
-	const publicClient = getPublicClient(chainConfig);
-	const wallet = session.walletAddress as Address;
-
-	const [tokenIn, tokenOut] = await Promise.all([
-		resolveToken(fromToken, chainConfig),
-		resolveToken(toToken, chainConfig),
-	]);
-
-	const amountBaseUnits = parseAmount(amount, tokenIn.decimals);
-	const isNativeInput =
-		tokenIn.address.toLowerCase() === chainConfig.nativeTokenAddress.toLowerCase();
-	const isNativeOutput =
-		tokenOut.address.toLowerCase() === chainConfig.nativeTokenAddress.toLowerCase();
-	const isWrappedInput =
-		tokenIn.address.toLowerCase() === chainConfig.wrappedNativeAddress.toLowerCase();
-	const isWrappedOutput =
-		tokenOut.address.toLowerCase() === chainConfig.wrappedNativeAddress.toLowerCase();
-
-	// Wrap: native → wrapped
-	if (isNativeInput && isWrappedOutput) {
-		if (simulate) {
-			return jsonResult({
-				success: true,
-				mode: "SIMULATION (no TX sent)",
-				operation: "wrap",
-				amountIn: amount,
-				tokenIn: tokenIn.symbol,
-				tokenOut: tokenOut.symbol,
-				chain: chainConfig.name,
-			});
-		}
-
-		const data = encodeDeposit();
-		const hash = await walletClient.sendTransaction({
-			to: chainConfig.wrappedNativeAddress as Address,
-			data,
-			value: amountBaseUnits,
-		});
-		const explorer = chainConfig.viemChain.blockExplorers?.default.url
-			? `${chainConfig.viemChain.blockExplorers.default.url}/tx/${hash}`
-			: undefined;
+	if (!outcome.simulated) {
 		return jsonResult({
-			txHash: hash,
+			txHash: outcome.hash,
 			amountIn: amount,
-			amountOut: amount,
-			tokenIn: tokenIn.symbol,
-			tokenOut: tokenOut.symbol,
-			router: chainConfig.wrappedNativeAddress,
-			chain: chainConfig.name,
-			explorer,
+			amountOut: outcome.amountOut,
+			...tokens,
+			router: outcome.router,
+			chain: chainName,
+			explorer: outcome.explorer,
 		});
 	}
 
-	// Unwrap: wrapped → native
-	if (isWrappedInput && isNativeOutput) {
-		if (simulate) {
-			return jsonResult({
-				success: true,
-				mode: "SIMULATION (no TX sent)",
-				operation: "unwrap",
-				amountIn: amount,
-				tokenIn: tokenIn.symbol,
-				tokenOut: tokenOut.symbol,
-				chain: chainConfig.name,
-			});
-		}
-
-		const data = encodeWithdraw(amountBaseUnits);
-		const hash = await walletClient.sendTransaction({
-			to: chainConfig.wrappedNativeAddress as Address,
-			data,
-			value: 0n,
-		});
-		const explorer = chainConfig.viemChain.blockExplorers?.default.url
-			? `${chainConfig.viemChain.blockExplorers.default.url}/tx/${hash}`
-			: undefined;
-		return jsonResult({
-			txHash: hash,
-			amountIn: amount,
-			amountOut: amount,
-			tokenIn: tokenIn.symbol,
-			tokenOut: tokenOut.symbol,
-			router: chainConfig.wrappedNativeAddress,
-			chain: chainConfig.name,
-			explorer,
-		});
-	}
-
-	const routeData = await getRouteAndCallData(
-		{
-			amount: amountBaseUnits.toString(),
-			tokenInAddress: tokenIn.address,
-			tokenOutAddress: tokenOut.address,
-			slippage: slippage ?? DEFAULT_SLIPPAGE,
-			destination: wallet,
-		},
-		chainConfig
-	);
-
-	const routerAddress = routeData.router_address as Address;
-	let requiresApproval = false;
-
-	if (!isNativeInput) {
-		const currentAllowance = await getAllowance(
-			publicClient,
-			tokenIn.address as Address,
-			wallet,
-			routerAddress
-		);
-
-		requiresApproval = currentAllowance < amountBaseUnits;
-
-		if (requiresApproval && !simulate) {
-			const approveData = encodeApprove(routerAddress, amountBaseUnits);
-			const approveTxHash = await walletClient.sendTransaction({
-				to: tokenIn.address as Address,
-				data: approveData,
-				value: 0n,
-			});
-
-			await publicClient.waitForTransactionReceipt({
-				hash: approveTxHash,
-				confirmations: 1,
-			});
-
-			await waitForAllowance(
-				publicClient,
-				tokenIn.address as Address,
-				wallet,
-				routerAddress,
-				amountBaseUnits
-			);
-		}
-	}
-
-	const swapData = encodeSwapCalldata(routeData.calldata, chainConfig);
-	const value = isNativeInput ? amountBaseUnits : 0n;
-
-	const outputAmount = formatAmount(BigInt(routeData.route.outputAmount), tokenOut.decimals);
-
-	// Estimating the swap would normally revert when the router does not yet
-	// have enough allowance. In simulation mode, report that prerequisite
-	// instead of broadcasting an approval just to make the estimate succeed.
-	if (simulate && requiresApproval) {
+	if (outcome.operation !== "swap") {
 		return jsonResult({
 			success: true,
-			mode: "SIMULATION (no TX sent)",
+			mode: SIMULATION,
+			operation: outcome.operation,
 			amountIn: amount,
-			amountOut: outputAmount,
-			tokenIn: tokenIn.symbol,
-			tokenOut: tokenOut.symbol,
-			router: routerAddress,
-			chain: chainConfig.name,
-			requiresApproval: true,
+			...tokens,
+			chain: chainName,
+			estimatedGas: outcome.gas?.toString(),
 		});
 	}
 
-	const estimatedGas = await publicClient.estimateGas({
-		account: wallet,
-		to: routerAddress,
-		data: swapData,
-		value,
-	});
-
-	if (simulate) {
-		return jsonResult({
-			success: true,
-			mode: "SIMULATION (no TX sent)",
-			amountIn: amount,
-			amountOut: outputAmount,
-			tokenIn: tokenIn.symbol,
-			tokenOut: tokenOut.symbol,
-			router: routerAddress,
-			chain: chainConfig.name,
-			estimatedGas: estimatedGas.toString(),
-			requiresApproval: false,
-		});
-	}
-
-	const hash = await walletClient.sendTransaction({
-		to: routerAddress,
-		data: swapData,
-		value,
-	});
-
-	const explorer = chainConfig.viemChain.blockExplorers?.default.url
-		? `${chainConfig.viemChain.blockExplorers.default.url}/tx/${hash}`
-		: undefined;
 	return jsonResult({
-		txHash: hash,
+		success: true,
+		mode: SIMULATION,
 		amountIn: amount,
-		amountOut: outputAmount,
-		tokenIn: tokenIn.symbol,
-		tokenOut: tokenOut.symbol,
-		router: routerAddress,
-		chain: chainConfig.name,
-		explorer,
+		amountOut: outcome.amountOut,
+		...tokens,
+		router: outcome.router,
+		chain: chainName,
+		...(outcome.requiresApproval ? {} : { estimatedGas: outcome.gas?.toString() }),
+		requiresApproval: outcome.requiresApproval,
 	});
 }

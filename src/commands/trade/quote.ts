@@ -7,7 +7,7 @@ import { parseAmount, formatAmount } from "../../lib/parseAmount.js";
 import {
 	createSpinner,
 	outputResult,
-	formatError,
+	outputError,
 	type OutputOptions,
 	type GlobalOptions,
 } from "../../lib/format.js";
@@ -129,8 +129,7 @@ export async function quoteCommand(
 		printCta(amount, from, to, opts);
 	} catch (error) {
 		spinner.fail("Quote failed");
-		console.error(formatError(error));
-		process.exitCode = 1;
+		outputError(error, opts);
 	}
 }
 

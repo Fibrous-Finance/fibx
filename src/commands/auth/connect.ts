@@ -2,7 +2,7 @@ import { createPairing } from "../../services/walletconnect/connect.js";
 import { renderQrTerminal } from "../../services/walletconnect/qr.js";
 import { saveSession } from "../../services/auth/session.js";
 import { releaseWalletConnectSession } from "../../services/auth/release.js";
-import { createSpinner, outputResult, formatError, type OutputOptions } from "../../lib/format.js";
+import { createSpinner, outputResult, outputError, type OutputOptions } from "../../lib/format.js";
 
 export async function authConnectCommand(opts: OutputOptions): Promise<void> {
 	// Held outside the try so the catch can stop whichever of these is still
@@ -68,7 +68,6 @@ export async function authConnectCommand(opts: OutputOptions): Promise<void> {
 	} catch (error) {
 		pairingSpinner?.fail("Could not open a pairing");
 		approvalSpinner?.fail("Wallet did not connect");
-		console.error(formatError(error));
-		process.exitCode = 1;
+		outputError(error, opts);
 	}
 }

@@ -72,20 +72,23 @@ export function outputResult(data: Record<string, unknown>, opts: { json?: boole
 	console.log(formatResult(data, { json: opts.json }));
 }
 
-export function outputError(error: unknown, opts: OutputOptions): void {
-	if (error instanceof FibxError) {
-		if (opts.json) {
-			process.stdout.write(JSON.stringify(error.toJSON(), null, 2) + "\n");
-		} else {
-			console.error(formatError(error));
-		}
+/**
+ * The one way a CLI command reports a failure, with a non-zero exit code.
+ *
+ * With `--json` the failure is JSON on stdout in one shape —
+ * `{ error: true, code, message, details? }` — the same code and message the
+ * MCP tools report. Commands used to print the human line even under
+ * `--json`, so a script parsing stdout got nothing to parse on failure.
+ */
+export function outputError(error: unknown, opts: { json?: boolean }): void {
+	if (opts.json) {
+		const typed = findFibxError(error);
+		const body = typed
+			? typed.toJSON()
+			: { error: true, code: "UNKNOWN_ERROR", message: parseEvmError(error) };
+		process.stdout.write(JSON.stringify(body, bigintReplacer, 2) + "\n");
 	} else {
-		const msg = error instanceof Error ? error.message : String(error);
-		if (opts.json) {
-			process.stdout.write(JSON.stringify({ error: true, message: msg }, null, 2) + "\n");
-		} else {
-			console.error(formatError(error));
-		}
+		console.error(formatError(error));
 	}
 	process.exitCode = 1;
 }
@@ -178,6 +181,10 @@ export function createSpinner(text: string) {
 }
 
 // Minimal shim for non-TTY environments (CI, piped output).
+//
+// Every line goes to stderr, as ora's do. stdout carries the result: a piped
+// `--json` run used to get "✔ Swap confirmed" ahead of its JSON, and the
+// output stopped parsing exactly where scripts read it.
 class NonTtySpinner {
 	text: string;
 	constructor(initialText: string) {
@@ -190,7 +197,7 @@ class NonTtySpinner {
 		return this;
 	}
 	succeed(msg?: string): this {
-		if (msg) console.log(success(msg));
+		if (msg) console.error(success(msg));
 		return this;
 	}
 	fail(msg?: string): this {
@@ -198,11 +205,11 @@ class NonTtySpinner {
 		return this;
 	}
 	info(msg?: string): this {
-		if (msg) console.log(chalk.hex(BLUE)(`ℹ ${msg}`));
+		if (msg) console.error(chalk.hex(BLUE)(`ℹ ${msg}`));
 		return this;
 	}
 	warn(msg?: string): this {
-		if (msg) console.log(chalk.yellow(`⚠ ${msg}`));
+		if (msg) console.error(chalk.yellow(`⚠ ${msg}`));
 		return this;
 	}
 }

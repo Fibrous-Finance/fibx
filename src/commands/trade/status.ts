@@ -32,6 +32,7 @@ export async function statusCommand(opts: OutputOptions): Promise<void> {
 				fibrous: fibrousHealth.ok ? "✓ healthy" : "✗ unreachable",
 			};
 		},
-		(data) => outputResult(data, opts)
+		(data) => outputResult(data, opts),
+		opts
 	);
 }

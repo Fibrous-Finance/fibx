@@ -26,6 +26,7 @@ import {
 import { NonceManager } from "../chain/nonceManager.js";
 import { AUTH_HINT } from "../auth/session.js";
 import { waitForAllowance } from "../chain/erc20.js";
+import { waitForSuccess } from "../chain/receipt.js";
 import { ErrorCode, FibxError } from "../../lib/errors.js";
 import { calculateMaxSafeWithdraw } from "./risk.js";
 
@@ -267,7 +268,7 @@ export class AaveService {
 					nonce,
 				})
 			);
-			await this.publicClient.waitForTransactionReceipt({ hash: txApprove });
+			await waitForSuccess(this.publicClient, txApprove, "Approval");
 			await waitForAllowance(
 				this.publicClient,
 				tokenAddress,
@@ -290,7 +291,9 @@ export class AaveService {
 			this.walletClient!.writeContract({ ...supplyRequest, nonce })
 		);
 
-		await this.publicClient.waitForTransactionReceipt({ hash: txSupply });
+		// The receipt's status, not just its arrival: a reverted supply used to
+		// come back as a hash, and the CLI printed "Supply confirmed".
+		await waitForSuccess(this.publicClient, txSupply, "Supply");
 		return txSupply;
 	}
 
@@ -313,7 +316,7 @@ export class AaveService {
 			this.walletClient!.writeContract({ ...request, nonce })
 		);
 
-		await this.publicClient.waitForTransactionReceipt({ hash: txWrap });
+		await waitForSuccess(this.publicClient, txWrap, "Wrap");
 		return txWrap;
 	}
 
@@ -335,7 +338,7 @@ export class AaveService {
 			this.walletClient!.writeContract({ ...request, nonce })
 		);
 
-		await this.publicClient.waitForTransactionReceipt({ hash: txUnwrap });
+		await waitForSuccess(this.publicClient, txUnwrap, "Unwrap");
 		return txUnwrap;
 	}
 
@@ -373,7 +376,7 @@ export class AaveService {
 			this.walletClient!.writeContract({ ...request, nonce })
 		);
 
-		await this.publicClient.waitForTransactionReceipt({ hash: txWithdraw });
+		await waitForSuccess(this.publicClient, txWithdraw, "Withdraw");
 		return txWithdraw;
 	}
 
@@ -419,7 +422,7 @@ export class AaveService {
 			this.walletClient!.writeContract({ ...request, nonce })
 		);
 
-		await this.publicClient.waitForTransactionReceipt({ hash: txBorrow });
+		await waitForSuccess(this.publicClient, txBorrow, "Borrow");
 		return txBorrow;
 	}
 
@@ -457,7 +460,7 @@ export class AaveService {
 					nonce,
 				})
 			);
-			await this.publicClient.waitForTransactionReceipt({ hash: txApprove });
+			await waitForSuccess(this.publicClient, txApprove, "Approval");
 			await waitForAllowance(
 				this.publicClient,
 				tokenAddress,
@@ -486,7 +489,7 @@ export class AaveService {
 				this.walletClient!.writeContract({ ...repayRequest, nonce })
 			);
 
-			await this.publicClient.waitForTransactionReceipt({ hash: txRepay });
+			await waitForSuccess(this.publicClient, txRepay, "Repay");
 			return txRepay;
 		} catch (error: unknown) {
 			const err = error as Error & { cause?: { message?: string } };
