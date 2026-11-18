@@ -34,7 +34,7 @@
 				},
 				{
 					"name": "FIBX_SESSION_SECRET",
-					"description": "Encryption key for the local session file. Optional; auto-generated per machine when unset.",
+					"description": "Secret used to encrypt the imported private key stored in the session file (64 hex characters, or any string). Optional; a per-machine key is generated when unset.",
 					"isRequired": false,
 					"isSecret": true
 				},

@@ -1122,4 +1122,4 @@ git commit --allow-empty -m "chore: verify the buttons and the swap card by hand
 - Protocol logos. `image_url` is in the response but showing it needs `_meta.ui.csp.resourceDomains`.
 - Component tests for `panel.tsx` or the card — still the standing follow-up, still needing a DOM environment.
 - Any change to how the three signing paths work, or to `swap_tokens`' annotations.
-- The deferred items already recorded in `HANDOFF.md`: the `FibxError` promotion, the SDK bump, `config_action`'s `isOffered()`, the bundle's SDK floor.
+- The deferred items now recorded in `CLAUDE.md`'s Landmines: the `FibxError` promotion, the SDK bump, `config_action`'s `isOffered()`. The bundle's Node floor was settled in `engines`.

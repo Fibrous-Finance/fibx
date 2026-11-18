@@ -26,7 +26,7 @@ export function registerDefiTools(server: McpServer): number {
 		{
 			title: "Aave V3 Markets",
 			description:
-				"List all Aave V3 reserve markets on Base with supply/borrow APY, total supply, total borrow, and LTV. Always call this before Aave supply/borrow operations. No wallet required.",
+				"List the active Aave V3 reserves on Base with supply/borrow APY, total supply and total borrow (in token units, not USD), LTV, and whether each is frozen. Always call this before Aave supply/borrow operations. No wallet required.",
 			inputSchema: {},
 			annotations: {
 				title: "Aave V3 Markets",

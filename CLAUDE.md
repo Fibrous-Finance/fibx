@@ -5,9 +5,6 @@ and Monad — swaps and quotes through Fibrous aggregation, transfers, portfolio
 Aave V3. One published artifact serves both surfaces: `fibx <command>` for
 people, `fibx mcp-start` for agents.
 
-**Start here when resuming work:** `docs/superpowers/HANDOFF.md` — what is in
-flight, what is blocked on a human, and how to pick it up.
-
 ## Three signing paths, and why that matters
 
 Every design decision in this repo comes back to this. A user signs through one
@@ -41,6 +38,12 @@ Anything that would move it server-side takes the argument with it.
 - **Tests are vitest**, colocated as `<name>.test.ts` beside the source.
 - **`package.json` and `server.json` versions move together.** The MCP registry
   rejects a publish whose manifest version does not match the npm package.
+- **Node floor is the bundle's.** `engines.node` is
+  `^20.17.0 || ^22.13.0 || >=23.5.0`: the intersection of the `engines` of
+  every package tsup bundles, read from `pnpm-lock.yaml` — inquirer 13 and
+  mute-stream set it. Raise it, the tsup `target` and the docs together when a
+  bundled dependency raises its own. Developing needs more: Vite 8 and rolldown
+  want `^20.19.0 || >=22.12.0`.
 
 ## Commands
 
@@ -60,6 +63,11 @@ dependencies on this repo that vitest passed straight through — esbuild elides
 `import type`, so a package missing from `package.json` only surfaces in the
 type check.
 
+CI (`.github/workflows/ci.yml`) runs those checks and the build on Node 22.13.0
+and the current LTS, then starts the built bundle with `scripts/smoke.mjs` —
+`--version` and an MCP `initialize` + `tools/list` — on the lowest release of
+every supported Node line. A bundle that builds can still crash on start.
+
 ## Landmines
 
 **Never let a test touch the real config directory.** `policyPath()` and
@@ -74,10 +82,14 @@ later found reading their real `policy.json`.
 **Do not run `auth connect`, `auth login` or `auth setup` while testing.** Two
 of them open a real WalletConnect pairing or send a real OTP email.
 
-**`maxValue` bounds native value only.** An ERC-20 transfer reaches the policy
-as `{ to: <the token contract>, value: 0n }`, so the cap never sees the amount.
-`allowedDestinations` is what bounds where tokens may go. The README claimed
-otherwise once and it had to be corrected; do not reintroduce the claim.
+**The policy sees `{ chain, to, value }` and nothing else.** An ERC-20
+transfer reaches it as `{ to: <the token contract>, value: 0n }`, so
+`maxValue` never sees a token amount, and `allowedDestinations` never sees a
+token's recipient: listing a token's contract lets that token go to anyone,
+and not listing it blocks the token entirely. Swaps, approvals and Aave calls
+go to a router, pool or token contract, which must be listed too. The docs
+have claimed twice that one rule or the other bounds tokens; do not
+reintroduce either claim.
 
 **`loadPolicy()` returns three states, not two:** `Policy | null | "unreadable"`.
 "Absent" permits everything; "unreadable" refuses everything. Collapsing them is
@@ -102,19 +114,41 @@ empty throwaway wallet cannot demonstrate a policy refusal through the CLI.
 repo's pnpm workspace. They carry their own `.npmrc`; `--ignore-workspace` may
 be needed.
 
+**A failed tool call is a normal result, not `isError`.** `withErrorHandling`
+(`src/mcp/tools/error-handling.ts`) returns `{ success: false, error, code,
+rawMessage }`; the SDK sets `isError` only for what it raises itself, such as
+input validation. So `ui/src/rpc.ts` throws on either shape, and because the
+host still renders the `ui://` document bound to the tool, `ui/src/main.tsx`
+checks `success === false` before drawing anything from the payload.
+
+**Do not bump `@modelcontextprotocol/sdk` to meet `ext-apps`' peer range.**
+`ext-apps` asks for a newer SDK than the `^1.27.1` pinned here, but
+`registerAppTool`/`registerAppResource` are passthroughs to
+`registerTool`/`registerResource`, and the `ui/initialize` handshake is
+`ext-apps`' own postMessage protocol, so the stdio SDK version is independent. A
+bump is an untested migration of every tool for no evidenced gain.
+
+**The policy commands still throw plain `Error`.** `applyRule`/`removeRule`
+(`src/commands/policy/index.ts`) do, so over MCP a bad rule name arrives as
+`UNKNOWN_ERROR`, and `parseEvmError` can rewrite its text (`Unknown chain: 429`
+reads as "RPC rate limited"). Promoting them to `FibxError(VALIDATION_ERROR)`
+fixes both but changes the CLI's output at each throw site, so it is its own
+change. The same file's messages tell MCP callers to run `fibx policy clear`.
+
 ## How work is done here
 
 Design and planning artifacts live in git and are meant to be read:
 
 - `docs/superpowers/specs/` — designs, one per phase, written before code
 - `docs/superpowers/plans/` — implementation plans, task by task
-- `docs/superpowers/HANDOFF.md` — the live state
+- `CHANGELOG.md` — what each release changed, for users
 
 Substantial work goes through the superpowers skills: brainstorming to a spec,
 `writing-plans` to a plan, `subagent-driven-development` to execute it — one
 implementer subagent per task, a review after each. A run's ledger lives at
 `.superpowers/sdd/<plan-name>/progress.md`, which is **gitignored scratch and
-dies with its worktree**; anything that must survive belongs in `HANDOFF.md`.
+dies with its worktree**; anything that must survive belongs in this file, the
+spec or plan it concerns, or a code comment beside what it explains.
 
 Isolated work happens in `.claude/worktrees/`, also gitignored.
 
@@ -155,4 +189,7 @@ Citrea was delisted by Fibrous on 2026-08-10 and withdrawn from all four on
 2026-08-29. The pattern to follow for a delisting: the code stays, the offer is
 withdrawn — `CHAIN_NAMES` is a literal (zod's `z.enum` needs a tuple type),
 `SUPPORTED_CHAINS` keeps every row, and `getChainConfig` gates on what is
-offered.
+offered. One leak remains: `fibx config set-rpc` and the `config_action` tool
+still test `SUPPORTED_CHAINS[chain]`, so they accept and list Citrea
+(`src/commands/config/index.ts`, `src/mcp/handlers/auth.ts`); they should use
+`isOffered()`.

@@ -99,11 +99,11 @@ caller.
 | `get_quote`          | Get swap price quote, exchange rate, and route info          | No            |
 | `get_auth_status`    | Check session and Fibrous API health                         | No            |
 | `get_connect_status` | Poll a pairing started by connect_wallet                     | No            |
-| `get_balance`        | Get native and ERC-20 token balances                         | Yes           |
+| `get_balance`        | Get the native balance and non-zero listed-token balances    | Yes           |
 | `get_portfolio`      | Cross-chain portfolio with USD valuations and DeFi positions | Yes           |
 | `get_tx_status`      | Check transaction receipt and status                         | No            |
 | `get_aave_status`    | Get Aave V3 position health on Base                          | Yes           |
-| `get_aave_markets`   | List all Aave V3 reserves with APY, TVL, and LTV             | No            |
+| `get_aave_markets`   | List active Aave V3 reserves with APY, totals, and LTV       | No            |
 | `get_policy`         | Read the local signing policy that bounds every transaction  | No            |
 
 ### Transactional (3 tools)
@@ -145,9 +145,11 @@ Output: { chain, auth, balances, policy, terms, quote, quoteError }
 ```
 
 `auth` is the session as `get_auth_status` reports it; `balances` is `null`
-without a session; `terms` echoes the resolved `from/to/amount` and `quote`
-carries the Fibrous route when all three were given. A quote that could not be
-fetched sets `quoteError` rather than failing the call, so the app still opens.
+without a session or when the balances could not be fetched; `terms` echoes
+the `from/to/amount` as passed, plus `slippage` (0.5 when not given), and
+`quote` carries the Fibrous route when all three were given. A quote that
+could not be fetched sets `quoteError` rather than failing the call, so the
+app still opens.
 The app requests one host permission, `clipboardWrite`, for the Copy link
 button on the pairing screen; if the host refuses it, the button says so
 instead of failing silently.
@@ -169,26 +171,37 @@ Get a price quote for a token swap. **No authentication required** — use this 
 
 ```
 Input:  { amount, from_token, to_token, chain?, slippage? }
-Routed output: { input, output, rate, slippage, router, chain }
+Routed output: { input, output, rate, slippage, router, chain, quote }
 Wrap/unwrap output: { input, output, rate, operation, chain }
 ```
 
+`quote` carries the route in detail: `{ fromToken, toToken, inputAmount,
+outputAmount, minReceived, slippage, usdIn, usdOut, priceImpact, route,
+routerAddress, chain }`. `usdIn`, `usdOut` and `priceImpact` are `null` when a
+token has no price — never `0` — and should be shown as unknown. `priceImpact`
+is estimated from the two USD values.
+
 Direct native/wrapped-native quotes are 1:1 conversions and therefore omit
-aggregator-specific `slippage` and `router` fields. Executing the conversion
-still requires native gas.
+aggregator-specific `slippage`, `router` and `quote` fields. Executing the
+conversion still requires native gas.
 
 ### get_auth_status
 
-Check whether fibx is authenticated and the Fibrous API is reachable. `open_fibx` already returns this as its `auth` field; call it on its own when you need the session state and nothing else, or before a transactional tool you are calling yourself.
+Check whether fibx has a session and the Fibrous API is reachable. `open_fibx` already returns this as its `auth` field; call it on its own when you need the session state and nothing else, or before a transactional tool you are calling yourself.
 
 ```
 Input:  { chain?: "base" | "hyperevm" | "monad" }
 Output: { authenticated, walletAddress, sessionType, authType, requiresApprovalPerTransaction, chain, fibrousStatus }
 ```
 
+`authenticated` means a session file is present. An expired Privy login is
+only detected when a transactional tool is called (a `simulate=true` call
+included), which then fails with `SESSION_EXPIRED`.
+
 `requiresApprovalPerTransaction` is `true` for a `walletconnect` session — the
-wallet itself prompts for every transaction, unlike `privy` and `private-key`
-sessions which sign server-side.
+wallet itself prompts for every transaction, unlike `privy` (signed by the
+Privy server) and `private-key` (signed locally with the imported key), which
+never prompt.
 
 ### connect_wallet
 
@@ -219,7 +232,8 @@ Output: { status: "pending" | "connected" | "failed" | "unknown", address?, erro
 
 ### get_balance
 
-Fetch all token balances for the active wallet. Only returns non-zero balances.
+Fetch the native balance (always included, even when zero) plus the non-zero
+balances of the tokens Fibrous lists for the chain.
 
 ```
 Input:  { chain?: "base" | "hyperevm" | "monad" }
@@ -228,7 +242,7 @@ Output: { wallet, chain, balances: { "ETH": "0.5", "USDC": "100.0", ... } }
 
 ### get_portfolio
 
-Get a consolidated portfolio across all chains with USD-valued token holdings and DeFi positions.
+Get a consolidated portfolio across all chains: holdings of the tokens Fibrous lists, valued in USD with prices from Fibrous's token list (cached for up to 24 hours; a token with no price counts as $0), plus DeFi positions. A chain that fails to load is left out.
 
 ```
 Input:  {}
@@ -251,7 +265,8 @@ Execution output: { txHash, amountIn, amountOut, tokenIn, tokenOut, router, chai
 Preview output:   { success, mode, amountIn, amountOut, tokenIn, tokenOut, router?, chain, estimatedGas?, requiresApproval? }
 ```
 
-An ERC-20 preview with insufficient allowance reports
+`estimatedGas` is gas units (a decimal string), not a fee. An ERC-20 preview
+with insufficient allowance reports
 `requiresApproval: true` without broadcasting an approval; in that case it
 does not claim a swap gas estimate. Wrap/unwrap previews are request metadata
 only.
@@ -268,8 +283,9 @@ Execution output: { txHash, amount, token, recipient, chain, explorer? }
 Preview output:   { success, mode, amount, token, recipient, chain, estimatedGas? }
 ```
 
-Native-token previews include gas units. ERC-20 previews validate the contract
-call but currently do not return a gas estimate.
+`estimatedGas` is gas units (a decimal string), not a fee. Native-token
+previews include it. ERC-20 previews validate the contract call but currently
+do not return a gas estimate.
 
 **Example prompt:** "Send 50 USDC to 0x1234..." or "Simulate sending 0.1 ETH to 0x..."
 
@@ -293,7 +309,7 @@ Output: { wallet, healthFactor, totalCollateralUSD, totalDebtUSD, availableBorro
 
 ### get_aave_markets
 
-List all Aave V3 reserve markets on Base with live APY data. No wallet required.
+List the active Aave V3 reserves on Base with supply and borrow APY, total supplied and borrowed (in token units, not USD; borrowed is variable debt), LTV, and whether the reserve is frozen. Inactive reserves are left out. No wallet required.
 
 ```
 Input:  {}
@@ -320,6 +336,10 @@ Preview output:   { success, mode, action, amount, token, chain, note }
 The preview validates the amount, resolves the token, and describes the
 requested operation. It does not run an on-chain simulation or gas estimate.
 
+`txHash` is absent, and `status` present, only when no transaction was needed:
+`status` is then the sentence "No transaction sent — debt was already
+cleared", not a transaction status.
+
 **Example prompt:** "Supply 0.5 ETH to Aave" or "Repay max USDC on Aave"
 
 ### config_action
@@ -339,7 +359,7 @@ Read the local signing policy without changing it. **No authentication required.
 
 ```
 Input:  {}
-Output: { state: "active" | "absent" | "unreadable", rules?, path, message }
+Output: { state: "active" | "absent" | "unreadable", rules?, path, message? }
 ```
 
 `absent` means no policy is set — nothing limits what this wallet will sign.
@@ -365,10 +385,17 @@ a lower `maxValue` can be widened back to a higher one just as easily as it
 was tightened — so this advertises `destructiveHint: true`, matching
 `clear_policy_rule`'s annotation for the same consequence: a cap that stops
 binding. `maxValue` bounds only the native value of a transaction; an ERC-20
-transfer carries `value: 0`, so use `allowedDestinations` to bound where
-tokens may go.
+transfer carries `value: 0`, so the cap never sees a token amount.
 
-**Example prompt:** "Cap Base transactions at 0.05 ETH" or "Only allow sending to my own address on Base"
+`allowedDestinations` limits which addresses a transaction may be sent to. The
+policy sees a transaction's `to` address, and a token transfer's `to` is the
+token's contract, not the recipient — so this rule cannot limit who receives
+tokens. A token whose contract is on the list can be sent to anyone; a token
+whose contract is not on it cannot be moved at all. Swaps, approvals and Aave
+calls are sent to a router, pool or token contract, which must be listed too,
+or they are refused.
+
+**Example prompt:** "Cap Base transactions at 0.05 ETH" or "On Base, only allow transactions to my own address and the Fibrous router" (that list refuses every token transfer and approval, since neither goes to a listed address)
 
 ### clear_policy_rule
 
@@ -376,7 +403,7 @@ Remove one rule from the local signing policy, or remove the whole policy.
 
 ```
 Input:  { rule: string } | { all: true }
-Output: { ok, changed, rule?, rules?, message }
+Output: { ok, changed, rule?, rules?, message? }
 ```
 
 The two call shapes are deliberately distinct and mutually exclusive — a call
@@ -422,11 +449,13 @@ configuration:
   local key, Privy, or WalletConnect alike — so it applies on this surface,
   where a misbehaving model is the threat it exists for. It bounds the native
   value per transaction (`maxValue`), which chains may be used
-  (`allowedChains`), where anything may be sent (`allowedDestinations`), and
-  for how long the whole policy stands (`expiry`). A refusal comes back as
-  `POLICY_BLOCKED` with the rule and the limit named. Two honest limits: it
-  does not bound token amounts — an ERC-20 transfer carries `value: 0`, so only
-  `allowedDestinations` constrains it — and it is a local file, so it is worth
+  (`allowedChains`), which addresses a transaction may be sent to
+  (`allowedDestinations`), and for how long the whole policy stands
+  (`expiry`). A refusal comes back as `POLICY_BLOCKED` with the rule and the
+  limit named. Three honest limits: it does not bound token amounts — an
+  ERC-20 transfer carries `value: 0`; it does not bound who receives tokens —
+  a token transfer is sent to the token's contract, so `allowedDestinations`
+  sees the contract, not the recipient; and it is a local file, so it is worth
   nothing against something that can already write to the user's disk.
 - **Read-only tools need no wallet.** `get_quote`, `get_tx_status`,
   `get_aave_markets`, `list_tokens` and `open_fibx` work with no session at
@@ -437,15 +466,25 @@ configuration:
 
 ## Error Handling
 
-All tool errors are returned as structured JSON with `isError: true`:
+Tool errors come back as a normal tool result — `isError` is not set — whose
+JSON body is:
 
 ```json
 {
 	"success": false,
 	"error": "Not authenticated. Run `fibx auth setup` to choose a signing path, or `fibx auth connect` / `fibx auth login <email>` / `fibx auth import` directly.",
-	"code": "NOT_AUTHENTICATED"
+	"code": "NOT_AUTHENTICATED",
+	"rawMessage": "Not authenticated. Run `fibx auth setup` to choose a signing path, or `fibx auth connect` / `fibx auth login <email>` / `fibx auth import` directly."
 }
 ```
+
+`details` is added when there are any. Check `success === false`. The MCP SDK
+sets `isError: true` only for failures it raises itself, such as invalid
+input.
+
+That example is what a transactional tool returns without a session. The
+read tools that need one (`get_balance`, `get_portfolio`, `get_aave_status`)
+instead return "No active session. …" with code `UNKNOWN_ERROR`.
 
 `code` is read from the typed error anywhere in the `cause` chain, so a refusal
 raised inside a transport — a `POLICY_BLOCKED` from the signing policy, say —
@@ -463,11 +502,11 @@ EVM-specific errors (reverts, gas estimation failures) are parsed and human-read
 
 ## Environment Variables
 
-| Variable              | Description                                                     | Required |
-| --------------------- | --------------------------------------------------------------- | -------- |
-| `FIBX_API_URL`        | Custom fibx-server URL (for Privy wallet operations)            | No       |
-| `FIBX_SESSION_SECRET` | Custom encryption key for session files (hex or string)         | No       |
-| `FIBX_WC_PROJECT_ID`  | WalletConnect Cloud project id for `connect_wallet` — see below | No       |
+| Variable              | Description                                                                                            | Required |
+| --------------------- | ------------------------------------------------------------------------------------------------------ | -------- |
+| `FIBX_API_URL`        | fibx-server URL for Privy (`auth login`); a hosted instance is used when unset                         | No       |
+| `FIBX_SESSION_SECRET` | Secret used to encrypt the imported private key in the session file (64 hex characters, or any string) | No       |
+| `FIBX_WC_PROJECT_ID`  | WalletConnect Cloud project id for `connect_wallet` — see below                                        | No       |
 
 A shared WalletConnect project id ships in the published bundle, so
 `connect_wallet` works with no setup. It is public by necessity — a CLI has no
@@ -476,17 +515,19 @@ parties. If pairing starts failing on quota, create a free project at
 [cloud.reown.com](https://cloud.reown.com) and set `FIBX_WC_PROJECT_ID` to your
 own id.
 
-If using Privy authentication, ensure [fibx-server](https://github.com/Fibrous-Finance/fibx-server) is running and accessible before starting the MCP server.
+fibx-server is only used for Privy (`auth login`); FibX uses a hosted
+instance by default, and `FIBX_API_URL` points it at your own.
+`connect_wallet` and imported keys do not use it.
 
 ## Troubleshooting
 
-| Problem                    | Solution                                                                       |
-| -------------------------- | ------------------------------------------------------------------------------ |
-| Server won't start         | Ensure Node.js >= 18 is installed and `npx fibx --version` works               |
-| "Not authenticated" errors | Run `fibx auth setup` (or `auth connect` / `auth login` / `auth import`) first |
-| Wallet operations fail     | Ensure `fibx-server` is running (not needed for private key imports)           |
-| Rate limit errors          | Use `config_action` tool to set a custom RPC URL                               |
-| Editor can't connect       | Verify the MCP config JSON syntax and restart the editor                       |
-| Stale tool responses       | Config changes are auto-detected via hot-reload — no restart needed            |
-| The app does not appear    | The host does not render MCP Apps; the model gets `open_fibx`'s JSON instead   |
-| The app is out of date     | Quit the host fully (`Cmd+Q`) — the server process only starts at app launch   |
+| Problem                    | Solution                                                                                    |
+| -------------------------- | ------------------------------------------------------------------------------------------- |
+| Server won't start         | Ensure Node.js 20.17+, 22.13+ or 24+ is installed and `npx fibx --version` works            |
+| "Not authenticated" errors | Run `fibx auth setup` (or `auth connect` / `auth login` / `auth import`) first              |
+| Wallet operations fail     | For a Privy wallet with `FIBX_API_URL` set, check that fibx-server is reachable at that URL |
+| Rate limit errors          | Use `config_action` tool to set a custom RPC URL                                            |
+| Editor can't connect       | Verify the MCP config JSON syntax and restart the editor                                    |
+| Stale tool responses       | Config changes are auto-detected via hot-reload — no restart needed                         |
+| The app does not appear    | The host does not render MCP Apps; the model gets `open_fibx`'s JSON instead                |
+| The app is out of date     | Quit the host fully (`Cmd+Q`) — the server process only starts at app launch                |
