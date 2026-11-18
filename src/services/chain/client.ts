@@ -83,8 +83,17 @@ export async function getWalletClient(session: Session, chain: ChainConfig) {
 
 	let account;
 
-	const pk = getPrivateKey(session);
-	if (session.type === "private-key" && pk) {
+	// Branch on the session type, not on whether a key came back: a private-key
+	// session whose key cannot be read must say so, not fall through to the
+	// Privy branch and ask for an email login it never had.
+	if (session.type === "private-key") {
+		const pk = getPrivateKey(session);
+		if (!pk) {
+			throw new FibxError(
+				ErrorCode.WALLET_ERROR,
+				"This session has no private key. Run `fibx auth import` to import it again."
+			);
+		}
 		account = privateKeyToAccount(pk as `0x${string}`);
 	} else {
 		const token = session.userJwt;

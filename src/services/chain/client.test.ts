@@ -1,9 +1,12 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { LocalAccount } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { Session } from "../auth/session.js";
 import { SUPPORTED_CHAINS } from "./constants.js";
 import { ErrorCode, FibxError } from "../../lib/errors.js";
+import type * as ConfigModule from "../../lib/config.js";
 
 const mocks = vi.hoisted(() => ({ createWalletConnectProvider: vi.fn(), assertAllowed: vi.fn() }));
 vi.mock("../walletconnect/provider.js", () => ({
@@ -11,7 +14,21 @@ vi.mock("../walletconnect/provider.js", () => ({
 }));
 vi.mock("../policy/enforce.js", () => ({ assertAllowed: mocks.assertAllowed }));
 
+// The private-key path decrypts through the key file, which env-paths would
+// resolve to the developer's real config directory. Point it at a temp dir.
+const { configDir } = await vi.hoisted(async () => {
+	const { mkdtempSync } = await import("node:fs");
+	const { tmpdir } = await import("node:os");
+	const { join: joinPath } = await import("node:path");
+	return { configDir: mkdtempSync(joinPath(tmpdir(), "fibx-client-")) };
+});
+vi.mock("../../lib/config.js", async (importOriginal) => ({
+	...(await importOriginal<typeof ConfigModule>()),
+	paths: { config: configDir },
+}));
+
 const { getWalletClient, managesOwnNonce } = await import("./client.js");
+const { encryptPrivateKey } = await import("../auth/crypto.js");
 
 const BASE = SUPPORTED_CHAINS.base!;
 const ADDRESS = "0x1111111111111111111111111111111111111111";
@@ -24,6 +41,8 @@ const wcSession: Session = {
 };
 
 beforeEach(() => vi.clearAllMocks());
+
+afterEach(() => rmSync(configDir, { recursive: true, force: true }));
 
 describe("getWalletClient — walletconnect", () => {
 	it("routes transactions through the provider as eth_sendTransaction", async () => {
@@ -187,5 +206,61 @@ describe("policy enforcement on the account paths", () => {
 			to: "0x2222222222222222222222222222222222222222",
 			value: 7n,
 		});
+	});
+});
+
+/**
+ * getPrivateKey used to swallow a decryption failure and return null, and this
+ * path then fell through to the Privy branch: a user with an imported key and a
+ * damaged key file was told "Session JWT missing. Run `fibx auth login`".
+ */
+describe("getWalletClient — an imported key that cannot be decrypted", () => {
+	const PRIVATE_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+	const KEY_FILE = join(configDir, "encryption-key");
+	const previousSecret = process.env.FIBX_SESSION_SECRET;
+
+	beforeEach(() => delete process.env.FIBX_SESSION_SECRET);
+	afterEach(() => {
+		if (previousSecret === undefined) delete process.env.FIBX_SESSION_SECRET;
+		else process.env.FIBX_SESSION_SECRET = previousSecret;
+	});
+
+	function importedSession(): Session {
+		mkdirSync(configDir, { recursive: true });
+		writeFileSync(KEY_FILE, "a".repeat(64));
+		return {
+			walletAddress: privateKeyToAccount(PRIVATE_KEY).address,
+			createdAt: "2026-08-29T00:00:00.000Z",
+			type: "private-key",
+			encryptedPrivateKey: encryptPrivateKey(PRIVATE_KEY),
+		};
+	}
+
+	it("reports DECRYPTION_FAILED naming the key file, not a Privy login error", async () => {
+		const session = importedSession();
+		writeFileSync(KEY_FILE, "b".repeat(64)); // a different, valid key
+
+		const attempt = getWalletClient(session, BASE);
+
+		await expect(attempt).rejects.toMatchObject({ code: ErrorCode.DECRYPTION_FAILED });
+		await expect(attempt).rejects.toThrow(KEY_FILE);
+		await expect(attempt).rejects.not.toThrow(/auth login|JWT/);
+	});
+
+	it("leaves a damaged key file as it found it", async () => {
+		const session = importedSession();
+		writeFileSync(KEY_FILE, "not a key");
+
+		await expect(getWalletClient(session, BASE)).rejects.toMatchObject({
+			code: ErrorCode.DECRYPTION_FAILED,
+		});
+		expect(readFileSync(KEY_FILE, "utf-8")).toBe("not a key");
+	});
+
+	it("still signs when the key file is intact", async () => {
+		mocks.assertAllowed.mockImplementation(() => {});
+		const client = await getWalletClient(importedSession(), BASE);
+
+		expect(client.account.address).toBe(privateKeyToAccount(PRIVATE_KEY).address);
 	});
 });
