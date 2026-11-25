@@ -99,10 +99,6 @@ export async function getPortfolio(): Promise<Portfolio> {
 	}
 
 	const wallet = session.walletAddress as Address;
-	// The offered tuple, not the structural table: SUPPORTED_CHAINS keeps a
-	// withdrawn chain's row so old references still resolve, and getChainConfig
-	// refuses it — synchronously, while this array is still being built, which
-	// took the whole portfolio down with it after Citrea was withdrawn.
 	const chainNames = CHAIN_NAMES;
 
 	const results = await Promise.allSettled([

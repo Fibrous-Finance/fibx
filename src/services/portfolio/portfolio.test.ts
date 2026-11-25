@@ -4,8 +4,7 @@ import type * as Constants from "../chain/constants.js";
 // Every network-facing module is replaced so nothing here reaches an RPC, and
 // the session module is replaced outright so nothing reaches the developer's
 // real config directory. The chain constants are deliberately NOT replaced:
-// getChainConfig's refusal of a withdrawn chain is the real behaviour under
-// test, so it is only wrapped, never stubbed.
+// they are only wrapped, so the lookups the portfolio makes are recorded.
 const mocks = vi.hoisted(() => ({
 	loadSession: vi.fn(),
 	getChainConfig: vi.fn(),
@@ -47,23 +46,8 @@ beforeEach(() => {
 });
 
 describe("getPortfolio across chains", () => {
-	/**
-	 * Regression. The chain list used to be derived from SUPPORTED_CHAINS, the
-	 * structural table that deliberately keeps a withdrawn chain's row so old
-	 * references still resolve. After Citrea was withdrawn, getChainConfig began
-	 * refusing it — and that refusal fired synchronously while the
-	 * Promise.allSettled array was still being built, so one withdrawn chain
-	 * took the whole cross-chain portfolio down with it. Shipped in 0.9.0.
-	 */
-	it("never looks up a chain that is not offered", async () => {
-		await expect(getPortfolio()).resolves.toBeDefined();
-
-		const lookedUp = mocks.getChainConfig.mock.calls.map(([name]) => name);
-		expect(lookedUp).not.toContain("citrea");
-	});
-
 	// The offered tuple is the one source of truth for "which chains do we
-	// serve"; the portfolio must read that, not the structural table.
+	// serve"; the portfolio must read that.
 	it("looks up exactly the offered chains, in order", async () => {
 		await getPortfolio();
 

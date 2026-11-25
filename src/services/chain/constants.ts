@@ -5,23 +5,6 @@ import { base } from "viem/chains";
 import { baseRouterAbi } from "../fibrous/abi/base.js";
 import { standardRouterAbi } from "../fibrous/abi/standard.js";
 
-export const citrea = defineChain({
-	id: 4114,
-	name: "Citrea Mainnet",
-	nativeCurrency: { name: "Citrea Bitcoin", symbol: "cBTC", decimals: 18 },
-	rpcUrls: {
-		default: { http: ["https://rpc.mainnet.citrea.xyz"] },
-	},
-	blockExplorers: {
-		default: {
-			name: "Citrea Explorer",
-			url: "https://explorer.mainnet.citrea.xyz",
-			apiUrl: "https://explorer.mainnet.citrea.xyz/api",
-		},
-	},
-	testnet: false,
-});
-
 export const hyperevm = defineChain({
 	id: 999,
 	name: "HyperEVM",
@@ -84,14 +67,8 @@ export interface ChainConfig {
  * `chain` enum from this and getChainConfig gates on it, so adding a chain here
  * surfaces it everywhere and removing one withdraws it everywhere.
  *
- * Withdrawing a chain leaves its row in SUPPORTED_CHAINS below. The code to
- * talk to it — viem chain definition, router ABI, RPC — stays; it just stops
- * being offered. This is a literal rather than a filter over SUPPORTED_CHAINS
- * because ChainEnum needs the tuple type to build the MCP enum.
- *
- * Citrea was withdrawn on 2026-08-29: Fibrous delisted it upstream on
- * 2026-08-10 and took its router (502 on every path) and graph service (404)
- * down with it, so quotes, trades and balances cannot work there.
+ * This is a literal rather than a filter over SUPPORTED_CHAINS because
+ * ChainEnum needs the tuple type to build the MCP enum.
  */
 export const CHAIN_NAMES = ["base", "hyperevm", "monad"] as const;
 export type ChainName = (typeof CHAIN_NAMES)[number];
@@ -100,11 +77,7 @@ function isOffered(network: string): network is ChainName {
 	return (CHAIN_NAMES as readonly string[]).includes(network);
 }
 
-/**
- * Every chain this codebase knows how to talk to, offered or not. Structural:
- * keyed lookups resolve through it, and a withdrawn chain needs its row to
- * exist for anything still holding a reference to it.
- */
+/** Connection details for every offered chain, keyed by chain name. */
 export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
 	base: {
 		id: 8453,
@@ -116,18 +89,6 @@ export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
 		wrappedNativeAddress: "0x4200000000000000000000000000000000000006",
 		fibrousNetwork: "base",
 		routerAbi: baseRouterAbi,
-		routerAddress: FIBROUS_ROUTER,
-	},
-	citrea: {
-		id: 4114,
-		name: "citrea",
-		nativeSymbol: "cBTC",
-		viemChain: citrea,
-		rpcUrl: "https://rpc.mainnet.citrea.xyz",
-		nativeTokenAddress: "0x0000000000000000000000000000000000000000",
-		wrappedNativeAddress: "0x3100000000000000000000000000000000000006",
-		fibrousNetwork: "citrea",
-		routerAbi: standardRouterAbi,
 		routerAddress: FIBROUS_ROUTER,
 	},
 	hyperevm: {
