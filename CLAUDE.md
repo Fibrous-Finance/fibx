@@ -184,12 +184,3 @@ Four repositories under `Fibrous-Finance`:
 3. **fibx-telegram-bot** — Telegraf, bring-your-own-key, one isolated MCP
    process per user.
 4. **fibx-skills** — prompt-based `SKILL.md` files.
-
-Citrea was delisted by Fibrous on 2026-08-10 and withdrawn from all four on
-2026-08-29. The pattern to follow for a delisting: the code stays, the offer is
-withdrawn — `CHAIN_NAMES` is a literal (zod's `z.enum` needs a tuple type),
-`SUPPORTED_CHAINS` keeps every row, and `getChainConfig` gates on what is
-offered. One leak remains: `fibx config set-rpc` and the `config_action` tool
-still test `SUPPORTED_CHAINS[chain]`, so they accept and list Citrea
-(`src/commands/config/index.ts`, `src/mcp/handlers/auth.ts`); they should use
-`isOffered()`.

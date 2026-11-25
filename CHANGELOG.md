@@ -40,6 +40,12 @@ contract.
   too. A simulated wrap or unwrap estimates gas on both surfaces, and
   `swap_tokens` adds `estimatedGas` to that preview.
 
+### Removed
+
+- **Citrea.** The chain definition, its config row and its RPC are gone; it
+  had not been offered since 0.10.0. `fibx config set-rpc`, `fibx config` and
+  the `config_action` tool no longer accept or list it.
+
 ### Fixed
 
 - **The encryption key file is never replaced.** When it did not hold a valid

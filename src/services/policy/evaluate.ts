@@ -9,10 +9,8 @@ function refuse(rule: string, message: string): PolicyVerdict {
 }
 
 /**
- * The per-chain rules are keyed by offered chain name, and the schema now
- * refuses any other key. A transaction on a chain FibX still knows how to talk
- * to but no longer offers (citrea) therefore has no per-chain rule to find —
- * the same outcome as before, said explicitly rather than by a failed lookup.
+ * The per-chain rules are keyed by offered chain name, and the schema refuses
+ * any other key, so a transaction on any other chain has no per-chain rule.
  */
 function chainKey(chain: string): ChainName | null {
 	return (CHAIN_NAMES as readonly string[]).includes(chain) ? (chain as ChainName) : null;
